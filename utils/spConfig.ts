@@ -1,22 +1,18 @@
-import { spfi, SPFx } from "@pnp/sp";
-import { LogLevel, PnPLogging } from "@pnp/logging";
+import { sp } from "@pnp/sp";
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/items";
 import "@pnp/sp/batching";
 
-// This function initializes the SharePoint client
-export const getSP = (context?: any) => {
-  // When running in SharePoint Framework, use the provided context
-  if (context) {
-    // Use numeric value instead of enum
-    return spfi().using(SPFx(context)).using(PnPLogging(2)); // 2 is LogLevel.Warning
-  }
-  
-  // When running in standalone mode (like local dev)
-  // You'll need to update this URL to your actual SharePoint site
-  return spfi("https://spi-u.intranet.bs.ch/JSD/QMServices/Roadmap/roadmapapp")
-    .using(PnPLogging(2)); // 2 is LogLevel.Warning
+// This function initializes the SharePoint client using env-based site selection
+export const getSP = () => {
+  const env = process.env.NEXT_PUBLIC_DEPLOYMENT_ENV || process.env.NODE_ENV || 'development';
+  const devSite = process.env.NEXT_PUBLIC_SHAREPOINT_SITE_URL_DEV || 'https://spi-u.intranet.bs.ch/JSD/QMServices/Roadmap';
+  const prodSite = process.env.NEXT_PUBLIC_SHAREPOINT_SITE_URL_PROD || devSite;
+  const baseUrl = (env === 'production' ? prodSite : devSite).replace(/\/$/, '');
+  // Configure base URL once per process
+  sp.setup({ sp: { baseUrl } });
+  return sp;
 };
 
 // SharePoint list names - define all your lists here

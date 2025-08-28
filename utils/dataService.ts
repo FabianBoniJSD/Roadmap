@@ -1,5 +1,4 @@
 import { getSP, SP_LISTS } from './spConfig';
-import { SPFI } from '@pnp/sp';
 import "@pnp/sp/items/get-all";
 
 // Project model types to match your current schema
@@ -48,10 +47,10 @@ export interface TeamMember {
 }
 
 export class SharePointDataService {
-  private sp: SPFI;
+  private sp: any;
   
   constructor(context?: any) {
-    this.sp = getSP(context);
+  this.sp = getSP();
   }
 
   // PROJECT OPERATIONS

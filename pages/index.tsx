@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import Roadmap from '../components/Roadmap';
 import { clientDataService } from '../utils/clientDataService';
 import { Project } from '../types'; // Import the Project interface
-import { Triangle } from 'react-loader-spinner'
 
 const HomePage: React.FC = () => {
   // Properly type the state as Project[]
@@ -27,15 +26,7 @@ const HomePage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <Triangle
-          visible={true}
-          height="80"
-          width="80"
-          color="#60a5fa"
-          ariaLabel="triangle-loading"
-          wrapperStyle={{}}
-          wrapperClass=""
-        />
+        "loading"
       </div>
     );
   }

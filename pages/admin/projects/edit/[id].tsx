@@ -6,7 +6,7 @@ import ProjectForm from '../../../../components/ProjectForm';
 import withAdminAuth from '@/components/withAdminAuth';
 import { clientDataService } from '@/utils/clientDataService';
 import { Project, Category, TeamMember } from '@/types';
-import { Triangle } from 'react-loader-spinner';
+
 
 const EditProjectPage: React.FC = () => {
   const router = useRouter();
