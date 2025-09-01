@@ -1,5 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import prisma from '../../../lib/prisma'
 import * as bcrypt from 'bcrypt'
 
 export default async function handler(
@@ -18,36 +17,33 @@ export default async function handler(
       return res.status(400).json({ error: 'Email and password are required' })
     }
 
-    // Find the user by email
-    const user = await prisma.user.findUnique({
-      where: { email },
-    })
+    // Static admin credentials via env (hash optional)
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com'
+    const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH // bcrypt hash
+    const adminPasswordPlain = process.env.ADMIN_PASSWORD // fallback plain text (avoid in prod)
 
-    if (!user) {
+    if (email !== adminEmail) {
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
-    // Compare the provided password with the stored hash
-    const passwordMatch = await bcrypt.compare(password, user.password)
+    let valid = false
+    if (adminPasswordHash) {
+      valid = await bcrypt.compare(password, adminPasswordHash)
+    } else if (adminPasswordPlain) {
+      valid = password === adminPasswordPlain
+    }
 
-    if (!passwordMatch) {
+    if (!valid) {
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
-    // Check if user is an admin
-    if (user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Unauthorized access' })
-    }
-
-    // In a real app, you would generate a JWT token here
-    // For simplicity, we'll just return success
     res.status(200).json({
       success: true,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
+        id: 'admin',
+        email: adminEmail,
+        name: 'Admin',
+        role: 'ADMIN',
       },
     })
   } catch (error) {

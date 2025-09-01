@@ -1,13 +1,16 @@
-import { spfi } from "@pnp/sp";
-import "@pnp/sp/webs";
-import "@pnp/sp/lists";
-import "@pnp/sp/fields";
+// Dynamic ESM imports to avoid CommonJS/ESM conflict under NodeNext when executed as a standalone script
 import { SP_LISTS } from "../utils/spConfig";
 
 // You'll need to authenticate this script with appropriate credentials
 // This is just a template - you'd need to run this with proper authentication
 async function setupSharePointLists() {
-  const sp = spfi("https://spi-u.intranet.bs.ch/JSD/QMServices/Roadmap/roadmap-app");
+  const { spfi } = await import("@pnp/sp");
+  await import("@pnp/sp/webs");
+  await import("@pnp/sp/lists");
+  await import("@pnp/sp/fields");
+
+  const siteUrl = process.env.SHAREPOINT_SITE_URL || "https://spi-u.intranet.bs.ch/JSD/QMServices/Roadmap/roadmap-app";
+  const sp = spfi(siteUrl);
   
   try {
     // Create Projects list

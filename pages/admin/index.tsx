@@ -5,6 +5,7 @@ import { clientDataService } from '@/utils/clientDataService';
 import { hasAdminAccess } from '@/utils/auth';
 import withAdminAuth from '@/components/withAdminAuth';
 import { AppSettings, Category, Project } from '@/types';
+import { Triangle } from 'react-loader-spinner';
 
 
 const AdminPage: React.FC = () => {
