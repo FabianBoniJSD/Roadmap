@@ -208,7 +208,6 @@ export async function isAuthenticated(): Promise<boolean> {
 // Check if the user has admin access
 export async function hasAdminAccess(): Promise<boolean> {
   try {
-    const { clientDataService } = await import('./clientDataService.js');
     return await clientDataService.isCurrentUserAdmin();
   } catch (error) {
     console.error('Admin check failed:', error);

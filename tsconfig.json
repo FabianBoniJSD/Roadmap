@@ -37,6 +37,9 @@
   ],
   "exclude": [
   "node_modules",
-  "scripts"
+  "scripts",
+  "utils/dataService.ts",
+  "utils/authService.ts",
+  "utils/spConfig.ts"
   ]
 }

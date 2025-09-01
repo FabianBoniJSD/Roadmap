@@ -270,7 +270,7 @@ class ClientDataService {
                 endQuarter: item.EndQuarter,
                 description: item.Description || '',
                 status: (item.Status?.toLowerCase() || 'planned') as 'planned' | 'in-progress' | 'completed',
-                ProjectFields: projectFields || '',
+                ProjectFields: projectFields || [],
                 projektleitung: item.Projektleitung || '',
                 projektleitungImageUrl: null as string | null,
                 teamMembers: teamMembers,
