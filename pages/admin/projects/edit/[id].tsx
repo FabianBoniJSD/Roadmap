@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { Triangle } from 'react-loader-spinner';
 import ProjectForm from '../../../../components/ProjectForm';
 import withAdminAuth from '@/components/withAdminAuth';
 import { clientDataService } from '@/utils/clientDataService';
@@ -219,15 +218,7 @@ const EditProjectPage: React.FC = () => {
         <div className="bg-gray-800 rounded-lg shadow p-6">
           {loading ? (
             <div className="text-center py-8">
-              <Triangle
-                visible={true}
-                height="80"
-                width="80"
-                color="#60a5fa"
-                ariaLabel="triangle-loading"
-                wrapperStyle={{}}
-                wrapperClass=""
-              />
+              <div className="text-xl">Loading...</div>
             </div>
           ) : id && typeof id === 'string' && project ? (
             <ProjectForm

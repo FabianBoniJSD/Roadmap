@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import CategoryForm from '../../../../components/CategoryForm';
 import { clientDataService } from '@/utils/clientDataService';
-import { toast } from 'react-toastify';
 import withAdminAuth from '@/components/withAdminAuth';
 import { Category } from '@/types';
 
@@ -21,12 +20,12 @@ const EditCategoryPage: React.FC = () => {
       if (data) {
         setCategory(data);
       } else {
-        toast.error('Category not found');
+        console.error('Category not found');
         router.push('/admin');
       }
     } catch (error) {
       console.error('Error fetching category:', error);
-      toast.error('Failed to load category');
+      console.error('Failed to load category');
       router.push('/admin');
     } finally {
       setLoading(false);
