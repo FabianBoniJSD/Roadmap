@@ -1,4 +1,5 @@
 import { AppSettings, Category, Field, Project, ProjectLink, TeamMember } from "@/types";
+import { resolveSharePointSiteUrl } from "./sharepointEnv";
 
 // SharePoint list names
 const SP_LISTS = {
@@ -20,34 +21,7 @@ class ClientDataService {
     private requestDigestCache: { value: string; expiration: number } | null = null;
 
     private getWebUrl(): string {
-        // For development/testing with a hardcoded URL that matches your environment
-        if (process.env.NODE_ENV === 'development') {
-            return 'https://spi-u.intranet.bs.ch/JSD/QMServices/Roadmap';
-        }
-
-        // For production, try to derive from the current URL
-        // This assumes your app is deployed to the SharePoint site
-        try {
-            const origin = window.location.origin;
-            const pathSegments = window.location.pathname.split('/');
-
-            // Find the index of 'Roadmap' in the path
-            const roadmapIndex = pathSegments.findIndex(segment =>
-                segment.toLowerCase() === 'roadmap' ||
-                segment.toLowerCase() === 'roadmap-app'
-            );
-
-            if (roadmapIndex !== -1) {
-                // Construct the path up to and including 'Roadmap'
-                const sitePath = pathSegments.slice(0, roadmapIndex + 1).join('/');
-                return origin + sitePath;
-            }
-        } catch (error) {
-            console.error('Error determining SharePoint web URL:', error);
-        }
-
-        // Fallback to the hardcoded path
-        return 'https://spi-u.intranet.bs.ch/JSD/QMServices/Roadmap';
+        return resolveSharePointSiteUrl();
     }
 
     private async getRequestDigest(): Promise<string> {
