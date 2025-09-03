@@ -1,10 +1,27 @@
+const deploymentEnv = process.env.NEXT_PUBLIC_DEPLOYMENT_ENV || process.env.NODE_ENV || 'development';
+const resolvedBasePath = deploymentEnv === 'production'
+  ? (process.env.NEXT_PUBLIC_BASE_PATH_PROD || '/JSD/QMServices/Roadmap/roadmapapp')
+  : (process.env.NEXT_PUBLIC_BASE_PATH_DEV || '');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Removed static export to enable API routes
-  images: { unoptimized: true }, // keep if you still deploy where Image Optimization isn't available
+  images: { unoptimized: true },
   trailingSlash: true,
-  basePath: process.env.NODE_ENV === 'production' ? '/JSD/QMServices/Roadmap/roadmapapp' : '',
+  basePath: resolvedBasePath.replace(/\/$/, ''),
+  async redirects() {
+    // Redirect root '/' to the basePath when basePath is set (production) to avoid 404
+    if (resolvedBasePath && resolvedBasePath !== '/') {
+      return [
+        {
+          source: '/',
+          destination: resolvedBasePath.endsWith('/') ? resolvedBasePath : `${resolvedBasePath}/`,
+          permanent: false,
+        },
+      ];
+    }
+    return [];
+  },
 };
 
 export default nextConfig;
