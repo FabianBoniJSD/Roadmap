@@ -7,12 +7,19 @@ export async function getSharePointAuthHeaders(): Promise<Record<string,string>>
 
   // Build credentials object based on strategy
   let creds: any;
-  if (strategy === 'online') {
-    creds = { username: process.env.SP_USERNAME, password: process.env.SP_PASSWORD }; // SPO credentials
-  } else if (strategy === 'onprem-ntlm') {
-    creds = { username: process.env.SP_USERNAME, password: process.env.SP_PASSWORD, domain: process.env.SP_ONPREM_DOMAIN }; // NTLM
-  } else {
-    throw new Error(`Unsupported SP_STRATEGY: ${strategy}`);
+  switch (strategy) {
+    case 'online':
+      creds = { username: process.env.SP_USERNAME, password: process.env.SP_PASSWORD };
+      break;
+    case 'onprem-ntlm':
+      creds = { username: process.env.SP_USERNAME, password: process.env.SP_PASSWORD, domain: process.env.SP_ONPREM_DOMAIN };
+      break;
+    case 'onprem-userpass':
+      // Classic on-prem user/pass (claims) typically same shape as NTLM but without domain if not needed
+      creds = { username: process.env.SP_USERNAME, password: process.env.SP_PASSWORD, domain: process.env.SP_ONPREM_DOMAIN };
+      break;
+    default:
+      throw new Error(`Unsupported SP_STRATEGY: ${strategy}`);
   }
 
   const auth = await getAuth(siteUrl, creds);
