@@ -21,7 +21,8 @@ class ClientDataService {
     private requestDigestCache: { value: string; expiration: number } | null = null;
 
     private getWebUrl(): string {
-        return resolveSharePointSiteUrl();
+        // Route all SharePoint REST calls through Next.js API proxy to avoid CORS
+        return '/api/sharepoint';
     }
 
     private async getRequestDigest(): Promise<string> {
@@ -73,7 +74,7 @@ class ClientDataService {
     }
 
     private async fetchFromSharePoint(listName: string, select: string = '*'): Promise<any[]> {
-        const webUrl = this.getWebUrl();
+        const webUrl = this.getWebUrl(); // '/api/sharepoint'
         const endpoint = `${webUrl}/_api/web/lists/getByTitle('${listName}')/items?$select=${select}`;
 
         try {
@@ -81,8 +82,7 @@ class ClientDataService {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json;odata=nometadata'
-                },
-                credentials: 'same-origin'
+                }
             });
 
             if (!response.ok) {

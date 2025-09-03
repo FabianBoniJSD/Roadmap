@@ -9,6 +9,7 @@ const nextConfig = {
   images: { unoptimized: true },
   trailingSlash: true,
   basePath: resolvedBasePath.replace(/\/$/, ''),
+  assetPrefix: resolvedBasePath ? resolvedBasePath.replace(/\/$/, '') + '/' : undefined,
   async redirects() {
     // Redirect root '/' to the basePath when basePath is set (production) to avoid 404
     if (resolvedBasePath && resolvedBasePath !== '/') {
