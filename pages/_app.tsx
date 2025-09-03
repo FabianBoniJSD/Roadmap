@@ -17,6 +17,29 @@ function MyApp({ Component, pageProps }: AppProps): JSX.Element {
         initializeIcons();
         customWindow.__fluentUIIconsInitialized = true;
       }
+
+      // Temporary fetch monkey patch to reroute any lingering absolute SharePoint REST calls via proxy (CORS bypass)
+      const SP_HOST = 'https://spi-u.intranet.bs.ch';
+      if (!(window as any).__spFetchPatched) {
+        const originalFetch = window.fetch.bind(window);
+        (window as any).__spFetchPatched = true;
+        window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+          try {
+            if (typeof input === 'string' && input.startsWith(SP_HOST)) {
+              const idx = input.indexOf('/_api/');
+              if (idx > -1) {
+                const apiSuffix = input.substring(idx); // _api/...
+                // Build proxy path
+                const proxyUrl = '/api/sharepoint/' + apiSuffix.replace(/^_api\//, '_api/');
+                return originalFetch(proxyUrl, init);
+              }
+            }
+          } catch (e) {
+            // swallow and fall through
+          }
+          return originalFetch(input as any, init);
+        };
+      }
     }
   }, []);
   

@@ -201,8 +201,7 @@ class ClientDataService {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json;odata=nometadata'
-                },
-                credentials: 'same-origin'
+                }
             });
 
             if (!response.ok) {
