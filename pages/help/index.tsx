@@ -1,9 +1,12 @@
 import Link from 'next/link';
+import Nav from '@/components/Nav';
+import Footer from '@/components/Footer';
 
 export default function HelpHome() {
   return (
     <main className="min-h-screen bg-gray-900 text-white">
-      <div className="max-w-4xl mx-auto p-6 space-y-8">
+      <Nav currentPage="doc" />
+      <div className="pt-20 max-w-4xl mx-auto p-6 space-y-8">
         <header className="space-y-2">
           <h1 className="text-4xl font-black">🚀 Roadmap Hilfe</h1>
           <p className="text-gray-300">Kurze, bildhafte Anleitungen für alle – ohne Techniksprech.</p>
@@ -13,6 +16,7 @@ export default function HelpHome() {
           <Card title="Erste Schritte" emoji="✨" href="/help/erste-schritte" desc="In 3 Minuten startklar: Überblick, Navigation, Suche." />
           <Card title="Projekte ansehen" emoji="👀" href="/help/projekte-ansehen" desc="Filter, Kategorien, Legende & Details verstehen." />
           <Card title="Projekte melden" emoji="📝" href="/help/projekte-melden" desc="So reichen Sie neue Infos oder Wünsche ein." />
+          <Card title="Admin Hilfe" emoji="🛡️" href="/help/admin" desc="Projekte, Kategorien, Design & Rechte verwalten." />
           <Card title="FAQ" emoji="❓" href="/help/faq" desc="Die häufigsten Fragen – kurz & bündig." />
         </section>
 
@@ -20,6 +24,7 @@ export default function HelpHome() {
           Brauchen Sie Hilfe? Schreiben Sie uns: <a className="text-blue-400 underline" href="mailto:roadmap@jsd.bs.ch">roadmap@jsd.bs.ch</a>
         </footer>
       </div>
+      <Footer />
     </main>
   );
 }

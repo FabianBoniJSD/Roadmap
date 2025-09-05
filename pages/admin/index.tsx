@@ -213,6 +213,11 @@ const AdminPage: React.FC = () => {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Admin Dashboard</h1>
           <div className="flex space-x-4">
+            <Link href="/help/admin">
+              <button className="bg-blue-700 hover:bg-blue-600 text-white py-2 px-4 rounded">
+                Admin Hilfe
+              </button>
+            </Link>
             <Link href="/">
               <button className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded">
                 Zurück zu Roadmap

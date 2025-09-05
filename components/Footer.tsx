@@ -44,7 +44,7 @@ const Footer: React.FC<FooterProps> = ({ version = 'Beta' }) => {
               <h4 className="text-xs md:text-sm font-medium text-gray-300 mb-1">Ressourcen</h4>
               <div className="flex flex-col space-y-1">
                 <Link href="/admin" className="text-xs text-gray-400 hover:text-yellow-400 transition-colors">Admin</Link>
-                <Link href="/docs/pages" className="text-xs text-gray-400 hover:text-yellow-400 transition-colors">Dokumentation</Link>
+                <Link href="/help" className="text-xs text-gray-400 hover:text-yellow-400 transition-colors">Hilfe</Link>
               </div>
             </div>
 

@@ -1,9 +1,12 @@
 import Link from 'next/link';
+import Nav from '@/components/Nav';
+import Footer from '@/components/Footer';
 
 export default function ProjekteAnsehen() {
   return (
     <main className="min-h-screen bg-gray-900 text-white">
-      <div className="max-w-3xl mx-auto p-6 space-y-8">
+      <Nav currentPage="doc" />
+      <div className="pt-20 max-w-3xl mx-auto p-6 space-y-8">
         <header className="space-y-2">
           <h1 className="text-3xl font-black">👀 Projekte ansehen</h1>
           <p className="text-gray-300">Alles auf einen Blick – mit Farben, Symbolen und kurzen Texten.</p>
@@ -34,6 +37,7 @@ export default function ProjekteAnsehen() {
           Zurück zur <Link href="/help" className="text-blue-400 underline">Hilfe-Übersicht</Link>
         </footer>
       </div>
+      <Footer />
     </main>
   );
 }
