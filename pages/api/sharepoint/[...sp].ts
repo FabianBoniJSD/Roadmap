@@ -33,7 +33,7 @@ async function getDigest(site: string, authHeaders: Record<string,string>): Prom
   if (digestCache && digestCache.expires > now) return digestCache.value;
   const r = await fetch(site.replace(/\/$/,'') + '/_api/contextinfo', {
     method: 'POST',
-    headers: { 'Accept': 'application/json;odata=nometadata', ...authHeaders },
+    headers: { 'Accept': 'application/json;odata=nometadata', 'Content-Length': '0', ...authHeaders },
     // @ts-ignore undici fetch supports dispatcher
     dispatcher: sharePointDispatcher ?? undefined,
     // Fallback for older node-fetch semantics (should be ignored by undici)
