@@ -31,6 +31,14 @@ function isAllowedPath(path: string) {
   if (cleaned === '/_api/contextinfo') return true;
   // Allow current user lookup for authentication checks
   if (cleaned === '/_api/web/currentuser') return true;
+  // Allow People Picker API used by admin search
+  if (/^\/_api\/SP\.UI\.ApplicationPages\.ClientPeoplePickerWebServiceInterface\.clientPeoplePickerSearchUser$/i.test(cleaned)) return true;
+  // Allow SharePoint User Profiles properties lookup
+  if (/^\/_api\/SP\.UserProfiles\.PeopleManager\/GetPropertiesFor\(/i.test(cleaned)) return true;
+  // Allow userphoto handler for profile images
+  if (/^\/_layouts\/15\/userphoto\.aspx/i.test(cleaned)) return true;
+  // Allow People Picker API used by admin user search
+  if (/^\/_api\/SP\.UI\.ApplicationPages\.ClientPeoplePickerWebServiceInterface\.clientPeoplePickerSearchUser$/i.test(cleaned)) return true;
   // Optional debug allowance to enumerate lists (avoids needing a specific list) ONLY when SP_PROXY_DEBUG enabled
   // @ts-ignore
   if (process.env.SP_PROXY_DEBUG === 'true' && cleaned === '/_api/web/lists') return true;
@@ -92,7 +100,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Optional curl path (replicates working system curl NTLM handshake). Enabled via SP_USE_CURL=true
-    if (process.env.SP_USE_CURL === 'true') {
+  if (process.env.SP_USE_CURL === 'true') {
       const username = process.env.SP_USERNAME || '';
       const password = process.env.SP_PASSWORD || '';
       if (!username || !password) return res.status(500).json({ error: 'Missing SP_USERNAME/SP_PASSWORD for curl mode' });
@@ -109,36 +117,84 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(200).json({ ...ent.payload, mode: 'curl', cached: true });
         }
       }
-      // Handle POST (contextinfo or list operations) minimal implementation
+      // Handle non-GET. Treat HEAD as safe (no digest) and not a write.
       if (req.method !== 'GET') {
         const isContextInfo = /_api\/contextinfo/i.test(fullPath);
         const method = req.method.toUpperCase();
-        const curlArgs: string[] = ['-sS', '--ntlm', '--user', cred, '-X', method, '-H', `Accept: ${clientAccept}`];
-        if (isContextInfo || method === 'POST') {
-          // SharePoint expects a body for contextinfo but empty body works
-          curlArgs.push('-H', 'Content-Type: application/json;odata=verbose', '--data', '');
-        } else if (method === 'MERGE' || method === 'PATCH') {
-          curlArgs.push('-H', 'IF-MATCH: *', '-H', 'X-HTTP-Method: MERGE');
-        } else if (method === 'DELETE') {
-          curlArgs.push('-H', 'IF-MATCH: *');
+        if (method === 'HEAD') {
+          const headArgs: string[] = ['-sS', '--ntlm', '--user', cred, '-I', '-H', `Accept: ${clientAccept}`, targetUrl];
+          if (process.env.SP_ALLOW_SELF_SIGNED === 'true') headArgs.unshift('-k');
+          if (process.env.SP_CURL_VERBOSE === 'true') headArgs.unshift('-v');
+          try {
+            const out: { stdout: string; stderr: string } = await new Promise((resolveExec, rejectExec) => {
+              execFile('curl', headArgs, { timeout: 15000 }, (err: any, stdout: string, stderr: string) => {
+                if (err) return rejectExec(Object.assign(err, { stderr }));
+                resolveExec({ stdout, stderr });
+              });
+            });
+            res.setHeader('x-sp-proxy-mode','curl');
+            if (process.env.SP_CURL_VERBOSE==='true') res.setHeader('x-sp-proxy-ntlm','1');
+            return res.status(200).json({ ok: true });
+          } catch (e:any) {
+            return res.status(500).json({ error: 'curl-head-failed', detail: e.message, stderr: e.stderr });
+          }
         }
-        curlArgs.push(targetUrl);
+        // Prepare common args
+        const curlArgs: string[] = ['-sS', '--ntlm', '--user', cred, '-X', method, '-H', `Accept: ${clientAccept}`];
         if (process.env.SP_ALLOW_SELF_SIGNED === 'true') curlArgs.unshift('-k');
         if (process.env.SP_CURL_VERBOSE === 'true') curlArgs.unshift('-v');
-  // @ts-ignore node dynamic require
-  const { execFile } = require('child_process');
+
+        // If not contextinfo, fetch a FormDigest via curl first
+        let formDigest: string | null = null;
+        if (!isContextInfo) {
+          const ciArgs = ['-sS', '--ntlm', '--user', cred, '-X', 'POST'];
+          if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ciArgs.unshift('-k');
+          if (process.env.SP_CURL_VERBOSE === 'true') ciArgs.unshift('-v');
+          ciArgs.push('-H', 'Accept: application/json;odata=nometadata');
+          ciArgs.push(targetUrl.replace(fullPath, '') + '/_api/contextinfo');
+          // contextinfo accepts empty body
+          ciArgs.push('-H', 'Content-Length: 0');
+          try {
+            const ciOut: { stdout: string; stderr: string } = await new Promise((resolveExec, rejectExec) => {
+              execFile('curl', ciArgs, { timeout: 15000 }, (err: any, stdout: string, stderr: string) => {
+                if (err) return rejectExec(Object.assign(err, { stderr }));
+                resolveExec({ stdout, stderr });
+              });
+            });
+            try { const j = JSON.parse(ciOut.stdout); formDigest = j.FormDigestValue || null; } catch { formDigest = null; }
+          } catch (e:any) {
+            // ignore; will attempt without digest (likely fails)
+          }
+        }
+
+        // Honor client method overrides and headers
+        const hdrs: string[] = [];
+        const reqContentType = typeof req.headers['content-type'] === 'string' ? req.headers['content-type'] : 'application/json;odata=verbose';
+        hdrs.push('-H', `Content-Type: ${reqContentType}`);
+        if (formDigest) hdrs.push('-H', `X-RequestDigest: ${formDigest}`);
+        const xHttpMethod = (req.headers['x-http-method'] || req.headers['x-http-method-override']) as string | undefined;
+        if (xHttpMethod) hdrs.push('-H', `X-HTTP-Method: ${xHttpMethod}`);
+        const ifMatch = req.headers['if-match'] as string | undefined;
+        if (ifMatch) hdrs.push('-H', `IF-MATCH: ${ifMatch}`);
+
+        // Body
+        const bodyStr = (req.body && (typeof req.body === 'string' ? req.body : JSON.stringify(req.body))) || '';
+        if (method === 'POST' || method === 'PATCH' || method === 'MERGE' || method === 'DELETE') {
+          hdrs.push('--data', bodyStr);
+        }
+
+        const writeArgs = [...curlArgs, ...hdrs, targetUrl];
         try {
           const output: { stdout: string; stderr: string } = await new Promise((resolveExec, rejectExec) => {
-            execFile('curl', curlArgs, { timeout: 20000 }, (err: any, stdout: string, stderr: string) => {
+            execFile('curl', writeArgs, { timeout: 20000 }, (err: any, stdout: string, stderr: string) => {
               if (err) return rejectExec(Object.assign(err, { stderr }));
               resolveExec({ stdout, stderr });
             });
           });
           let parsed: any = output.stdout;
-            try { parsed = JSON.parse(output.stdout); } catch { /* ignore */ }
+          try { parsed = JSON.parse(output.stdout); } catch { /* ignore */ }
           res.setHeader('x-sp-proxy-mode','curl');
           if (process.env.SP_CURL_VERBOSE==='true') res.setHeader('x-sp-proxy-ntlm','1');
-          // Invalidate cache on any write
           invalidateCurlCache();
           return res.status(200).json(parsed);
         } catch (e: any) {
@@ -227,9 +283,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const isWrite = ['POST','PATCH','MERGE','PUT','DELETE'].includes(method);
     // Forward client's Accept when possible to preserve expected payload shape (nometadata vs verbose)
     const clientAccept = req.headers['accept'];
+    const wantsBinary = apiPath.startsWith('/_layouts/15/userphoto.aspx');
     const headers: Record<string,string> = {
-      'Accept': typeof clientAccept === 'string' ? clientAccept : 'application/json;odata=nometadata',
-      'Content-Type': 'application/json;odata=nometadata',
+      'Accept': wantsBinary ? '*/*' : (typeof clientAccept === 'string' ? clientAccept : 'application/json;odata=nometadata'),
+      // Prefer incoming Content-Type for compatibility with OData verbose when bodies include __metadata
+      'Content-Type': typeof req.headers['content-type'] === 'string' ? String(req.headers['content-type']) : 'application/json;odata=verbose',
       ...authHeaders,
     };
 
@@ -239,11 +297,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) {
         console.warn('Digest retrieval failed', e);
       }
-      // Support MERGE (update) if client sets X-HTTP-Method header externally (we could map here if needed)
-      if (method === 'PATCH') {
+  // Support MERGE (update) if client sets X-HTTP-Method header externally (we could map here if needed)
+  if (method === 'PATCH') {
         headers['IF-MATCH'] = '*';
         headers['X-HTTP-Method'] = 'MERGE';
       }
+  // Forward client-provided X-HTTP-Method/IF-MATCH for POST-based overrides (MERGE/DELETE)
+  const xhm = req.headers['x-http-method'] as string | undefined;
+  if (xhm) headers['X-HTTP-Method'] = xhm;
+  const ifm = req.headers['if-match'] as string | undefined;
+  if (ifm) headers['IF-MATCH'] = ifm;
     }
 
     const effectiveMethod = method === 'PATCH' ? 'POST' : method;

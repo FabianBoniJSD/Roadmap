@@ -476,10 +476,10 @@ class ClientDataService {
             // Get request digest for write operations
             const requestDigest = await this.getRequestDigest();
 
-            const response = await fetch(endpoint, {
+        const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json;odata=nometadata',
+            'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-HTTP-Method': 'DELETE',
                     'IF-MATCH': '*',
@@ -567,10 +567,10 @@ class ClientDataService {
             console.log('Data being sent to SharePoint:', JSON.stringify(body));
 
             // Send the update request to SharePoint
-            const response = await fetch(endpoint, {
+        const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json;odata=nometadata',
+            'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-HTTP-Method': 'MERGE',
                     'IF-MATCH': '*',
@@ -644,10 +644,10 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.CATEGORIES);
 
-            const response = await fetch(endpoint, {
+        const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json;odata=nometadata',
+            'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-RequestDigest': requestDigest
                 },
@@ -667,9 +667,10 @@ class ClientDataService {
             }
 
             const newItem = await response.json();
-
+            const d = newItem?.d || newItem;
+            const newId = (d?.Id ?? d?.ID ?? d?.id);
             return {
-                id: newItem.Id.toString(),
+                id: String(newId),
                 name: categoryData.name,
                 color: categoryData.color,
                 icon: categoryData.icon,
@@ -693,10 +694,10 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.CATEGORIES);
 
-            const response = await fetch(endpoint, {
+        const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json;odata=nometadata',
+            'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-HTTP-Method': 'MERGE',
                     'IF-MATCH': '*',
@@ -910,10 +911,10 @@ class ClientDataService {
 
             console.log('Creating project link with data:', JSON.stringify(requestBody));
 
-            const response = await fetch(endpoint, {
+        const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json;odata=nometadata',
+            'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-RequestDigest': requestDigest
                 },
@@ -942,12 +943,12 @@ class ClientDataService {
             }
 
             const newItem = await response.json();
-
+            const d = newItem?.d || newItem;
             return {
-                id: newItem.Id?.toString() || '',
-                title: newItem.Title || link.title,
-                url: newItem.Url || link.url,
-                projectId: newItem.ProjectId || link.projectId
+                id: (d?.Id ?? d?.ID ?? '').toString(),
+                title: d?.Title || link.title,
+                url: d?.Url || link.url,
+                projectId: d?.ProjectId || link.projectId
             };
         } catch (error) {
             console.error('Error creating project link:', error);
@@ -1003,10 +1004,10 @@ class ClientDataService {
             // Get request digest for write operations
             const requestDigest = await this.getRequestDigest();
 
-            const response = await fetch(endpoint, {
+        const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json;odata=nometadata',
+            'Accept': 'application/json;odata=verbose',
                     'X-HTTP-Method': 'DELETE',
                     'IF-MATCH': '*',
                     'X-RequestDigest': requestDigest
@@ -1028,10 +1029,8 @@ class ClientDataService {
             // Get all links for the project
             const links = await this.getProjectLinks(projectId);
 
-            // Delete each link
-            for (const link of links) {
-                await this.deleteProjectLink(link.id);
-            }
+            // Delete links in parallel to reduce latency
+            await Promise.all(links.map(link => this.deleteProjectLink(link.id)));
         } catch (error) {
             console.error(`Error deleting links for project ${projectId}:`, error);
             throw error;
@@ -1095,7 +1094,7 @@ class ClientDataService {
 
             // Prepare headers
             const headers: Record<string, string> = {
-                'Accept': 'application/json;odata=nometadata',
+                'Accept': 'application/json;odata=verbose',
                 'Content-Type': 'application/json;odata=verbose',
                 'X-RequestDigest': requestDigest
             };
@@ -1150,9 +1149,11 @@ class ClientDataService {
 
             if (isNewProject) {
                 const newItem = await response.json();
+                const d = newItem?.d || newItem;
+                const newId = (d?.Id ?? d?.ID ?? d?.id);
                 savedProject = {
                     ...projectData,
-                    id: newItem.Id.toString(),
+                    id: String(newId),
                     links: [],
                     teamMembers: []
                 };
@@ -1169,17 +1170,12 @@ class ClientDataService {
             if (links && links.length > 0) {
                 // Delete existing links
                 await this.deleteProjectLinks(savedProject.id);
-
-                // Create new links
-                for (const link of links) {
-                    await this.createProjectLink({
-                        title: link.title,
-                        url: link.url,
-                        projectId: savedProject.id
-                    });
-                }
-
-                // Add links to returned project
+                // Create new links in parallel
+                await Promise.all(links.map(link => this.createProjectLink({
+                    title: link.title,
+                    url: link.url,
+                    projectId: savedProject.id
+                })));
                 savedProject.links = links;
             }
 
@@ -1236,20 +1232,9 @@ class ClientDataService {
                 return userData.d.PictureUrl;
             }
 
-            // Alternative: Try to directly access the profile picture
+            // Alternative: Return the userphoto handler URL directly; avoid extra HEAD probe
             const pictureUrl = `${webUrl}/_layouts/15/userphoto.aspx?size=L&accountname=${encodeURIComponent(userNameOrEmail)}`;
-
-            // Verify if the image exists by making a HEAD request
-            const imageCheck = await fetch(pictureUrl, {
-                method: 'HEAD',
-                credentials: 'same-origin'
-            });
-
-            if (imageCheck.ok) {
-                return pictureUrl;
-            }
-
-            return null;
+            return pictureUrl;
         } catch (error) {
             console.warn(`Error getting profile picture for ${userNameOrEmail}:`, error);
             return null;
@@ -1314,12 +1299,8 @@ class ClientDataService {
             // Get all team members for the project
             const teamMembers = await this.getTeamMembersForProject(projectId);
 
-            // Delete each team member
-            for (const member of teamMembers) {
-                if (member.id) {
-                    await this.deleteTeamMember(member.id);
-                }
-            }
+            // Delete team members in parallel
+            await Promise.all(teamMembers.filter(m => m.id).map(m => this.deleteTeamMember(m.id!)));
         } catch (error) {
             console.error(`Error deleting team members for project ${projectId}:`, error);
             throw error;
@@ -1337,10 +1318,10 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.TEAM_MEMBERS);
 
-            const response = await fetch(endpoint, {
+        const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json;odata=nometadata',
+            'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-RequestDigest': requestDigest
                 },
@@ -1358,9 +1339,9 @@ class ClientDataService {
             }
 
             const newItem = await response.json();
-
+            const d2 = newItem?.d || newItem;
             return {
-                id: newItem.Id.toString(),
+                id: String(d2?.Id ?? d2?.ID ?? d2?.id),
                 name: teamMemberData.name,
                 role: teamMemberData.role,
                 projectId: teamMemberData.projectId
@@ -1379,10 +1360,10 @@ class ClientDataService {
             // Get request digest for write operations
             const requestDigest = await this.getRequestDigest();
 
-            const response = await fetch(endpoint, {
+        const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json;odata=nometadata',
+            'Accept': 'application/json;odata=verbose',
                     'X-HTTP-Method': 'DELETE',
                     'IF-MATCH': '*',
                     'X-RequestDigest': requestDigest
