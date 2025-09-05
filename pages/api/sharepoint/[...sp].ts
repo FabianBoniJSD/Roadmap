@@ -101,6 +101,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     res.status(spResp.status).json(payload);
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Proxy error' });
+    // Enhanced logging for TLS issues
+    const cause: any = err?.cause || {};
+    const errorPayload = {
+      error: err.message || 'Proxy error',
+      code: (err as any).code,
+      causeMessage: cause.message,
+      causeCode: cause.code,
+  targetUrl: site.replace(/\/$/, '') + fullPath
+    };
+    // eslint-disable-next-line no-console
+    console.error('[sharepoint proxy] network/fetch error', errorPayload);
+    res.status(500).json(errorPayload);
   }
 }

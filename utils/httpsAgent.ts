@@ -23,6 +23,10 @@ try {
     const ca = fs.readFileSync(caPath, 'utf8');
   agent = new https.Agent({ ca });
   dispatcher = new UndiciAgent({ connect: { ca } });
+    // Set NODE_EXTRA_CA_CERTS early so any other libraries relying on OpenSSL store see it
+    if (!process.env.NODE_EXTRA_CA_CERTS) {
+      process.env.NODE_EXTRA_CA_CERTS = caPath;
+    }
     // eslint-disable-next-line no-console
     console.log('[httpsAgent] Using custom CA from', caPath);
   } else if (process.env.SP_ALLOW_SELF_SIGNED === 'true') {
@@ -30,6 +34,9 @@ try {
   dispatcher = new UndiciAgent({ connect: { rejectUnauthorized: false } });
     // eslint-disable-next-line no-console
     console.warn('[httpsAgent] SP_ALLOW_SELF_SIGNED=true -> TLS certificate verification DISABLED. Do not use in production.');
+  } else {
+    // eslint-disable-next-line no-console
+    console.log('[httpsAgent] No custom CA configured; relying on system trust store');
   }
 } catch (e) {
   // eslint-disable-next-line no-console
