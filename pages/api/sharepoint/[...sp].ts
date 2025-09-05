@@ -2,6 +2,12 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import { getSharePointAuthHeaders } from '@/utils/spAuth';
 import { sharePointHttpsAgent, sharePointDispatcher } from '@/utils/httpsAgent';
+// @ts-ignore child_process without node types in some build envs
+const { execFile } = require('child_process');
+
+// Simple in-memory cache for curl mode GET responses
+interface CurlCacheEntry { expires: number; payload: any }
+const curlCache: Record<string, CurlCacheEntry> = {};
 
 // Whitelisted lists for safety
 const ALLOWED_LISTS = new Set([
@@ -80,6 +86,99 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // Optional curl path (replicates working system curl NTLM handshake). Enabled via SP_USE_CURL=true
+    if (process.env.SP_USE_CURL === 'true') {
+      const username = process.env.SP_USERNAME || '';
+      const password = process.env.SP_PASSWORD || '';
+      if (!username || !password) return res.status(500).json({ error: 'Missing SP_USERNAME/SP_PASSWORD for curl mode' });
+      const domain = process.env.SP_ONPREM_DOMAIN || (username.includes('\\') ? username.split('\\')[0] : '');
+      const userPart = username.includes('\\') ? username.split('\\')[1] : username;
+      const cred = domain ? `${domain}\\${userPart}:${password}` : `${userPart}:${password}`;
+      const targetUrl = site.replace(/\/$/, '') + fullPath;
+      const clientAccept = typeof req.headers['accept'] === 'string' ? req.headers['accept'] : 'application/json;odata=nometadata';
+      const cacheSeconds = parseInt(process.env.SP_CURL_CACHE_SECONDS || '60', 10);
+      const cacheKey = 'GET:' + targetUrl + '|' + clientAccept;
+      if (req.method === 'GET' && cacheSeconds > 0) {
+        const ent = curlCache[cacheKey];
+        if (ent && ent.expires > Date.now()) {
+          return res.status(200).json({ ...ent.payload, mode: 'curl', cached: true });
+        }
+      }
+      // Sanitize allowed path already checked earlier; still ensure no shell injection (use execFile arg array)
+      const curlArgs = [
+        '-sS', '--ntlm', '--user', cred,
+        '--connect-timeout', '5', '--retry', '1',
+        '-H', `Accept: ${clientAccept}`,
+        targetUrl
+      ];
+      if (process.env.SP_ALLOW_SELF_SIGNED === 'true') curlArgs.unshift('-k');
+      if (process.env.SP_CURL_VERBOSE === 'true') curlArgs.unshift('-v');
+      const start = Date.now();
+      const output: { stdout: string; stderr: string } = await new Promise((resolveExec, rejectExec) => {
+        execFile('curl', curlArgs, { timeout: 15000 }, (err: any, stdout: string, stderr: string) => {
+          if (err) return rejectExec(Object.assign(err, { stderr }));
+          resolveExec({ stdout, stderr });
+        });
+      });
+      const duration = Date.now() - start;
+      let rawOut = output.stdout;
+      let normalized: any = null;
+      // Attempt JSON parse first if looks like JSON
+      if (/^\s*\{/.test(rawOut)) {
+        try { normalized = JSON.parse(rawOut); } catch { /* ignore */ }
+      }
+      if (!normalized) {
+        // Atom/XML -> lightweight normalization (Ids + Title + selected fields if present)
+        if (/^\s*<\?xml/.test(rawOut) && /<feed/i.test(rawOut)) {
+          try {
+            const entries = rawOut.match(/<m:properties>[\s\S]*?<\/m:properties>/g) || [];
+            const items: Record<string, any>[] = [];
+            for (const block of entries) {
+              const idMatch = block.match(/<d:Id[^>]*>(\d+)<\/d:Id>/i) || block.match(/<d:ID[^>]*>(\d+)<\/d:ID>/i);
+              const titleMatch = block.match(/<d:Title>([\s\S]*?)<\/d:Title>/i);
+              const item: any = { Id: idMatch ? parseInt(idMatch[1], 10) : undefined, Title: titleMatch ? titleMatch[1] : '' };
+              // Grab any simple string/integer additional fields requested via $select (rudimentary)
+              const fieldMatches = block.match(/<d:([A-Za-z0-9_]+)[^>]*>([\s\S]*?)<\/d:\1>/g) || [];
+              for (const fm of fieldMatches) {
+                const m = fm.match(/<d:([A-Za-z0-9_]+)[^>]*>([\s\S]*?)<\/d:\1>/);
+                if (!m) continue;
+                const name = m[1];
+                if (name === 'Id' || name === 'ID' || name === 'Title') continue;
+                const value = m[2];
+                if (!/[<>]/.test(value)) item[name] = value; // skip nested complex
+              }
+              items.push(item);
+            }
+            normalized = { d: { results: items } };
+          } catch { /* ignore */ }
+        }
+      }
+      if (!normalized) normalized = rawOut; // fallback raw
+      if (typeof normalized === 'string' && /<html/i.test(normalized) && /401/i.test(normalized)) {
+        return res.status(401).json({ error: 'Unauthorized (curl)', snippet: normalized.substring(0,160), stderr: process.env.SP_CURL_VERBOSE==='true'? output.stderr : undefined });
+      }
+      // Shape response to look like native SharePoint depending on Accept header
+      const wantsNoMeta = /odata=nometadata/i.test(clientAccept);
+      let bodyToSend: any = normalized;
+      if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
+        if ((normalized as any).d && (normalized as any).d.results && wantsNoMeta) {
+          bodyToSend = { value: (normalized as any).d.results };
+        } else if (Array.isArray((normalized as any).d)) {
+          bodyToSend = wantsNoMeta ? { value: (normalized as any).d } : normalized;
+        }
+      } else if (Array.isArray(normalized)) {
+        bodyToSend = wantsNoMeta ? { value: normalized } : { d: { results: normalized } };
+      }
+      // Provide minimal telemetry via headers
+      res.setHeader('x-sp-proxy-mode','curl');
+      res.setHeader('x-sp-proxy-ms', String(duration));
+      if (process.env.SP_CURL_VERBOSE==='true') res.setHeader('x-sp-proxy-ntlm','1');
+      if (req.method === 'GET' && cacheSeconds > 0) {
+        curlCache[cacheKey] = { expires: Date.now() + cacheSeconds * 1000, payload: bodyToSend };
+      }
+      return res.status(200).json(bodyToSend);
+    }
+
     const authHeaders = await getSharePointAuthHeaders();
     const targetUrl = site.replace(/\/$/, '') + fullPath;
 

@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Project model types to match your current schema
+// NOTE: Internal representation aligned with frontend expectations (see types/index.ts)
 export interface Project {
   id: string;
   title: string;
@@ -18,13 +19,20 @@ export interface Project {
   startQuarter: string;
   endQuarter: string;
   description: string;
-  status: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED';
+  status: string; // normalized to lowercase values expected by frontend
   projektleitung: string;
   bisher: string;
   zukunft: string;
   fortschritt: number;
   geplante_umsetzung: string;
   budget: string;
+  // Extended fields required by Roadmap component / frontend types
+  startDate: string; // ISO
+  endDate: string;   // ISO
+  ProjectFields: string[];
+  projektleitungImageUrl?: string | null;
+  teamMembers?: TeamMember[];
+  links?: { id: string; title: string; url: string }[];
 }
 
 export interface Category {
@@ -84,22 +92,63 @@ export class SharePointDataService implements IDataService {
       const items = await this.sp.web.lists.getByTitle(SP_LISTS.PROJECTS).items
         .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget")
         .getAll();
-      
-      return items.map((item: { Id: { toString: () => any; }; Title: any; Category: any; StartQuarter: any; EndQuarter: any; Description: any; Status: any; Projektleitung: any; Bisher: any; Zukunft: any; Fortschritt: any; GeplantUmsetzung: any; Budget: any; }) => ({
-        id: item.Id.toString(),
-        title: item.Title,
-        category: item.Category,
-        startQuarter: item.StartQuarter,
-        endQuarter: item.EndQuarter,
-        description: item.Description || '',
-        status: item.Status,
-        projektleitung: item.Projektleitung || '',
-        bisher: item.Bisher || '',
-        zukunft: item.Zukunft || '',
-        fortschritt: item.Fortschritt || 0,
-        geplante_umsetzung: item.GeplantUmsetzung || '',
-        budget: item.Budget || '',
-      }));
+      const mapStatus = (s: string): string => {
+        if (!s) return 'planned';
+        const up = s.toUpperCase();
+        if (up.includes('PROGRESS')) return 'in-progress';
+        if (up.startsWith('COMP')) return 'completed';
+        if (up.startsWith('PAUS')) return 'paused';
+        if (up.startsWith('CANC')) return 'cancelled';
+        if (up.startsWith('PLAN')) return 'planned';
+        return s.toLowerCase();
+      };
+      const quarterStartDate = (q: string, year: number): Date => {
+        switch (q) {
+          case 'Q1': return new Date(Date.UTC(year,0,1));
+          case 'Q2': return new Date(Date.UTC(year,3,1));
+          case 'Q3': return new Date(Date.UTC(year,6,1));
+          case 'Q4': return new Date(Date.UTC(year,9,1));
+          default: return new Date(Date.UTC(year,0,1));
+        }
+      };
+      const quarterEndDate = (q: string, year: number): Date => {
+        switch (q) {
+          case 'Q1': return new Date(Date.UTC(year,2,31,23,59,59));
+          case 'Q2': return new Date(Date.UTC(year,5,30,23,59,59));
+          case 'Q3': return new Date(Date.UTC(year,8,30,23,59,59));
+          case 'Q4': return new Date(Date.UTC(year,11,31,23,59,59));
+          default: return new Date(Date.UTC(year,11,31,23,59,59));
+        }
+      };
+      const currentYear = new Date().getFullYear();
+      return items.map((item: any) => {
+        const startQ = item.StartQuarter || 'Q1';
+        const endQ = item.EndQuarter || startQ;
+        // Heuristic: assume project is in current year if no better metadata present
+        const startDate = quarterStartDate(startQ, currentYear).toISOString();
+        const endDate = quarterEndDate(endQ, currentYear).toISOString();
+        return {
+          id: item.Id?.toString(),
+          title: item.Title,
+            category: item.Category,
+          startQuarter: startQ,
+          endQuarter: endQ,
+          description: item.Description || '',
+          status: mapStatus(item.Status || 'planned'),
+          projektleitung: item.Projektleitung || '',
+          bisher: item.Bisher || '',
+          zukunft: item.Zukunft || '',
+          fortschritt: item.Fortschritt || 0,
+          geplante_umsetzung: item.GeplantUmsetzung || '',
+          budget: item.Budget || '',
+          startDate,
+          endDate,
+          ProjectFields: [],
+          projektleitungImageUrl: null,
+          teamMembers: [],
+          links: []
+        } as Project;
+      });
     } catch (error) {
       console.error('Error fetching projects:', error);
       return [];
@@ -112,21 +161,59 @@ export class SharePointDataService implements IDataService {
         .getById(parseInt(id))
         .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget")();
       
+      const mapStatus = (s: string): string => {
+        if (!s) return 'planned';
+        const up = s.toUpperCase();
+        if (up.includes('PROGRESS')) return 'in-progress';
+        if (up.startsWith('COMP')) return 'completed';
+        if (up.startsWith('PAUS')) return 'paused';
+        if (up.startsWith('CANC')) return 'cancelled';
+        if (up.startsWith('PLAN')) return 'planned';
+        return s.toLowerCase();
+      };
+      const currentYear = new Date().getFullYear();
+      const qs = (q: string) => q || 'Q1';
+      const quarterStartDate = (q: string, year: number): Date => {
+        switch (q) {
+          case 'Q1': return new Date(Date.UTC(year,0,1));
+          case 'Q2': return new Date(Date.UTC(year,3,1));
+          case 'Q3': return new Date(Date.UTC(year,6,1));
+          case 'Q4': return new Date(Date.UTC(year,9,1));
+          default: return new Date(Date.UTC(year,0,1));
+        }
+      };
+      const quarterEndDate = (q: string, year: number): Date => {
+        switch (q) {
+          case 'Q1': return new Date(Date.UTC(year,2,31,23,59,59));
+          case 'Q2': return new Date(Date.UTC(year,5,30,23,59,59));
+          case 'Q3': return new Date(Date.UTC(year,8,30,23,59,59));
+          case 'Q4': return new Date(Date.UTC(year,11,31,23,59,59));
+          default: return new Date(Date.UTC(year,11,31,23,59,59));
+        }
+      };
+      const startQ = qs(item.StartQuarter);
+      const endQ = qs(item.EndQuarter || startQ);
       return {
         id: item.Id.toString(),
         title: item.Title,
         category: item.Category,
-        startQuarter: item.StartQuarter,
-        endQuarter: item.EndQuarter,
+        startQuarter: startQ,
+        endQuarter: endQ,
         description: item.Description || '',
-        status: item.Status,
+        status: mapStatus(item.Status || 'planned'),
         projektleitung: item.Projektleitung || '',
         bisher: item.Bisher || '',
         zukunft: item.Zukunft || '',
         fortschritt: item.Fortschritt || 0,
         geplante_umsetzung: item.GeplantUmsetzung || '',
         budget: item.Budget || '',
-      };
+        startDate: quarterStartDate(startQ, currentYear).toISOString(),
+        endDate: quarterEndDate(endQ, currentYear).toISOString(),
+        ProjectFields: [],
+        projektleitungImageUrl: null,
+        teamMembers: [],
+        links: []
+      } as Project;
     } catch (error) {
       console.error(`Error fetching project ${id}:`, error);
       return null;
@@ -350,7 +437,20 @@ class LocalJsonDataService implements IDataService {
   async getProjectById(id: string): Promise<Project | null> { return this.read<Project>('projects').find(p => p.id === id) || null; }
   async createProject(project: Omit<Project, 'id'>): Promise<Project> {
     const list = this.read<Project>('projects');
-    const created: Project = { ...project, id: this.genId() };
+    const now = new Date();
+    const ensureDates = (p: any): any => {
+      if (!p.startDate) p.startDate = new Date(now.getFullYear(),0,1).toISOString();
+      if (!p.endDate) p.endDate = new Date(now.getFullYear(),11,31).toISOString();
+      return p;
+    };
+    const created: Project = ensureDates({
+      ...project,
+      id: this.genId(),
+      ProjectFields: project.ProjectFields || [],
+      projektleitungImageUrl: project.projektleitungImageUrl || null,
+      teamMembers: project.teamMembers || [],
+      links: project.links || []
+    });
     list.push(created); this.write('projects', list); return created;
   }
   async updateProject(id: string, project: Partial<Project>): Promise<void> {
