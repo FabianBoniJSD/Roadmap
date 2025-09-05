@@ -17,9 +17,11 @@ const ALLOWED_LISTS = new Set([
 
 // Allow /_api/contextinfo for digest retrieval
 function isAllowedPath(path: string) {
-  if (path === '/_api/contextinfo') return true;
-  if (!path.startsWith('/_api/web/lists')) return false;
-  const match = path.match(/getByTitle\('([^']+)'\)/);
+  // Normalize trailing slashes (except root) so /_api/contextinfo/ is treated like /_api/contextinfo
+  const cleaned = path.endsWith('/') ? path.replace(/\/+$/,'') : path;
+  if (cleaned === '/_api/contextinfo') return true;
+  if (!cleaned.startsWith('/_api/web/lists')) return false;
+  const match = cleaned.match(/getByTitle\('([^']+)'\)/);
   if (!match) return false;
   return ALLOWED_LISTS.has(match[1]);
 }
