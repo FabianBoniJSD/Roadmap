@@ -9,6 +9,8 @@ import { FaBars, FaTimes } from 'react-icons/fa';
 import Nav from './Nav';
 import { loadThemeSettings } from '../utils/theme';
 import StatusLegend from './StatusLegend';
+import RoadmapFilters from './RoadmapFilters';
+import CompactProjectCard from './CompactProjectCard';
 
 interface RoadmapProps {
   initialProjects: Project[];
@@ -27,6 +29,12 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   const [siteTitle, setSiteTitle] = useState('IT + Digital Roadmap');
   const [themeColors, setThemeColors] = useState<{gradientFrom:string;gradientTo:string}>({gradientFrom:'#eab308',gradientTo:'#b45309'});
   const [showLegend, setShowLegend] = useState(true);
+  const [filterText, setFilterText] = useState('');
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [tagFilters, setTagFilters] = useState<string[]>([]);
+  const [monthRange, setMonthRange] = useState<{start:number; end:number}>({ start: 1, end: 12 });
+  const [onlyRunning, setOnlyRunning] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'timeline' | 'tiles'>('timeline');
 
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +66,79 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
     loadAppTitle();
   }, []);
+
+  // Load filters from URL on mount and whenever query changes
+  useEffect(() => {
+  const { q, status, tags, start, end, running, cats, view } = router.query as Record<string, string | string[]>;
+    if (q && typeof q === 'string') setFilterText(q);
+    if (status) {
+      const list = Array.isArray(status) ? status : status.split(',');
+      setStatusFilters(list.filter(Boolean).map(s => s.toLowerCase()));
+    }
+    if (tags) {
+      const list = Array.isArray(tags) ? tags : tags.split(',');
+      setTagFilters(list.filter(Boolean));
+    }
+    const sNum = Number(start); const eNum = Number(end);
+    if (!isNaN(sNum) && sNum >= 1 && sNum <= 12) {
+      setMonthRange(r => ({ ...r, start: Math.max(1, Math.min(12, sNum)) }));
+    }
+    if (!isNaN(eNum) && eNum >= 1 && eNum <= 12) {
+      setMonthRange(r => ({ ...r, end: Math.max(r.start, Math.min(12, eNum)) }));
+    }
+    if (running === '1') setOnlyRunning(true);
+  if (view === 'tiles') setViewMode('tiles');
+    if (cats && typeof cats === 'string') {
+      // optional: preset activeCategories from URL (ids separated by comma)
+      const list = cats.split(',').filter(Boolean);
+      if (list.length) setActiveCategories(list);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.query]);
+
+  // Persist filters to URL (shallow) to allow shareable state
+  useEffect(() => {
+    const readQuery = (q: Record<string, any>) => {
+      const status = (q.status ? (Array.isArray(q.status) ? q.status.join(',') : q.status) : '').split(',').filter(Boolean).map((s:string)=>s.toLowerCase());
+      const tags = (q.tags ? (Array.isArray(q.tags) ? q.tags.join(',') : q.tags) : '').split(',').filter(Boolean);
+      const cats = (q.cats ? (Array.isArray(q.cats) ? q.cats.join(',') : q.cats) : '').split(',').filter(Boolean);
+      return {
+        q: q.q || '',
+        status,
+        tags,
+        start: Number(q.start) || 1,
+        end: Number(q.end) || 12,
+        running: q.running === '1',
+        cats,
+      };
+    };
+
+    const current = readQuery(router.query as any);
+    const next = {
+      q: filterText || '',
+      status: [...statusFilters].map(s=>s.toLowerCase()),
+      tags: [...tagFilters],
+      start: monthRange.start,
+      end: monthRange.end,
+      running: onlyRunning,
+      cats: activeCategories.length && activeCategories.length !== categories.length ? [...activeCategories] : [],
+      view: viewMode,
+    };
+
+    if (JSON.stringify(current) !== JSON.stringify(next)) {
+      const query: Record<string, any> = {};
+      if (next.q) query.q = next.q;
+      if (next.status.length) query.status = next.status.join(',');
+      if (next.tags.length) query.tags = next.tags.join(',');
+      if (next.start !== 1) query.start = String(next.start);
+      if (next.end !== 12) query.end = String(next.end);
+      if (next.running) query.running = '1';
+      if (next.cats.length) query.cats = next.cats.join(',');
+  if (next.view && next.view !== 'timeline') query.view = next.view;
+      router.replace({ pathname: router.pathname, query }, undefined, { shallow: true, scroll: false });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterText, statusFilters, tagFilters, monthRange.start, monthRange.end, onlyRunning, activeCategories, categories.length]);
 
   // Hilfsfunktion zum Extrahieren des Jahres aus einem ISO-Datumsstring
   const getYearFromISOString = (isoString: string): number => {
@@ -116,10 +197,69 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
     }
   };
 
-  // Filter projects by active categories
-  const filteredProjects = displayedProjects.filter(project =>
-    activeCategories.includes(project.category)
-  );
+  // Derive filter options from displayed projects
+  const allStatuses = Array.from(new Set(displayedProjects.map(p => (p.status || '').toLowerCase()).filter(Boolean)));
+  const allTags = Array.from(new Set(displayedProjects.flatMap(p => (p as any).ProjectFields || []).filter(Boolean)));
+
+  // Filter projects by active categories + advanced filters
+  const filteredProjects = displayedProjects.filter(project => {
+    if (!activeCategories.includes(project.category)) return false;
+
+    // Text filter (title/description)
+    if (filterText.trim()) {
+      const q = filterText.toLowerCase();
+      const inTitle = project.title?.toLowerCase().includes(q);
+      const inDesc = (project.description || '').toLowerCase().includes(q);
+      if (!inTitle && !inDesc) return false;
+    }
+
+    // Status filter (if any selected)
+    if (statusFilters.length > 0) {
+      const s = (project.status || '').toLowerCase();
+      if (!statusFilters.includes(s)) return false;
+    }
+
+    // Tag filter (ProjectFields contains any of selected)
+    if (tagFilters.length > 0) {
+      const pf: string[] = ((project as any).ProjectFields || []).map((t: string) => (t || '').toLowerCase());
+      const hasAny = tagFilters.some(t => pf.includes(t.toLowerCase()));
+      if (!hasAny) return false;
+    }
+
+    // Zeitraum Month filter (if not default 1-12): intersect project with selected months of currentYear
+    if (monthRange.start !== 1 || monthRange.end !== 12) {
+      if (!project.startDate || !project.endDate) return false;
+      const s = new Date(project.startDate);
+      const e = new Date(project.endDate);
+      // Map to month indices within current year (1..12)
+      const projectStartMonth = Math.max(1, s.getFullYear() < currentYear ? 1 : s.getMonth() + 1);
+      const projectEndMonth = Math.min(12, e.getFullYear() > currentYear ? 12 : e.getMonth() + 1);
+      const overlaps = projectEndMonth >= monthRange.start && projectStartMonth <= monthRange.end;
+      if (!overlaps) return false;
+    }
+
+    // Only running projects: start <= today <= end
+    if (onlyRunning) {
+      const now = new Date();
+      const sd = project.startDate ? new Date(project.startDate) : null;
+      const ed = project.endDate ? new Date(project.endDate) : null;
+      if (!sd || !ed) return false;
+      if (!(sd <= now && now <= ed)) return false;
+    }
+
+    return true;
+  });
+
+  // Group projects by category (Bereich)
+  const projectsByCategory = filteredProjects.reduce<Record<string, Project[]>>((acc, p) => {
+    (acc[p.category] ||= []).push(p);
+    return acc;
+  }, {});
+
+  // Ordered list of visible categories (only those with projects)
+  const visibleCategoryIds = categories
+    .filter(c => projectsByCategory[c.id]?.length)
+    .map(c => c.id);
 
   // Get category name by ID
   const getCategoryName = (categoryId: string) => {
@@ -319,8 +459,21 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
         {/* Controls section - View type and Year navigation */}
   <div className="flex flex-col md:flex-row justify-between items-center p-2 px-4 md:px-10 mb-4 gap-4">
-          {/* View type buttons - Bigger and more mobile-friendly */}
-          <div className="flex space-x-2 w-full md:w-auto">
+          {/* View mode + View scale buttons */}
+          <div className="flex flex-wrap gap-2 w-full md:w-auto items-center">
+            <div className="inline-flex bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+              <button
+                className={`px-3 py-2 text-sm font-medium ${viewMode==='timeline' ? 'bg-yellow-600 text-black' : 'text-gray-200 hover:bg-gray-700'}`}
+                onClick={() => setViewMode('timeline')}
+                title="Zeitstrahl"
+              >Zeitstrahl</button>
+              <button
+                className={`px-3 py-2 text-sm font-medium ${viewMode==='tiles' ? 'bg-yellow-600 text-black' : 'text-gray-200 hover:bg-gray-700'}`}
+                onClick={() => setViewMode('tiles')}
+                title="Kachelansicht"
+              >Kacheln</button>
+            </div>
+            {/* View scale buttons */}
             <button
               className={`px-4 py-2 text-sm font-medium rounded-lg flex-1 md:flex-none ${viewType === 'quarters' ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'}`}
               onClick={() => setViewType('quarters')}
@@ -370,7 +523,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
           </button>
         </div>
 
-        {/* Responsive layout - stack on mobile, side-by-side on larger screens */}
+  {/* Responsive layout - stack on mobile, side-by-side on larger screens */}
         <div className="flex flex-col md:flex-row relative">
           {/* Sidebar with categories - collapsible on mobile */}
           <div
@@ -388,6 +541,31 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
           <div className="flex-1 overflow-hidden">
             <div className="overflow-x-auto pb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
               <div className={`min-w-full ${viewType === 'months' || viewType === 'weeks' ? 'md:min-w-[800px]' : ''}`}>
+                {/* Advanced Filters Bar */}
+                <div className="mb-4">
+                  <RoadmapFilters
+                    filterText={filterText}
+                    onFilterTextChange={setFilterText}
+                    availableStatuses={allStatuses}
+                    selectedStatuses={statusFilters}
+                    onToggleStatus={(s) => setStatusFilters(prev => prev.includes(s) ? prev.filter(x => x!==s) : [...prev, s])}
+                    availableTags={allTags}
+                    selectedTags={tagFilters}
+                    onToggleTag={(t) => setTagFilters(prev => prev.includes(t) ? prev.filter(x => x!==t) : [...prev, t])}
+                    onClearAll={() => { setFilterText(''); setStatusFilters([]); setTagFilters([]); setMonthRange({start:1,end:12}); setOnlyRunning(false); }}
+                    monthRange={monthRange}
+                    onMonthRangeChange={setMonthRange}
+                    onlyRunning={onlyRunning}
+                    onToggleOnlyRunning={setOnlyRunning}
+                    categoriesCount={{ total: categories.length, active: activeCategories.length }}
+                    onSelectAllCategories={() => setActiveCategories(categories.map(c => c.id))}
+                    onClearCategories={() => setActiveCategories([])}
+                  />
+                </div>
+                {/* Quarter/Month/Week headers */}
+
+                {viewMode === 'timeline' && (
+                <>
                 {/* Quarter/Month/Week headers */}
                 {viewType === 'quarters' ? (
                   <div className="grid grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
@@ -461,10 +639,39 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                     ))}
                   </div>
                 )}
+                </>
+                )}
 
-                {/* Project timeline bars */}
-                <div className="space-y-2 md:space-y-4 relative">
-                  {filteredProjects.map(project => {
+                {viewMode === 'tiles' && (
+                  <div className="mb-6" />
+                )}
+
+                {viewMode === 'timeline' && (
+                <>
+                {/* Project timeline bars grouped by Bereich (category) */}
+                <div className="space-y-6 md:space-y-8 relative">
+                  {visibleCategoryIds.map(catId => {
+                    const cat = categories.find(c => c.id === catId)!;
+                    const groupProjects = projectsByCategory[catId] || [];
+                    return (
+                      <div key={catId} className="relative">
+                        {/* Bereich Kopfzeile */}
+                        <div className="flex items-center gap-3 mb-2 md:mb-3">
+                          <span
+                            className="inline-block h-3 w-3 rounded-full"
+                            style={{ backgroundColor: getCategoryColor(catId) }}
+                          />
+                          <h2 className="text-lg md:text-xl font-semibold m-0">
+                            {cat.name}
+                          </h2>
+                          <span className="ml-2 text-xs md:text-sm px-2 py-0.5 rounded-full bg-gray-800/80 border border-white/10 text-gray-200">
+                            {groupProjects.length} {groupProjects.length === 1 ? 'Projekt' : 'Projekte'}
+                          </span>
+                        </div>
+
+                        {/* Projekte dieser Kategorie */}
+                        <div className="space-y-2 md:space-y-4">
+                          {groupProjects.map(project => {
                     // Use the appropriate position calculation based on view type
                     const { startPosition, width } = viewType === 'quarters'
                       ? calculateQuarterPosition(project)
@@ -480,7 +687,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                     return (
                       <div
                         key={project.id}
-                        className="relative h-8 md:h-12 mb-1 md:mb-2"
+                        className="relative h-6 md:h-8 mb-1 md:mb-2"
                       >
                         {/* Background grid */}
                         <div className="absolute top-0 left-0 right-0 h-full pointer-events-none">
@@ -534,39 +741,52 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                             style={{ backgroundColor: getStatusColor(project.status) }}
                           />
 
-                          {/* Project title with improved visibility */}
-                          <div className="flex items-center gap-1 w-full overflow-hidden">
-                            <span className="font-medium truncate px-1 md:px-2 py-0.5 rounded bg-black bg-opacity-40 text-white group-hover:bg-opacity-60 text-[10px] md:text-sm flex-shrink">
-                              {project.title}
-                            </span>
-                            {/* Tags (ProjectFields) */}
-                            {Array.isArray((project as any).ProjectFields) && (project as any).ProjectFields.length > 0 && (
-                              <div className="ml-auto flex items-center gap-1 overflow-hidden">
-                                {(project as any).ProjectFields.slice(0,3).map((tag: string) => (
-                                  <span
-                                    key={tag}
-                                    className="hidden md:inline-block text-[10px] font-semibold tracking-wide px-1.5 py-0.5 rounded-full whitespace-nowrap select-none"
-                                    style={{
-                                      backgroundColor: getTagColor(tag),
-                                      color: '#fff',
-                                      boxShadow: '0 0 0 1px rgba(255,255,255,0.15)'
-                                    }}
-                                    title={tag}
-                                  >
-                                    {tag.length > 10 ? tag.slice(0,9)+'…' : tag}
-                                  </span>
-                                ))}
-                                {(project as any).ProjectFields.length > 3 && (
-                                  <span className="hidden md:inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-black/40 border border-white/20 text-gray-200" title={(project as any).ProjectFields.slice(3).join(', ')}>+{(project as any).ProjectFields.length - 3}</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                           {/* Project title with improved visibility */}
+                           <div className="flex items-center gap-1 w-full overflow-hidden">
+                             <span className="font-medium truncate px-1 md:px-2 py-0.5 rounded bg-black bg-opacity-40 text-white group-hover:bg-opacity-60 text-[10px] md:text-sm flex-shrink">
+                               {project.title}
+                             </span>
+                           </div>
+                        </div>
+                      </div>
+                    );
+                          })}
                         </div>
                       </div>
                     );
                   })}
                 </div>
+                </>
+                )}
+
+                {viewMode === 'tiles' && (
+                  <div className="space-y-8">
+                    {visibleCategoryIds.map(catId => {
+                      const cat = categories.find(c => c.id === catId)!;
+                      const groupProjects = projectsByCategory[catId] || [];
+                      return (
+                        <div key={catId}>
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: getCategoryColor(catId) }} />
+                            <h2 className="text-lg md:text-xl font-semibold m-0">{cat.name}</h2>
+                            <span className="ml-2 text-xs md:text-sm px-2 py-0.5 rounded-full bg-gray-800/80 border border-white/10 text-gray-200">{groupProjects.length} {groupProjects.length===1?'Projekt':'Projekte'}</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+                            {groupProjects.map(project => (
+                              <CompactProjectCard
+                                key={project.id}
+                                project={project}
+                                categoryName={cat.name}
+                                categoryColor={getCategoryColor(catId)}
+                                onClick={handleProjectClick}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>

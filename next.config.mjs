@@ -1,6 +1,6 @@
 const deploymentEnv = process.env.NEXT_PUBLIC_DEPLOYMENT_ENV || process.env.NODE_ENV || 'development';
 const rawBasePath = deploymentEnv === 'production'
-  ? (process.env.NEXT_PUBLIC_BASE_PATH_PROD || '/JSD/QMServices/Roadmap/roadmapapp')
+  ? (process.env.NEXT_PUBLIC_BASE_PATH_PROD || '')
   : (process.env.NEXT_PUBLIC_BASE_PATH_DEV || '')
 // Normalize: remove trailing slash EXCEPT keep single leading slash when non-empty
 const resolvedBasePath = (rawBasePath || '').replace(/\/$/, '');
