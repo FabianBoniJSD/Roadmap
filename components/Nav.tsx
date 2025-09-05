@@ -46,9 +46,9 @@ const Nav: React.FC<HeaderNavigationProps> = ({ currentPage = 'roadmap' }) => {
                                 <FaHome className="mr-1" /> Roadmap
                             </span>
                         </Link>
-                        <Link href="/docs/pages/">
+                        <Link href="/help">
                             <span className={`${currentPage === 'doc' ? 'bg-gray-900 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'} px-3 py-2 rounded-md text-sm font-medium cursor-pointer flex items-center`}>
-                                <FaInfoCircle className="mr-1" /> Dokumentation
+                                <FaInfoCircle className="mr-1" /> Hilfe
                             </span>
                         </Link>
                         <Link href="/admin">
@@ -80,9 +80,9 @@ const Nav: React.FC<HeaderNavigationProps> = ({ currentPage = 'roadmap' }) => {
                                 <FaHome className="mr-2" /> Home
                             </span>
                         </Link>
-                        <Link href="/docs/pages/">
+                        <Link href="/help">
                             <span className={`${currentPage === 'doc' ? 'bg-gray-900 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'} px-3 py-2 rounded-md text-base font-medium cursor-pointer flex items-center`}>
-                                <FaInfoCircle className="mr-2" /> About
+                                <FaInfoCircle className="mr-2" /> Hilfe
                             </span>
                         </Link>
                         <Link href="/admin">
