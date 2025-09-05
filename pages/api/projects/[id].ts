@@ -30,11 +30,13 @@ export default async function handler(
   // PUT - Update a project
   else if (req.method === 'PUT') {
     try {
+      // Admin-only: ensure caller is a Site Collection Admin
+      const isAdmin = await clientDataService.isCurrentUserAdmin();
+      if (!isAdmin) {
+        return res.status(401).json({ error: 'Unauthorized' })
+      }
       const projectData = req.body;
-      
-      // Use clientDataService directly
       await clientDataService.updateProject(id, projectData);
-      
       res.status(200).json({ success: true })
     } catch (error) {
       console.error('Error updating project:', error)
@@ -44,9 +46,12 @@ export default async function handler(
   // DELETE - Delete a project
   else if (req.method === 'DELETE') {
     try {
-      // Use clientDataService directly
+      // Admin-only: ensure caller is a Site Collection Admin
+      const isAdmin = await clientDataService.isCurrentUserAdmin();
+      if (!isAdmin) {
+        return res.status(401).json({ error: 'Unauthorized' })
+      }
       await clientDataService.deleteProject(id);
-      
       res.status(200).json({ success: true })
     } catch (error) {
       console.error('Error deleting project:', error)

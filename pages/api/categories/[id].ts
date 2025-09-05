@@ -30,6 +30,11 @@ export default async function handler(
   // PUT - Update a category
   else if (req.method === 'PUT') {
     try {
+      // Admin-only: ensure caller is a Site Collection Admin
+      const isAdmin = await clientDataService.isCurrentUserAdmin();
+      if (!isAdmin) {
+        return res.status(401).json({ error: 'Unauthorized' })
+      }
       const { name, color, icon } = req.body
 
       if (!name || !color || !icon) {
@@ -51,7 +56,11 @@ export default async function handler(
   // DELETE - Delete a category
   else if (req.method === 'DELETE') {
     try {
-      // Use clientDataService directly
+      // Admin-only: ensure caller is a Site Collection Admin
+      const isAdmin = await clientDataService.isCurrentUserAdmin();
+      if (!isAdmin) {
+        return res.status(401).json({ error: 'Unauthorized' })
+      }
       await clientDataService.deleteCategory(id);
       
       res.status(204).end()

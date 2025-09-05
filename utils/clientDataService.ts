@@ -1586,56 +1586,20 @@ class ClientDataService {
     async isCurrentUserAdmin(): Promise<boolean> {
         try {
             const webUrl = this.getWebUrl();
-
-            // Zuerst den aktuellen Benutzer abrufen
+            // Strict: only Site Collection Administrators are considered admins
             const userEndpoint = `${webUrl}/_api/web/currentuser`;
-
             const userResponse = await fetch(userEndpoint, {
                 method: 'GET',
-                headers: {
-                    'Accept': 'application/json;odata=nometadata'
-                },
+                headers: { 'Accept': 'application/json;odata=nometadata' },
                 credentials: 'same-origin'
             });
-
             if (!userResponse.ok) {
                 throw new Error(`Failed to get current user: ${userResponse.statusText}`);
             }
-
             const userData = await userResponse.json();
-
-            // Prüfen, ob der Benutzer ein Site-Administrator ist
-            // Alternativ können Sie auch eine benutzerdefinierte Berechtigungsprüfung implementieren
-            if (userData.IsSiteAdmin === true) {
-                return true;
-            }
-
-            // Wenn der Benutzer kein Site-Administrator ist, können Sie auch prüfen,
-            // ob er Mitglied einer bestimmten SharePoint-Gruppe ist
-            const groupName = 'Roadmap Administrators'; // Passen Sie den Namen an Ihre Anforderungen an
-            const groupEndpoint = `${webUrl}/_api/web/sitegroups/getByName('${groupName}')/users?$filter=Id eq ${userData.Id}`;
-
-            const groupResponse = await fetch(groupEndpoint, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json;odata=nometadata'
-                },
-                credentials: 'same-origin'
-            });
-
-            if (!groupResponse.ok) {
-                // Wenn die Gruppe nicht existiert oder ein anderer Fehler auftritt,
-                // gehen wir davon aus, dass der Benutzer kein Mitglied ist
-                return false;
-            }
-
-            const groupData = await groupResponse.json();
-
-            // Wenn der Benutzer in der Ergebnismenge enthalten ist, ist er ein Mitglied der Gruppe
-            return groupData.value && groupData.value.length > 0;
+            return userData.IsSiteAdmin === true;
         } catch (error) {
             console.error('Error checking admin status:', error);
-            // Im Fehlerfall false zurückgeben, um sicherzustellen, dass keine unbefugten Aktionen ausgeführt werden
             return false;
         }
     }

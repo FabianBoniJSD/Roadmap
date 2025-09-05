@@ -29,6 +29,8 @@ function isAllowedPath(path: string) {
   // Normalize trailing slashes (except root) so /_api/contextinfo/ is treated like /_api/contextinfo
   const cleaned = path.endsWith('/') ? path.replace(/\/+$/,'') : path;
   if (cleaned === '/_api/contextinfo') return true;
+  // Allow current user lookup for authentication checks
+  if (cleaned === '/_api/web/currentuser') return true;
   // Optional debug allowance to enumerate lists (avoids needing a specific list) ONLY when SP_PROXY_DEBUG enabled
   // @ts-ignore
   if (process.env.SP_PROXY_DEBUG === 'true' && cleaned === '/_api/web/lists') return true;

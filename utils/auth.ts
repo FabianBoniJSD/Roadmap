@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import { clientDataService } from './clientDataService';
+import { resolveSharePointSiteUrl } from './sharepointEnv';
 
 // Interface for user data
 export interface User {
@@ -190,14 +191,13 @@ export function validateTokenLegacy(token: string): boolean {
 // Check if the user is authenticated with SharePoint
 export async function isAuthenticated(): Promise<boolean> {
   try {
-    const response = await fetch('/_api/web/currentuser', {
+    // Always go through our SharePoint proxy
+    const webUrl = (clientDataService as any).getWebUrl?.() || '/api/sharepoint';
+    const response = await fetch(`${webUrl}/_api/web/currentuser`, {
       method: 'GET',
-      headers: {
-        'Accept': 'application/json;odata=verbose'
-      },
+      headers: { 'Accept': 'application/json;odata=nometadata' },
       credentials: 'include'
     });
-    
     return response.ok;
   } catch (error) {
     console.error('Authentication check failed:', error);
@@ -218,5 +218,7 @@ export async function hasAdminAccess(): Promise<boolean> {
 // Redirect to SharePoint login page if not authenticated
 export function redirectToLogin(): void {
   const currentUrl = encodeURIComponent(window.location.href);
-  window.location.href = `/_layouts/15/authenticate.aspx?Source=${currentUrl}`;
+  const spSite = resolveSharePointSiteUrl();
+  // Redirect to the SharePoint web app’s login endpoint, not the Next.js host
+  window.location.href = `${spSite}/_layouts/15/Authenticate.aspx?Source=${currentUrl}`;
 }

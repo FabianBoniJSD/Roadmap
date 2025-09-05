@@ -20,11 +20,13 @@ export default async function handler(
   // POST - Create a new project
   else if (req.method === 'POST') {
     try {
+      // Admin-only: ensure caller is a Site Collection Admin
+      const isAdmin = await clientDataService.isCurrentUserAdmin();
+      if (!isAdmin) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
       const projectData = req.body;
-
-      // Use clientDataService directly
       const newProject = await clientDataService.createProject(projectData);
-
       res.status(201).json(newProject)
     } catch (error) {
       console.error('Error creating project:', error)
