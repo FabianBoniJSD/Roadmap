@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import { getSharePointAuthHeaders } from '@/utils/spAuth';
+import { sharePointHttpsAgent, sharePointDispatcher } from '@/utils/httpsAgent';
 
 // Whitelisted lists for safety
 const ALLOWED_LISTS = new Set([
@@ -32,7 +33,12 @@ async function getDigest(site: string, authHeaders: Record<string,string>): Prom
   if (digestCache && digestCache.expires > now) return digestCache.value;
   const r = await fetch(site.replace(/\/$/,'') + '/_api/contextinfo', {
     method: 'POST',
-    headers: { 'Accept': 'application/json;odata=nometadata', ...authHeaders }
+    headers: { 'Accept': 'application/json;odata=nometadata', ...authHeaders },
+    // @ts-ignore undici fetch supports dispatcher
+    dispatcher: sharePointDispatcher ?? undefined,
+    // Fallback for older node-fetch semantics (should be ignored by undici)
+    // @ts-ignore
+    agent: sharePointHttpsAgent
   });
   if (!r.ok) throw new Error('Failed to get contextinfo');
   const j = await r.json();
@@ -81,6 +87,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       method: method === 'PATCH' ? 'POST' : method, // SharePoint uses POST + X-HTTP-Method for MERGE
       headers,
       body: isWrite ? JSON.stringify(req.body) : undefined,
+      // @ts-ignore undici dispatcher
+      dispatcher: sharePointDispatcher ?? undefined,
+      // @ts-ignore optional legacy agent
+      agent: sharePointHttpsAgent
     });
 
     const raw = await spResp.text();
