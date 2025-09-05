@@ -1,5 +1,14 @@
 import { getSP, SP_LISTS } from './spConfig';
 import "@pnp/sp/items/get-all";
+// @ts-ignore minimal shims when node types absent
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const process: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const require: any;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const fs = require('fs');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const path = require('path');
 
 // Project model types to match your current schema
 export interface Project {
@@ -46,7 +55,22 @@ export interface TeamMember {
   projectId: string;
 }
 
-export class SharePointDataService {
+interface IDataService {
+  getAllProjects(): Promise<Project[]>;
+  getProjectById(id: string): Promise<Project | null>;
+  createProject(project: Omit<Project, 'id'>): Promise<Project>;
+  updateProject(id: string, project: Partial<Project>): Promise<void>;
+  deleteProject(id: string): Promise<void>;
+  getAllCategories(): Promise<Category[]>;
+  getCategoryById(id: string): Promise<Category | null>;
+  getAllFieldTypes(): Promise<FieldType[]>;
+  getFieldTypeById(id: string): Promise<FieldType | null>;
+  getFieldsByProjectId(projectId: string): Promise<Field[]>;
+  getTeamMembersByProjectId(projectId: string): Promise<TeamMember[]>;
+}
+
+// ---------------- SharePoint Implementation ----------------
+export class SharePointDataService implements IDataService {
   private sp: any;
   
   constructor(context?: any) {
@@ -287,4 +311,64 @@ export class SharePointDataService {
 }
 
 // Export a singleton instance
-export const spDataService = new SharePointDataService();
+// ---------------- Local JSON Implementation ----------------
+class LocalJsonDataService implements IDataService {
+  baseDir: string;
+  files = {
+    projects: 'projects.json',
+    categories: 'categories.json',
+    fieldTypes: 'fieldTypes.json',
+    fields: 'fields.json',
+    team: 'teamMembers.json'
+  } as const;
+
+  constructor() {
+    this.baseDir = process.env.LOCAL_DATA_DIR || path.join(process.cwd(), 'local-data');
+    if (!fs.existsSync(this.baseDir)) fs.mkdirSync(this.baseDir, { recursive: true });
+    // Ensure files exist
+    for (const f of Object.values(this.files)) {
+      const full = path.join(this.baseDir, f);
+      if (!fs.existsSync(full)) fs.writeFileSync(full, '[]', 'utf8');
+    }
+  }
+  private read<T>(key: keyof LocalJsonDataService['files']): T[] {
+    try {
+      const p = path.join(this.baseDir, this.files[key]);
+      const raw = fs.readFileSync(p, 'utf8');
+      return JSON.parse(raw) as T[];
+    } catch {
+      return [];
+    }
+  }
+  private write<T>(key: keyof LocalJsonDataService['files'], data: T[]): void {
+    const p = path.join(this.baseDir, this.files[key]);
+    fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
+  }
+  private genId(): string { return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+
+  async getAllProjects(): Promise<Project[]> { return this.read<Project>('projects'); }
+  async getProjectById(id: string): Promise<Project | null> { return this.read<Project>('projects').find(p => p.id === id) || null; }
+  async createProject(project: Omit<Project, 'id'>): Promise<Project> {
+    const list = this.read<Project>('projects');
+    const created: Project = { ...project, id: this.genId() };
+    list.push(created); this.write('projects', list); return created;
+  }
+  async updateProject(id: string, project: Partial<Project>): Promise<void> {
+    const list = this.read<Project>('projects');
+    const idx = list.findIndex(p => p.id === id); if (idx === -1) throw new Error('Not found');
+    list[idx] = { ...list[idx], ...project, id }; this.write('projects', list);
+  }
+  async deleteProject(id: string): Promise<void> {
+    const list = this.read<Project>('projects').filter(p => p.id !== id); this.write('projects', list);
+  }
+  async getAllCategories(): Promise<Category[]> { return this.read<Category>('categories'); }
+  async getCategoryById(id: string): Promise<Category | null> { return this.read<Category>('categories').find(c => c.id === id) || null; }
+  async getAllFieldTypes(): Promise<FieldType[]> { return this.read<FieldType>('fieldTypes'); }
+  async getFieldTypeById(id: string): Promise<FieldType | null> { return this.read<FieldType>('fieldTypes').find(f => (f.id||'') === id) || null; }
+  async getFieldsByProjectId(projectId: string): Promise<Field[]> { return this.read<Field>('fields').filter(f => f.projectId === projectId); }
+  async getTeamMembersByProjectId(projectId: string): Promise<TeamMember[]> { return this.read<TeamMember>('team').filter(t => t.projectId === projectId); }
+}
+
+// ---------------- Switcher ----------------
+const mode = (process.env.DATA_MODE || 'sharepoint').toLowerCase();
+export const dataService: IDataService = mode === 'local' ? new LocalJsonDataService() : new SharePointDataService();

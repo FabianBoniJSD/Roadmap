@@ -77,26 +77,90 @@ class ClientDataService {
         const webUrl = this.getWebUrl(); // '/api/sharepoint'
         const endpoint = `${webUrl}/_api/web/lists/getByTitle('${listName}')/items?$select=${select}`;
 
-        try {
-            const response = await fetch(endpoint, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json;odata=nometadata'
-                }
-            });
-
-            if (!response.ok) {
-                // Try to get the response text for better error messages
-                const errorText = await response.text();
-                console.error('SharePoint API Error Response:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    url: response.url,
-                    body: errorText
+        const parseAtom = (xml: string): any[] => {
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(xml, 'application/xml');
+                const entries = Array.from(doc.getElementsByTagName('entry'));
+                return entries.map(entry => {
+                    const props = entry.getElementsByTagNameNS('http://schemas.microsoft.com/ado/2007/08/dataservices/metadata', 'properties')[0];
+                    const item: any = {};
+                    if (props) {
+                        Array.from(props.children).forEach((child: any) => {
+                            const name = child.localName; // d:Title -> Title
+                            const text = child.textContent || '';
+                            // Prefer Id over ID, normalize both
+                            if (name === 'ID' && !item.Id) item.Id = text;
+                            item[name] = text;
+                        });
+                    }
+                    return item;
                 });
-                throw new Error(`SharePoint request failed: ${response.statusText}`);
+            } catch (e) {
+                console.error('[clientDataService] Atom parse failed', e);
+                return [];
             }
+        };
 
+        try {
+            // 1) First attempt: modern lightweight JSON
+            let response = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            if (!response.ok) {
+                const firstText = await response.text();
+                const invalid = /InvalidClientQuery|Invalid argument/i.test(firstText);
+                if (invalid) {
+                    // 2) Second attempt: verbose JSON (older SP2013+ requirement)
+                    response = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
+                    if (!response.ok) {
+                        const secondText = await response.text();
+                        const stillInvalid = /InvalidClientQuery|Invalid argument/i.test(secondText);
+                        if (stillInvalid) {
+                            // 3) Third attempt: Atom (some legacy farms only answer with Atom for $select)
+                            const atomResp = await fetch(endpoint, { headers: { 'Accept': 'application/atom+xml' } });
+                            if (atomResp.ok) {
+                                const atomXml = await atomResp.text();
+                                const items = parseAtom(atomXml);
+                                console.warn('[clientDataService] Fallback to Atom XML succeeded', { count: items.length, list: listName });
+                                return items;
+                            } else {
+                                const atomText = await atomResp.text();
+                                console.error('SharePoint API Error Response (atom fallback):', {
+                                    status: atomResp.status,
+                                    statusText: atomResp.statusText,
+                                    url: atomResp.url,
+                                    body: atomText
+                                });
+                                throw new Error(`SharePoint request failed (atom): ${atomResp.statusText}`);
+                            }
+                        } else {
+                            console.error('SharePoint API Error Response (verbose retry):', {
+                                status: response.status,
+                                statusText: response.statusText,
+                                url: response.url,
+                                body: secondText
+                            });
+                            throw new Error(`SharePoint request failed: ${response.statusText}`);
+                        }
+                    }
+                    // Verbose success path
+                    try {
+                        const dataVerbose = await response.json();
+                        return dataVerbose?.d?.results || [];
+                    } catch (e) {
+                        console.error('[clientDataService] Verbose JSON parse error', e);
+                        throw e;
+                    }
+                } else {
+                    console.error('SharePoint API Error Response (first attempt):', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        url: response.url,
+                        body: firstText
+                    });
+                    throw new Error(`SharePoint request failed: ${response.statusText}`);
+                }
+            }
+            // Lightweight JSON success
             const data = await response.json();
             return data.value || [];
         } catch (error) {
@@ -154,43 +218,131 @@ class ClientDataService {
 
     // PROJECT OPERATIONS
     async getAllProjects(): Promise<Project[]> {
-        try {
-            const items = await this.fetchFromSharePoint(
-                SP_LISTS.PROJECTS,
-                'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate'
-            );
+        const candidateFields = [
+            'Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields'
+        ];
+        // Cache of validated fields (in-memory for runtime)
+        // @ts-ignore attach dynamic cache property
+        if (!this._validProjectFields) this._validProjectFields = null as string[] | null;
 
-            const projects = items.map(item => ({
-                id: item.Id.toString(),
+        const buildSelect = (fields: string[]) => {
+            const unique = Array.from(new Set(['Id', ...fields]));
+            return unique.join(',');
+        };
+        const webUrl = this.getWebUrl();
+        const baseItemsUrl = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items`;
+
+        const fetchItems = async (selectFields: string[]): Promise<any[] | { error: string; body?: string; status?: number; }> => {
+            const sel = buildSelect(selectFields);
+            const endpoint = `${baseItemsUrl}?$select=${sel}`; // do not encode commas; SharePoint expects raw list
+            let resp = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            let bodyText: string | null = null;
+            if (!resp.ok) {
+                bodyText = await resp.text();
+                const invalid = /InvalidClientQuery|Invalid argument/i.test(bodyText);
+                if (invalid) {
+                    // Retry verbose
+                    resp = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
+                    if (!resp.ok) {
+                        const second = await resp.text();
+                        return { error: 'http', body: second, status: resp.status };
+                    }
+                    try {
+                        const dataVerbose = await resp.json();
+                        return dataVerbose?.d?.results || [];
+                    } catch (e: any) {
+                        return { error: 'parse', body: e?.message };
+                    }
+                } else {
+                    return { error: 'http', body: bodyText, status: resp.status };
+                }
+            }
+            try {
+                const json = await resp.json();
+                return json.value || [];
+            } catch (e: any) {
+                return { error: 'parse', body: e?.message };
+            }
+        };
+
+        // Attempt full fetch first (use cached successful set if we already probed)
+        let fieldsToUse = (this as any)._validProjectFields || candidateFields.slice();
+        let initialResult = await fetchItems(fieldsToUse);
+
+        // Detect InvalidClientQueryException / invalid argument
+    const isInvalidArg = (r: any) => typeof r === 'object' && r && 'error' in r && r.error === 'http' && /InvalidClientQuery|Invalid argument/i.test(r.body || '');
+
+        if (isInvalidArg(initialResult)) {
+            console.warn('[clientDataService] Full select failed, probing individual fields to isolate invalid ones');
+            const valid: string[] = [];
+            for (const f of candidateFields) {
+                const testRes = await fetchItems(['Id', f]); // builder adds Id again but harmless
+                if (Array.isArray(testRes)) {
+                    valid.push(f);
+                } else if (isInvalidArg(testRes)) {
+                    console.warn(`[clientDataService] Field excluded due to invalid query: ${f}`);
+                } else {
+                    console.warn(`[clientDataService] Field ${f} excluded due to unexpected error`, testRes);
+                }
+            }
+            // Always ensure required base fields present
+            if (!valid.includes('Title')) valid.unshift('Title');
+            (this as any)._validProjectFields = valid;
+            fieldsToUse = valid;
+            initialResult = await fetchItems(fieldsToUse);
+        }
+
+        if (!Array.isArray(initialResult)) {
+            console.error('Error fetching projects (after fallback if any):', initialResult);
+            return [];
+        }
+
+        const items = initialResult;
+        const projects = items.map(item => {
+            // Normalize ProjectFields (multiline text or delimited string -> string[])
+            let projectFields: string[] = [];
+            const raw = item.ProjectFields;
+            if (raw) {
+                if (Array.isArray(raw)) {
+                    projectFields = raw;
+                } else if (typeof raw === 'string') {
+                    if (raw.includes('\n')) {
+                        projectFields = raw.split('\n').map((s: string) => s.trim()).filter(Boolean);
+                    } else if (raw.includes(';') || raw.includes(',')) {
+                        projectFields = raw.split(/[;,]/).map((s: string) => s.trim()).filter(Boolean);
+                    } else {
+                        projectFields = [raw.trim()];
+                    }
+                }
+            }
+
+            return {
+                id: item.Id?.toString?.() || String(item.Id),
                 title: item.Title,
                 category: item.Category,
                 startQuarter: item.StartQuarter,
                 endQuarter: item.EndQuarter,
                 description: item.Description || '',
-                // Convert status to lowercase to match the expected type
-                status: (item.Status?.toLowerCase() || 'planned') as 'planned' | 'in-progress' | 'completed',
-                ProjectFields: item.Fields || [],
+                status: (item.Status?.toLowerCase?.() || 'planned') as 'planned' | 'in-progress' | 'completed',
+                ProjectFields: projectFields,
                 projektleitung: item.Projektleitung || '',
                 bisher: item.Bisher || '',
                 zukunft: item.Zukunft || '',
                 fortschritt: item.Fortschritt || 0,
                 geplante_umsetzung: item.GeplantUmsetzung || '',
                 budget: item.Budget || '',
-                startDate: item.StartDate || '', // Neues Feld
-                endDate: item.EndDate || '',     // Neues Feld
-                links: [] as ProjectLink[] // Explicitly type the empty array
-            }));
+                startDate: item.StartDate || '',
+                endDate: item.EndDate || '',
+                links: [] as ProjectLink[]
+            };
+        });
 
-            // Hole Links für alle Projekte
-            for (const project of projects) {
-                project.links = await this.getProjectLinks(project.id);
-            }
-
-            return projects;
-        } catch (error) {
-            console.error('Error fetching projects:', error);
-            return [];
+        // Hole Links für alle Projekte
+        for (const project of projects) {
+            project.links = await this.getProjectLinks(project.id);
         }
+
+        return projects;
     }
 
     async getProjectById(id: string): Promise<Project | null> {

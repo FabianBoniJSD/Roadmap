@@ -20,6 +20,9 @@ function isAllowedPath(path: string) {
   // Normalize trailing slashes (except root) so /_api/contextinfo/ is treated like /_api/contextinfo
   const cleaned = path.endsWith('/') ? path.replace(/\/+$/,'') : path;
   if (cleaned === '/_api/contextinfo') return true;
+  // Optional debug allowance to enumerate lists (avoids needing a specific list) ONLY when SP_PROXY_DEBUG enabled
+  // @ts-ignore
+  if (process.env.SP_PROXY_DEBUG === 'true' && cleaned === '/_api/web/lists') return true;
   if (!cleaned.startsWith('/_api/web/lists')) return false;
   const match = cleaned.match(/getByTitle\('([^']+)'\)/);
   if (!match) return false;
@@ -53,8 +56,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const segments = (req.query.sp as string[] | undefined) || [];
   const apiPath = '/' + segments.join('/');
   const qIndex = req.url?.indexOf('?') ?? -1;
-  const query = qIndex >= 0 ? req.url!.substring(qIndex) : '';
-  const fullPath = apiPath + query;
+  // Preserve raw encoded query string; earlier decoding attempts may trigger 'Invalid argument' before request
+  let query = '';
+  if (qIndex >= 0) query = req.url!.substring(qIndex); // includes leading '?'
+  let fullPath = apiPath + query;
+  // Some on-prem SharePoint builds reject /items/ (trailing slash) before query params; normalize to /items
+  fullPath = fullPath.replace(/\/items\/\?/, '/items?');
+  // Optionally decode %24 (encoded $) in OData system query option names (e.g. %24select -> $select)
+  // Controlled via SP_DECODE_DOLLAR to allow experimentation without redeploy.
+  // @ts-ignore
+  if (process.env.SP_DECODE_DOLLAR === 'true') {
+    fullPath = fullPath.replace(/%24([a-zA-Z]+)/g, (_m, g1) => '$' + g1);
+  }
+  // Use runtime env flag only if available (avoid type issues in certain build analyzers)
+  // @ts-ignore
+  if (typeof process !== 'undefined' && process.env && process.env.SP_PROXY_DEBUG === 'true') {
+    // eslint-disable-next-line no-console
+    console.debug('[sharepoint proxy] original url:', req.url, '-> decoded fullPath:', fullPath);
+  }
 
   if (!isAllowedPath(apiPath)) {
     return res.status(400).json({ error: 'Path not allowed' });
@@ -66,8 +85,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const method = req.method || 'GET';
     const isWrite = ['POST','PATCH','MERGE','PUT','DELETE'].includes(method);
+    // Forward client's Accept when possible to preserve expected payload shape (nometadata vs verbose)
+    const clientAccept = req.headers['accept'];
     const headers: Record<string,string> = {
-      'Accept': 'application/json;odata=nometadata',
+      'Accept': typeof clientAccept === 'string' ? clientAccept : 'application/json;odata=nometadata',
       'Content-Type': 'application/json;odata=nometadata',
       ...authHeaders,
     };
@@ -85,33 +106,68 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    const spResp = await fetch(targetUrl, {
-      method: method === 'PATCH' ? 'POST' : method, // SharePoint uses POST + X-HTTP-Method for MERGE
-      headers,
-      body: isWrite ? JSON.stringify(req.body) : undefined,
-      // @ts-ignore undici dispatcher
-      dispatcher: sharePointDispatcher ?? undefined,
-      // @ts-ignore optional legacy agent
-      agent: sharePointHttpsAgent
-    });
+    const effectiveMethod = method === 'PATCH' ? 'POST' : method;
+    const doFetch = async (acceptOverride?: string) => {
+      const h = { ...headers };
+      if (acceptOverride) h['Accept'] = acceptOverride;
+      return fetch(targetUrl, {
+        method: effectiveMethod,
+        headers: h,
+        body: isWrite ? JSON.stringify(req.body) : undefined,
+        // @ts-ignore undici dispatcher (may be root cause for 'Invalid argument' in some builds; keep but could disable via env)
+        dispatcher: process.env.SP_DISABLE_DISPATCHER === 'true' ? undefined : (sharePointDispatcher ?? undefined),
+        // @ts-ignore optional legacy agent
+        agent: sharePointHttpsAgent
+      });
+    };
+
+    let spResp: Response;
+    try {
+      spResp = await doFetch();
+    } catch (primaryErr: any) {
+      const msg = String(primaryErr?.message || '').toLowerCase();
+      const isInvalidArg = msg.includes('invalid argument');
+      if (isInvalidArg) {
+        // Retry with Atom Accept which worked manually for user
+        // eslint-disable-next-line no-console
+        console.warn('[sharepoint proxy] primary fetch threw Invalid argument; retrying with application/atom+xml');
+        spResp = await doFetch('application/atom+xml,application/json;q=0.9,*/*;q=0.8');
+      } else {
+        throw primaryErr;
+      }
+    }
 
     const raw = await spResp.text();
     const ct = spResp.headers.get('content-type') || '';
     let payload: any = raw;
     if (ct.includes('application/json')) {
       try { payload = JSON.parse(raw); } catch { /* swallow */ }
+    } else if (/application\/atom\+xml|text\/xml/i.test(ct)) {
+      // Very lightweight Atom -> JSON normalization (ids + title)
+      try {
+        const ids: any[] = [];
+        const matches = raw.match(/<m:properties>[\s\S]*?<\/m:properties>/g) || [];
+        for (const block of matches) {
+          const idMatch = block.match(/<d:Id[^>]*>(\d+)<\/d:Id>/i) || block.match(/<d:ID[^>]*>(\d+)<\/d:ID>/i);
+          const titleMatch = block.match(/<d:Title>([\s\S]*?)<\/d:Title>/i);
+            ids.push({ Id: idMatch ? idMatch[1] : undefined, Title: titleMatch ? titleMatch[1] : '' });
+        }
+        payload = { d: { results: ids } };
+      } catch { /* ignore */ }
     }
     res.status(spResp.status).json(payload);
   } catch (err: any) {
     // Enhanced logging for TLS issues
     const cause: any = err?.cause || {};
-    const errorPayload = {
+  const errorPayload = {
       error: err.message || 'Proxy error',
       code: (err as any).code,
       causeMessage: cause.message,
       causeCode: cause.code,
   targetUrl: site.replace(/\/$/, '') + fullPath
     };
+  // eslint-disable-next-line no-console
+  console.error('[sharepoint proxy] error stack:', err?.stack);
     // eslint-disable-next-line no-console
     console.error('[sharepoint proxy] network/fetch error', errorPayload);
     res.status(500).json(errorPayload);
