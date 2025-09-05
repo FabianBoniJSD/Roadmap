@@ -299,31 +299,24 @@ class ClientDataService {
 
         const items = initialResult;
         const projects = items.map(item => {
-            // Normalize ProjectFields (multiline text or delimited string -> string[])
             let projectFields: string[] = [];
             const raw = item.ProjectFields;
             if (raw) {
-                if (Array.isArray(raw)) {
-                    projectFields = raw;
-                } else if (typeof raw === 'string') {
-                    if (raw.includes('\n')) {
-                        projectFields = raw.split('\n').map((s: string) => s.trim()).filter(Boolean);
-                    } else if (raw.includes(';') || raw.includes(',')) {
-                        projectFields = raw.split(/[;,]/).map((s: string) => s.trim()).filter(Boolean);
-                    } else {
-                        projectFields = [raw.trim()];
-                    }
+                if (Array.isArray(raw)) projectFields = raw;
+                else if (typeof raw === 'string') {
+                    if (raw.includes('\n')) projectFields = raw.split('\n').map((s: string) => s.trim()).filter(Boolean);
+                    else if (raw.includes(';') || raw.includes(',')) projectFields = raw.split(/[;,]/).map((s: string) => s.trim()).filter(Boolean);
+                    else projectFields = [raw.trim()];
                 }
             }
-
-            return {
+            const project: Project = {
                 id: item.Id?.toString?.() || String(item.Id),
                 title: item.Title,
                 category: item.Category,
                 startQuarter: item.StartQuarter,
                 endQuarter: item.EndQuarter,
                 description: item.Description || '',
-                status: (item.Status?.toLowerCase?.() || 'planned') as 'planned' | 'in-progress' | 'completed',
+                status: (item.Status?.toLowerCase?.() || 'planned') as any,
                 ProjectFields: projectFields,
                 projektleitung: item.Projektleitung || '',
                 bisher: item.Bisher || '',
@@ -333,106 +326,146 @@ class ClientDataService {
                 budget: item.Budget || '',
                 startDate: item.StartDate || '',
                 endDate: item.EndDate || '',
-                links: [] as ProjectLink[]
+                links: [],
+                teamMembers: []
             };
+            const derive = (q: string, end = false): string => {
+                const year = new Date().getFullYear();
+                switch (q) {
+                    case 'Q1': return end ? new Date(Date.UTC(year,2,31,23,59,59)).toISOString() : new Date(Date.UTC(year,0,1)).toISOString();
+                    case 'Q2': return end ? new Date(Date.UTC(year,5,30,23,59,59)).toISOString() : new Date(Date.UTC(year,3,1)).toISOString();
+                    case 'Q3': return end ? new Date(Date.UTC(year,8,30,23,59,59)).toISOString() : new Date(Date.UTC(year,6,1)).toISOString();
+                    case 'Q4': return end ? new Date(Date.UTC(year,11,31,23,59,59)).toISOString() : new Date(Date.UTC(year,9,1)).toISOString();
+                    default: return new Date(Date.UTC(year,0,1)).toISOString();
+                }
+            };
+            if (!project.startDate) project.startDate = derive(project.startQuarter || 'Q1');
+            if (!project.endDate) project.endDate = derive(project.endQuarter || project.startQuarter || 'Q1', true);
+            return project;
         });
-
-        // Hole Links für alle Projekte
-        for (const project of projects) {
-            project.links = await this.getProjectLinks(project.id);
+        try {
+            const [allLinks, allTeam] = await Promise.all([
+                this.fetchAllProjectLinks(),
+                this.fetchAllTeamMembers()
+            ]);
+            const linksByProject: Record<string, ProjectLink[]> = {};
+            allLinks.forEach(l => {
+                const pid = l.projectId || ''; (linksByProject[pid] ||= []).push(l);
+            });
+            const teamByProject: Record<string, TeamMember[]> = {};
+            allTeam.forEach(t => {
+                const pid = t.projectId || ''; (teamByProject[pid] ||= []).push(t);
+            });
+            for (const p of projects) {
+                p.links = linksByProject[p.id] || [];
+                p.teamMembers = (teamByProject[p.id] || []).filter(tm => tm.name && tm.name !== p.projektleitung);
+            }
+        } catch (aggErr) {
+            console.warn('[clientDataService] Aggregation failed', aggErr);
         }
-
         return projects;
     }
-
+    
     async getProjectById(id: string): Promise<Project | null> {
         try {
             const webUrl = this.getWebUrl();
-            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items(${id})?$select=Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields`;
-            const response = await fetch(endpoint, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json;odata=nometadata'
-                }
-            });
+            const selectFields = [
+                'Id','Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields'
+            ].join(',');
+            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items(${id})?$select=${selectFields}`;
 
+            let response = await fetch(endpoint, { method: 'GET', headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
             if (!response.ok) {
-                // Try to get the response text for better error messages
-                const errorText = await response.text();
-                console.error('Project Fetch Error Response:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    url: response.url,
-                    body: errorText
-                });
-                throw new Error(`Failed to fetch project: ${response.statusText}`);
-            }
-
-            const item = await response.json();
-            const teamMembers = await this.getTeamMembersForProject(item.Id.toString());
-
-            let projectFields: string[] = [];
-            if (item.ProjectFields) {
-                if (typeof item.ProjectFields === 'string') {
-                    if (item.ProjectFields.includes(';') || item.ProjectFields.includes(',')) {
-                        projectFields = item.ProjectFields
-                            .split(/[;,]/)
-                            .map((field: string) => field.trim())
-                            .filter(Boolean);
-                    } else {
-                        projectFields = [item.ProjectFields];
+                // Retry verbose then atom similar to bulk fetch
+                const firstBody = await response.text();
+                if (/InvalidClientQuery|Invalid argument/i.test(firstBody)) {
+                    response = await fetch(endpoint, { method: 'GET', headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'same-origin' });
+                    if (!response.ok) {
+                        const second = await response.text();
+                        console.error('Project Fetch Error Response (verbose retry):', { status: response.status, statusText: response.statusText, url: response.url, body: second });
+                        return null;
                     }
-                } else if (Array.isArray(item.ProjectFields)) {
-                    projectFields = item.ProjectFields;
-                }
-            }
-
-            const project = {
-                id: item.Id.toString(),
-                title: item.Title,
-                category: item.Category,
-                startQuarter: item.StartQuarter,
-                endQuarter: item.EndQuarter,
-                description: item.Description || '',
-                status: (item.Status?.toLowerCase() || 'planned') as 'planned' | 'in-progress' | 'completed',
-                ProjectFields: projectFields || [],
-                projektleitung: item.Projektleitung || '',
-                projektleitungImageUrl: null as string | null,
-                teamMembers: teamMembers,
-                bisher: item.Bisher || '',
-                zukunft: item.Zukunft || '',
-                fortschritt: item.Fortschritt || 0,
-                geplante_umsetzung: item.GeplantUmsetzung || '',
-                budget: item.Budget || '',
-                startDate: item.StartDate || '', // Neues Feld
-                endDate: item.EndDate || '',     // Neues Feld
-                links: await this.getProjectLinks(item.Id.toString()) // Hole Links für das Projekt
-            };
-
-            // Fixed code section for handling project leader email
-            let projektLeitungMail = '';
-            if (project.projektleitung && project.projektleitung.trim()) {
-                let projektLeitungMailParts = project.projektleitung.split(' ');
-                if (projektLeitungMailParts.length >= 2) {
-                    projektLeitungMail = projektLeitungMailParts[0].toLowerCase() + '.' +
-                        projektLeitungMailParts[1].toLowerCase() + '@jsd.bs.ch';
+                    try {
+                        const verboseData = await response.json();
+                        const item = verboseData?.d || null;
+                        if (!item) return null;
+                        return await this.buildSingleProject(item, id);
+                    } catch (e) {
+                        console.error('Project verbose parse error', e);
+                        return null;
+                    }
                 } else {
-                    // Handle case where there's only one name or the format is unexpected
-                    projektLeitungMail = projektLeitungMailParts[0].toLowerCase() + '@jsd.bs.ch';
-                    console.log(`Project ${id} has incomplete projektleitung format: ${project.projektleitung}`);
+                    console.error('Project Fetch Error Response:', { status: response.status, statusText: response.statusText, url: response.url, body: firstBody });
+                    return null;
                 }
             }
-
-            // Only try to get profile picture if we have a valid email
-            if (projektLeitungMail) {
-                project.projektleitungImageUrl = await this.getUserProfilePictureUrl(projektLeitungMail);
-            }
-
-            return project;
+            const item = await response.json();
+            return await this.buildSingleProject(item, id);
         } catch (error) {
             console.error(`Error fetching project ${id}:`, error);
             return null;
         }
+    }
+
+    // Helper to normalize a single project (shared by getProjectById fallbacks)
+    private async buildSingleProject(item: any, id: string): Promise<Project | null> {
+        if (!item) return null;
+        let projectFields: string[] = [];
+        const raw = item.ProjectFields;
+        if (raw) {
+            if (Array.isArray(raw)) projectFields = raw;
+            else if (typeof raw === 'string') {
+                if (raw.includes('\n')) projectFields = raw.split('\n').map((s: string) => s.trim()).filter(Boolean);
+                else if (raw.includes(';') || raw.includes(',')) projectFields = raw.split(/[;,]/).map((s: string) => s.trim()).filter(Boolean);
+                else projectFields = [raw.trim()];
+            }
+        }
+        const teamMembers = await this.getTeamMembersForProject(id);
+        const links = await this.getProjectLinks(id);
+        const project: Project = {
+            id: item.Id?.toString?.() || id,
+            title: item.Title,
+            category: item.Category,
+            startQuarter: item.StartQuarter,
+            endQuarter: item.EndQuarter,
+            description: item.Description || '',
+            status: (item.Status?.toLowerCase?.() || 'planned') as any,
+            ProjectFields: projectFields,
+            projektleitung: item.Projektleitung || '',
+            projektleitungImageUrl: null,
+            teamMembers: teamMembers,
+            bisher: item.Bisher || '',
+            zukunft: item.Zukunft || '',
+            fortschritt: item.Fortschritt || 0,
+            geplante_umsetzung: item.GeplantUmsetzung || '',
+            budget: item.Budget || '',
+            startDate: item.StartDate || '',
+            endDate: item.EndDate || '',
+            links
+        };
+        // derive dates from quarters if missing
+        const derive = (q: string, end = false): string => {
+            const year = new Date().getFullYear();
+            switch (q) {
+                case 'Q1': return end ? new Date(Date.UTC(year,2,31,23,59,59)).toISOString() : new Date(Date.UTC(year,0,1)).toISOString();
+                case 'Q2': return end ? new Date(Date.UTC(year,5,30,23,59,59)).toISOString() : new Date(Date.UTC(year,3,1)).toISOString();
+                case 'Q3': return end ? new Date(Date.UTC(year,8,30,23,59,59)).toISOString() : new Date(Date.UTC(year,6,1)).toISOString();
+                case 'Q4': return end ? new Date(Date.UTC(year,11,31,23,59,59)).toISOString() : new Date(Date.UTC(year,9,1)).toISOString();
+                default: return new Date(Date.UTC(year,0,1)).toISOString();
+            }
+        };
+        if (!project.startDate) project.startDate = derive(project.startQuarter || 'Q1');
+        if (!project.endDate) project.endDate = derive(project.endQuarter || project.startQuarter || 'Q1', true);
+
+        // Attempt to resolve project lead image
+        if (project.projektleitung) {
+            const parts = project.projektleitung.split(' ').filter(Boolean);
+            if (parts.length >= 2) {
+                const mail = `${parts[0].toLowerCase()}.${parts[1].toLowerCase()}@jsd.bs.ch`;
+                try { project.projektleitungImageUrl = await this.getUserProfilePictureUrl(mail); } catch {}
+            }
+        }
+        return project;
     }
 
     async deleteProject(id: string): Promise<void> {
@@ -784,6 +817,30 @@ class ClientDataService {
             console.error(`Error fetching links for project ${projectId}:`, error);
             return [];
         }
+    }
+
+    // Bulk helpers
+    private async fetchAllProjectLinks(): Promise<ProjectLink[]> {
+        try {
+            const webUrl = this.getWebUrl();
+            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECT_LINKS}')/items?$select=Id,Title,Url,ProjectId`;
+            const response = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            if (!response.ok) return [];
+            const data = await response.json();
+            const items = data.value || [];
+            return items.map((i: any) => ({ id: i.Id.toString(), title: i.Title, url: i.Url, projectId: i.ProjectId }));
+        } catch { return []; }
+    }
+    private async fetchAllTeamMembers(): Promise<TeamMember[]> {
+        try {
+            const webUrl = this.getWebUrl();
+            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.TEAM_MEMBERS}')/items?$select=Id,Title,Role,ProjectId`;
+            const response = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            if (!response.ok) return [];
+            const data = await response.json();
+            const items = data.value || [];
+            return items.map((i: any) => ({ id: i.Id.toString(), name: i.Title, role: i.Role, projectId: i.ProjectId }));
+        } catch { return []; }
     }
 
     async deleteCategory(categoryId: string): Promise<void> {

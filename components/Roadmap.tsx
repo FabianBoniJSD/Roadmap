@@ -7,6 +7,8 @@ import CategorySidebar from './CategorySidebar';
 import Footer from './Footer';
 import { FaBars, FaTimes } from 'react-icons/fa';
 import Nav from './Nav';
+import { loadThemeSettings } from '../utils/theme';
+import StatusLegend from './StatusLegend';
 
 interface RoadmapProps {
   initialProjects: Project[];
@@ -23,6 +25,8 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   const [viewType, setViewType] = useState<'quarters' | 'months' | 'weeks'>('quarters');
   const [mobileCategoriesOpen, setMobileCategoriesOpen] = useState(false);
   const [siteTitle, setSiteTitle] = useState('IT + Digital Roadmap');
+  const [themeColors, setThemeColors] = useState<{gradientFrom:string;gradientTo:string}>({gradientFrom:'#eab308',gradientTo:'#b45309'});
+  const [showLegend, setShowLegend] = useState(true);
 
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -42,10 +46,11 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
   useEffect(() => {
     // Laden des Site-Titels beim Mounten der Komponente
-    const loadAppTitle = async () => {
+  const loadAppTitle = async () => {
       try {
-        const title = await clientDataService.getSettingByKey('siteTitle');
-        setSiteTitle(title?.value || 'IT + Digital Roadmap');
+    const theme = await loadThemeSettings();
+    setSiteTitle(theme.siteTitle || 'IT + Digital Roadmap');
+    setThemeColors({ gradientFrom: theme.gradientFrom, gradientTo: theme.gradientTo });
       } catch (error) {
         console.error('Fehler beim Laden des Site-Titels:', error);
       }
@@ -138,6 +143,24 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       case 'cancelled': return '#EF4444'; // red-500
       default: return '#6B7280'; // gray-500
     }
+  };
+
+  // Tag color helper (deterministic fallback hashing)
+  const tagPalette = [
+    '#059669','#6366F1','#DB2777','#0EA5E9','#D97706','#9333EA','#16A34A','#F43F5E','#0891B2','#7C3AED'
+  ];
+  const specialTagColors: Record<string,string> = {
+    'm365':'#059669',
+    'rpa':'#6366F1',
+    'ai':'#9333EA',
+    'cloud':'#0EA5E9',
+    'security':'#DB2777'
+  };
+  const getTagColor = (tag: string): string => {
+    const key = tag.trim().toLowerCase();
+    if (specialTagColors[key]) return specialTagColors[key];
+    let hash = 0; for (let i=0;i<key.length;i++) hash = ((hash<<5)-hash)+key.charCodeAt(i);
+    const idx = Math.abs(hash) % tagPalette.length; return tagPalette[idx];
   };
 
   // Handle mouse over for project tooltip
@@ -288,14 +311,14 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       {/* Top Navigation Bar */}
       <div className="min-h-screen pt-20 px-4 md:px-8 lg:px-20 font-sans bg-gray-900 text-white overflow-hidden p-0 m-0">
         <header className="w-full flex flex-row justify-between py-4 md:py-8 px-4 md:px-10">
-          <h1 className="text-3xl md:text-5xl font-bold m-0 uppercase tracking-wider bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent shadow-xl">
+          <h1 className="text-3xl md:text-5xl font-bold m-0 uppercase tracking-wider bg-clip-text text-transparent shadow-xl" style={{ backgroundImage: `linear-gradient(to right, ${themeColors.gradientFrom}, ${themeColors.gradientTo})` }}>
             {siteTitle}
           </h1>
           <Nav currentPage="roadmap" />
         </header>
 
         {/* Controls section - View type and Year navigation */}
-        <div className="flex flex-col md:flex-row justify-between items-center p-2 px-4 md:px-10 mb-4 gap-4">
+  <div className="flex flex-col md:flex-row justify-between items-center p-2 px-4 md:px-10 mb-4 gap-4">
           {/* View type buttons - Bigger and more mobile-friendly */}
           <div className="flex space-x-2 w-full md:w-auto">
             <button
@@ -319,11 +342,20 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
           </div>
 
           {/* Year navigation - Responsive */}
-          <div className="w-full md:w-auto flex justify-center md:justify-end">
+          <div className="w-full md:w-auto flex justify-center md:justify-end gap-4 items-center flex-wrap">
             <RoadmapYearNavigation
               initialYear={currentYear}
               onYearChange={setCurrentYear}
             />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowLegend(v => !v)}
+                className="text-xs md:text-sm px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 border border-gray-600"
+              >
+                {showLegend ? 'Legende ausblenden' : 'Legende anzeigen'}
+              </button>
+              {showLegend && <StatusLegend />}
+            </div>
           </div>
         </div>
 
@@ -503,9 +535,33 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                           />
 
                           {/* Project title with improved visibility */}
-                          <span className="font-medium truncate px-1 md:px-2 py-0.5 rounded bg-black bg-opacity-40 text-white group-hover:bg-opacity-60 text-xs md:text-sm">
-                            {project.title}
-                          </span>
+                          <div className="flex items-center gap-1 w-full overflow-hidden">
+                            <span className="font-medium truncate px-1 md:px-2 py-0.5 rounded bg-black bg-opacity-40 text-white group-hover:bg-opacity-60 text-[10px] md:text-sm flex-shrink">
+                              {project.title}
+                            </span>
+                            {/* Tags (ProjectFields) */}
+                            {Array.isArray((project as any).ProjectFields) && (project as any).ProjectFields.length > 0 && (
+                              <div className="ml-auto flex items-center gap-1 overflow-hidden">
+                                {(project as any).ProjectFields.slice(0,3).map((tag: string) => (
+                                  <span
+                                    key={tag}
+                                    className="hidden md:inline-block text-[10px] font-semibold tracking-wide px-1.5 py-0.5 rounded-full whitespace-nowrap select-none"
+                                    style={{
+                                      backgroundColor: getTagColor(tag),
+                                      color: '#fff',
+                                      boxShadow: '0 0 0 1px rgba(255,255,255,0.15)'
+                                    }}
+                                    title={tag}
+                                  >
+                                    {tag.length > 10 ? tag.slice(0,9)+'…' : tag}
+                                  </span>
+                                ))}
+                                {(project as any).ProjectFields.length > 3 && (
+                                  <span className="hidden md:inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-black/40 border border-white/20 text-gray-200" title={(project as any).ProjectFields.slice(3).join(', ')}>+{(project as any).ProjectFields.length - 3}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -516,33 +572,132 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
           </div>
         </div>
 
-        {/* Tooltip */}
+        {/* Enhanced Hover Popup (Rich Tooltip) */}
         {hoveredProject && (
           <div
-            className="fixed bg-gray-800 p-2 md:p-3 rounded-lg shadow-lg z-40 w-48 md:w-64"
+            className="fixed z-50 pointer-events-none shadow-2xl rounded-xl border border-gray-700 bg-gradient-to-b from-gray-900/95 to-gray-800/95 backdrop-blur-sm text-white p-3 md:p-4 w-[300px] md:w-[360px] animate-fadeIn"
             style={{
-              top: Math.min(tooltipPosition.y + 10, window.innerHeight - 200),
-              left: Math.min(tooltipPosition.x + 10, window.innerWidth - 250),
-              maxWidth: '90vw'
+              top: Math.min(tooltipPosition.y + 16, window.innerHeight - 380),
+              left: Math.min(tooltipPosition.x + 16, window.innerWidth - 380),
             }}
           >
-            <h3 className="font-bold text-base md:text-lg">{hoveredProject.title}</h3>
-            <p className="text-xs md:text-sm text-gray-300 mb-1">
-              <span className="font-medium">Kategorie:</span> {getCategoryName(hoveredProject.category)}
-            </p>
-            <p className="text-xs md:text-sm text-gray-300 mb-1">
-              <span className="font-medium">Zeitraum:</span> {
-                hoveredProject.startDate && hoveredProject.endDate ?
-                  `${new Date(hoveredProject.startDate).toLocaleDateString()} - ${new Date(hoveredProject.endDate).toLocaleDateString()}` :
-                  'Kein Zeitraum definiert'
-              }
-            </p>
-            <p className="text-xs md:text-sm text-gray-300 mb-1">
-              <span className="font-medium">Status:</span> {hoveredProject.status}
-            </p>
-            <p className="text-xs md:text-sm text-gray-300">
-              {hoveredProject.description || ''}
-            </p>
+            {/* Header */}
+            <div className="flex flex-col gap-1 mb-2">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-semibold leading-snug text-sm md:text-base flex-1 pr-2">
+                  {hoveredProject.title}
+                </h3>
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full font-medium tracking-wide uppercase"
+                  style={{
+                    backgroundColor: getCategoryColor(hoveredProject.category),
+                    color: '#fff'
+                  }}
+                >
+                  {getCategoryName(hoveredProject.category)}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-[10px] text-gray-300">
+                <span className="inline-flex items-center gap-1">
+                  <span className="opacity-70">Status:</span>
+                  <span className="px-1.5 py-0.5 rounded bg-black/30 border border-white/10 capitalize">
+                    {hoveredProject.status}
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="opacity-70">Zeitraum:</span>
+                  <span className="px-1.5 py-0.5 rounded bg-black/30 border border-white/10">
+                    {hoveredProject.startDate && hoveredProject.endDate
+                      ? `${new Date(hoveredProject.startDate).toLocaleDateString()} – ${new Date(hoveredProject.endDate).toLocaleDateString()}`
+                      : 'n/a'}
+                  </span>
+                </span>
+                {typeof hoveredProject.fortschritt === 'number' && (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="opacity-70">Fortschritt:</span>
+                    <span className="px-1.5 py-0.5 rounded bg-black/30 border border-white/10">{hoveredProject.fortschritt}%</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {typeof hoveredProject.fortschritt === 'number' && (
+              <div className="w-full h-2 bg-gray-700/60 rounded mb-3 overflow-hidden">
+                <div
+                  className="h-full rounded bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all"
+                  style={{ width: `${Math.min(Math.max(hoveredProject.fortschritt,0),100)}%` }}
+                />
+              </div>
+            )}
+
+            {/* Description (truncated) */}
+            {hoveredProject.description && (
+              <p className="text-xs md:text-[13px] text-gray-200 leading-snug mb-3 line-clamp-4">{hoveredProject.description}</p>
+            )}
+
+            {/* Project Fields */}
+            {hoveredProject.ProjectFields && hoveredProject.ProjectFields.length > 0 && (
+              <div className="mb-3">
+                <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-medium">Felder</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {hoveredProject.ProjectFields.slice(0,8).map(f => (
+                    <span key={f} className="text-[10px] bg-black/40 border border-white/10 px-2 py-0.5 rounded-full text-gray-200 truncate max-w-[120px]" title={f}>{f}</span>
+                  ))}
+                  {hoveredProject.ProjectFields.length > 8 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/30 border border-dashed border-white/20">+{hoveredProject.ProjectFields.length - 8}</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Links */}
+            {hoveredProject.links && hoveredProject.links.length > 0 && (
+              <div className="mb-3">
+                <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-medium">Links</div>
+                <ul className="space-y-1">
+                  {hoveredProject.links.slice(0,3).map(l => (
+                    <li key={l.id} className="text-[11px] truncate">
+                      <a
+                        href={l.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-amber-300 hover:text-amber-200 underline decoration-dotted"
+                      >{l.title || l.url}</a>
+                    </li>
+                  ))}
+                  {hoveredProject.links.length > 3 && (
+                    <li className="text-[10px] text-gray-400">+{hoveredProject.links.length - 3} weitere…</li>
+                  )}
+                </ul>
+              </div>
+            )}
+
+            {/* Team Members */}
+            {hoveredProject.teamMembers && hoveredProject.teamMembers.length > 0 && (
+              <div className="mb-2">
+                <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-medium">Team</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {hoveredProject.teamMembers.slice(0,6).map(tm => (
+                    <span key={tm.id || tm.name} className="text-[10px] px-2 py-0.5 rounded bg-gray-700/60 text-gray-200 border border-white/10 truncate max-w-[110px]" title={tm.name}>{tm.name}</span>
+                  ))}
+                  {hoveredProject.teamMembers.length > 6 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-gray-700/40 border border-dashed border-white/20">+{hoveredProject.teamMembers.length - 6}</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Footer meta / budget etc. */}
+            {(hoveredProject.budget || hoveredProject.geplante_umsetzung) && (
+              <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-2 text-[10px] text-gray-400">
+                {hoveredProject.budget && (
+                  <span className="bg-black/30 px-2 py-0.5 rounded border border-white/10" title="Budget">Budget: {hoveredProject.budget}</span>
+                )}
+                {hoveredProject.geplante_umsetzung && (
+                  <span className="bg-black/30 px-2 py-0.5 rounded border border-white/10" title="Geplante Umsetzung">Plan: {hoveredProject.geplante_umsetzung}</span>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

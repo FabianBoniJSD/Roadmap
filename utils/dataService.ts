@@ -89,10 +89,18 @@ export class SharePointDataService implements IDataService {
   
   async getAllProjects(): Promise<Project[]> {
     try {
+      // Fetch base project items including ProjectFields if available
       const items = await this.sp.web.lists.getByTitle(SP_LISTS.PROJECTS).items
-        .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget")
+        .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields")
         .getAll();
-      const mapStatus = (s: string): string => {
+
+      // Bulk fetch related lists in parallel (links + team)
+      const [linkItems, teamItems] = await Promise.all([
+        this.safeGetAllList("RoadmapProjectLinks","Id,Title,Url,ProjectId"),
+        this.safeGetAllList("RoadmapTeamMembers","Id,Title,Role,ProjectId")
+      ]);
+
+      const statusMap = (s: string): string => {
         if (!s) return 'planned';
         const up = s.toUpperCase();
         if (up.includes('PROGRESS')) return 'in-progress';
@@ -102,39 +110,53 @@ export class SharePointDataService implements IDataService {
         if (up.startsWith('PLAN')) return 'planned';
         return s.toLowerCase();
       };
-      const quarterStartDate = (q: string, year: number): Date => {
+      const derive = (q: string, end = false): string => {
+        const year = new Date().getFullYear();
         switch (q) {
-          case 'Q1': return new Date(Date.UTC(year,0,1));
-          case 'Q2': return new Date(Date.UTC(year,3,1));
-          case 'Q3': return new Date(Date.UTC(year,6,1));
-          case 'Q4': return new Date(Date.UTC(year,9,1));
-          default: return new Date(Date.UTC(year,0,1));
+          case 'Q1': return end ? new Date(Date.UTC(year,2,31,23,59,59)).toISOString() : new Date(Date.UTC(year,0,1)).toISOString();
+          case 'Q2': return end ? new Date(Date.UTC(year,5,30,23,59,59)).toISOString() : new Date(Date.UTC(year,3,1)).toISOString();
+          case 'Q3': return end ? new Date(Date.UTC(year,8,30,23,59,59)).toISOString() : new Date(Date.UTC(year,6,1)).toISOString();
+          case 'Q4': return end ? new Date(Date.UTC(year,11,31,23,59,59)).toISOString() : new Date(Date.UTC(year,9,1)).toISOString();
+          default: return new Date(Date.UTC(year,0,1)).toISOString();
         }
       };
-      const quarterEndDate = (q: string, year: number): Date => {
-        switch (q) {
-          case 'Q1': return new Date(Date.UTC(year,2,31,23,59,59));
-          case 'Q2': return new Date(Date.UTC(year,5,30,23,59,59));
-          case 'Q3': return new Date(Date.UTC(year,8,30,23,59,59));
-          case 'Q4': return new Date(Date.UTC(year,11,31,23,59,59));
-          default: return new Date(Date.UTC(year,11,31,23,59,59));
-        }
-      };
-      const currentYear = new Date().getFullYear();
+
+      // Index related data
+      const linksByProject: Record<string, { id: string; title: string; url: string }[]> = {};
+      linkItems.forEach((l: any) => {
+        const pid = l.ProjectId?.toString?.() || '';
+        (linksByProject[pid] ||= []).push({ id: l.Id?.toString?.() || '', title: l.Title, url: l.Url });
+      });
+      const teamByProject: Record<string, TeamMember[]> = {};
+      teamItems.forEach((t: any) => {
+        const pid = t.ProjectId?.toString?.() || '';
+        (teamByProject[pid] ||= []).push({ id: t.Id?.toString?.() || '', name: t.Title, role: t.Role || 'Teammitglied', projectId: pid });
+      });
+
       return items.map((item: any) => {
         const startQ = item.StartQuarter || 'Q1';
         const endQ = item.EndQuarter || startQ;
-        // Heuristic: assume project is in current year if no better metadata present
-        const startDate = quarterStartDate(startQ, currentYear).toISOString();
-        const endDate = quarterEndDate(endQ, currentYear).toISOString();
+        let projectFields: string[] = [];
+        const rawPF = item.ProjectFields;
+        if (rawPF) {
+          if (Array.isArray(rawPF)) projectFields = rawPF;
+          else if (typeof rawPF === 'string') {
+            if (rawPF.includes('\n')) projectFields = rawPF.split('\n').map((s: string) => s.trim()).filter(Boolean);
+            else if (rawPF.includes(';') || rawPF.includes(',')) projectFields = rawPF.split(/[;,]/).map((s: string) => s.trim()).filter(Boolean);
+            else projectFields = [rawPF.trim()];
+          }
+        }
+        const startDate = item.StartDate || derive(startQ);
+        const endDate = item.EndDate || derive(endQ, true);
+        const idStr = item.Id?.toString?.() || '';
         return {
-          id: item.Id?.toString(),
+          id: idStr,
           title: item.Title,
-            category: item.Category,
+          category: item.Category,
           startQuarter: startQ,
           endQuarter: endQ,
           description: item.Description || '',
-          status: mapStatus(item.Status || 'planned'),
+            status: statusMap(item.Status || 'planned'),
           projektleitung: item.Projektleitung || '',
           bisher: item.Bisher || '',
           zukunft: item.Zukunft || '',
@@ -143,10 +165,10 @@ export class SharePointDataService implements IDataService {
           budget: item.Budget || '',
           startDate,
           endDate,
-          ProjectFields: [],
+          ProjectFields: projectFields,
           projektleitungImageUrl: null,
-          teamMembers: [],
-          links: []
+          teamMembers: (teamByProject[idStr] || []).filter(tm => tm.name && tm.name !== (item.Projektleitung || '')),
+          links: linksByProject[idStr] || []
         } as Project;
       });
     } catch (error) {
@@ -159,9 +181,39 @@ export class SharePointDataService implements IDataService {
     try {
       const item = await this.sp.web.lists.getByTitle(SP_LISTS.PROJECTS).items
         .getById(parseInt(id))
-        .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget")();
-      
-      const mapStatus = (s: string): string => {
+        .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields")();
+
+      // Fetch related data for just this project
+      const [links, team] = await Promise.all([
+        this.safeFilterList("RoadmapProjectLinks", `ProjectId eq '${id}'`, "Id,Title,Url,ProjectId"),
+        this.safeFilterList("RoadmapTeamMembers", `ProjectId eq '${id}'`, "Id,Title,Role,ProjectId")
+      ]);
+
+      let projectFields: string[] = [];
+      const rawPF = item.ProjectFields;
+      if (rawPF) {
+        if (Array.isArray(rawPF)) projectFields = rawPF;
+        else if (typeof rawPF === 'string') {
+          if (rawPF.includes('\n')) projectFields = rawPF.split('\n').map((s: string) => s.trim()).filter(Boolean);
+          else if (rawPF.includes(';') || rawPF.includes(',')) projectFields = rawPF.split(/[;,]/).map((s: string) => s.trim()).filter(Boolean);
+          else projectFields = [rawPF.trim()];
+        }
+      }
+      const derive = (q: string, end = false): string => {
+        const year = new Date().getFullYear();
+        switch (q) {
+          case 'Q1': return end ? new Date(Date.UTC(year,2,31,23,59,59)).toISOString() : new Date(Date.UTC(year,0,1)).toISOString();
+          case 'Q2': return end ? new Date(Date.UTC(year,5,30,23,59,59)).toISOString() : new Date(Date.UTC(year,3,1)).toISOString();
+          case 'Q3': return end ? new Date(Date.UTC(year,8,30,23,59,59)).toISOString() : new Date(Date.UTC(year,6,1)).toISOString();
+          case 'Q4': return end ? new Date(Date.UTC(year,11,31,23,59,59)).toISOString() : new Date(Date.UTC(year,9,1)).toISOString();
+          default: return new Date(Date.UTC(year,0,1)).toISOString();
+        }
+      };
+      const startQ = item.StartQuarter || 'Q1';
+      const endQ = item.EndQuarter || startQ;
+      const startDate = item.StartDate || derive(startQ);
+      const endDate = item.EndDate || derive(endQ, true);
+      const statusMap = (s: string): string => {
         if (!s) return 'planned';
         const up = s.toUpperCase();
         if (up.includes('PROGRESS')) return 'in-progress';
@@ -171,28 +223,7 @@ export class SharePointDataService implements IDataService {
         if (up.startsWith('PLAN')) return 'planned';
         return s.toLowerCase();
       };
-      const currentYear = new Date().getFullYear();
-      const qs = (q: string) => q || 'Q1';
-      const quarterStartDate = (q: string, year: number): Date => {
-        switch (q) {
-          case 'Q1': return new Date(Date.UTC(year,0,1));
-          case 'Q2': return new Date(Date.UTC(year,3,1));
-          case 'Q3': return new Date(Date.UTC(year,6,1));
-          case 'Q4': return new Date(Date.UTC(year,9,1));
-          default: return new Date(Date.UTC(year,0,1));
-        }
-      };
-      const quarterEndDate = (q: string, year: number): Date => {
-        switch (q) {
-          case 'Q1': return new Date(Date.UTC(year,2,31,23,59,59));
-          case 'Q2': return new Date(Date.UTC(year,5,30,23,59,59));
-          case 'Q3': return new Date(Date.UTC(year,8,30,23,59,59));
-          case 'Q4': return new Date(Date.UTC(year,11,31,23,59,59));
-          default: return new Date(Date.UTC(year,11,31,23,59,59));
-        }
-      };
-      const startQ = qs(item.StartQuarter);
-      const endQ = qs(item.EndQuarter || startQ);
+
       return {
         id: item.Id.toString(),
         title: item.Title,
@@ -200,24 +231,32 @@ export class SharePointDataService implements IDataService {
         startQuarter: startQ,
         endQuarter: endQ,
         description: item.Description || '',
-        status: mapStatus(item.Status || 'planned'),
+        status: statusMap(item.Status || 'planned'),
         projektleitung: item.Projektleitung || '',
         bisher: item.Bisher || '',
         zukunft: item.Zukunft || '',
         fortschritt: item.Fortschritt || 0,
         geplante_umsetzung: item.GeplantUmsetzung || '',
         budget: item.Budget || '',
-        startDate: quarterStartDate(startQ, currentYear).toISOString(),
-        endDate: quarterEndDate(endQ, currentYear).toISOString(),
-        ProjectFields: [],
+        startDate,
+        endDate,
+        ProjectFields: projectFields,
         projektleitungImageUrl: null,
-        teamMembers: [],
-        links: []
+        teamMembers: team.map((t: any) => ({ id: t.Id?.toString?.() || '', name: t.Title, role: t.Role || 'Teammitglied', projectId: id })),
+        links: links.map((l: any) => ({ id: l.Id?.toString?.() || '', title: l.Title, url: l.Url }))
       } as Project;
     } catch (error) {
       console.error(`Error fetching project ${id}:`, error);
       return null;
     }
+  }
+
+  // Safe helpers for bulk fetch / filters (avoid throwing to keep resilience similar to client service)
+  private async safeGetAllList(listTitle: string, select: string): Promise<any[]> {
+    try { return await this.sp.web.lists.getByTitle(listTitle).items.select(select).getAll(); } catch { return []; }
+  }
+  private async safeFilterList(listTitle: string, filter: string, select: string): Promise<any[]> {
+    try { return await this.sp.web.lists.getByTitle(listTitle).items.filter(filter).select(select).getAll(); } catch { return []; }
   }
 
   async createProject(project: Omit<Project, 'id'>): Promise<Project> {

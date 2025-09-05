@@ -8,6 +8,9 @@ const { execFile } = require('child_process');
 // Simple in-memory cache for curl mode GET responses
 interface CurlCacheEntry { expires: number; payload: any }
 const curlCache: Record<string, CurlCacheEntry> = {};
+const invalidateCurlCache = () => {
+  for (const k of Object.keys(curlCache)) delete curlCache[k];
+};
 
 // Whitelisted lists for safety
 const ALLOWED_LISTS = new Set([
@@ -102,6 +105,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const ent = curlCache[cacheKey];
         if (ent && ent.expires > Date.now()) {
           return res.status(200).json({ ...ent.payload, mode: 'curl', cached: true });
+        }
+      }
+      // Handle POST (contextinfo or list operations) minimal implementation
+      if (req.method !== 'GET') {
+        const isContextInfo = /_api\/contextinfo/i.test(fullPath);
+        const method = req.method.toUpperCase();
+        const curlArgs: string[] = ['-sS', '--ntlm', '--user', cred, '-X', method, '-H', `Accept: ${clientAccept}`];
+        if (isContextInfo || method === 'POST') {
+          // SharePoint expects a body for contextinfo but empty body works
+          curlArgs.push('-H', 'Content-Type: application/json;odata=verbose', '--data', '');
+        } else if (method === 'MERGE' || method === 'PATCH') {
+          curlArgs.push('-H', 'IF-MATCH: *', '-H', 'X-HTTP-Method: MERGE');
+        } else if (method === 'DELETE') {
+          curlArgs.push('-H', 'IF-MATCH: *');
+        }
+        curlArgs.push(targetUrl);
+        if (process.env.SP_ALLOW_SELF_SIGNED === 'true') curlArgs.unshift('-k');
+        if (process.env.SP_CURL_VERBOSE === 'true') curlArgs.unshift('-v');
+  // @ts-ignore node dynamic require
+  const { execFile } = require('child_process');
+        try {
+          const output: { stdout: string; stderr: string } = await new Promise((resolveExec, rejectExec) => {
+            execFile('curl', curlArgs, { timeout: 20000 }, (err: any, stdout: string, stderr: string) => {
+              if (err) return rejectExec(Object.assign(err, { stderr }));
+              resolveExec({ stdout, stderr });
+            });
+          });
+          let parsed: any = output.stdout;
+            try { parsed = JSON.parse(output.stdout); } catch { /* ignore */ }
+          res.setHeader('x-sp-proxy-mode','curl');
+          if (process.env.SP_CURL_VERBOSE==='true') res.setHeader('x-sp-proxy-ntlm','1');
+          // Invalidate cache on any write
+          invalidateCurlCache();
+          return res.status(200).json(parsed);
+        } catch (e: any) {
+          return res.status(500).json({ error: 'curl-post-failed', detail: e.message, stderr: e.stderr });
         }
       }
       // Sanitize allowed path already checked earlier; still ensure no shell injection (use execFile arg array)
