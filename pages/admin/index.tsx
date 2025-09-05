@@ -284,7 +284,7 @@ const AdminPage: React.FC = () => {
                   {projects.map(project => (
                     <tr key={project.id} className="hover:bg-gray-750">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-white">{project.title}</div>
+                        <div className="text-sm font-medium text-white">{project.title || '(Ohne Titel)'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-300">{getCategoryName(project.category)}</div>

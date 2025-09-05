@@ -19,10 +19,39 @@ class ClientDataService {
     private metadataCache: Record<string, string> = {};
     // Cache for request digest
     private requestDigestCache: { value: string; expiration: number } | null = null;
+    // Cache for list field internal names
+    private listFieldsCache: Record<string, Set<string>> = {};
 
     private getWebUrl(): string {
         // Route all SharePoint REST calls through Next.js API proxy to avoid CORS
         return '/api/sharepoint';
+    }
+
+    // Discover internal field names for a list and cache them
+    private async getListFieldNames(listName: string): Promise<Set<string>> {
+        if (this.listFieldsCache[listName]) return this.listFieldsCache[listName];
+        try {
+            const webUrl = this.getWebUrl();
+            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${listName}')/fields?$select=InternalName`;
+            const resp = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            if (!resp.ok) {
+                // Retry verbose
+                const resp2 = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
+                if (!resp2.ok) throw new Error('Failed to read fields');
+                const data2 = await resp2.json();
+                const results = (data2?.d?.results || []).map((f: any) => f.InternalName).filter(Boolean);
+                this.listFieldsCache[listName] = new Set(results);
+                return this.listFieldsCache[listName];
+            }
+            const data = await resp.json();
+            const values: string[] = (data.value || []).map((f: any) => f.InternalName).filter(Boolean);
+            this.listFieldsCache[listName] = new Set(values);
+            return this.listFieldsCache[listName];
+        } catch (e) {
+            console.warn('[clientDataService] Could not fetch field names for list', listName, e);
+            this.listFieldsCache[listName] = new Set();
+            return this.listFieldsCache[listName];
+        }
     }
 
     private async getRequestDigest(): Promise<string> {
@@ -219,7 +248,7 @@ class ClientDataService {
     // PROJECT OPERATIONS
     async getAllProjects(): Promise<Project[]> {
         const candidateFields = [
-            'Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields'
+            'Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields','Projektphase','NaechsterMeilenstein'
         ];
         // Cache of validated fields (in-memory for runtime)
         // @ts-ignore attach dynamic cache property
@@ -259,7 +288,9 @@ class ClientDataService {
             }
             try {
                 const json = await resp.json();
-                return json.value || [];
+                if (Array.isArray(json?.value)) return json.value;
+                if (Array.isArray(json?.d?.results)) return json.d.results;
+                return [];
             } catch (e: any) {
                 return { error: 'parse', body: e?.message };
             }
@@ -294,10 +325,30 @@ class ClientDataService {
 
         if (!Array.isArray(initialResult)) {
             console.error('Error fetching projects (after fallback if any):', initialResult);
-            return [];
+            // Final defensive fallback using generic helper (handles Atom/XML etc.)
+            try {
+                const minimal = await this.fetchFromSharePoint(
+                    SP_LISTS.PROJECTS,
+                    'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate'
+                );
+                initialResult = Array.isArray(minimal) ? minimal : [];
+            } catch (e) {
+                console.warn('[clientDataService] minimal project fetch also failed', e);
+                return [];
+            }
         }
 
-        const items = initialResult;
+        let items = initialResult;
+        // If we got an empty array (possible Atom-minimal normalization), try generic helper as a second chance
+        if (Array.isArray(items) && items.length === 0) {
+            try {
+                const alt = await this.fetchFromSharePoint(
+                    SP_LISTS.PROJECTS,
+                    'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields'
+                );
+                if (Array.isArray(alt) && alt.length > 0) items = alt;
+            } catch {/* ignore */}
+        }
         const projects = items.map(item => {
             let projectFields: string[] = [];
             const raw = item.ProjectFields;
@@ -326,6 +377,8 @@ class ClientDataService {
                 budget: item.Budget || '',
                 startDate: item.StartDate || '',
                 endDate: item.EndDate || '',
+                projektphase: (item.Projektphase?.toLowerCase?.() || undefined) as any,
+                naechster_meilenstein: item.NaechsterMeilenstein || undefined,
                 links: [],
                 teamMembers: []
             };
@@ -370,7 +423,7 @@ class ClientDataService {
         try {
             const webUrl = this.getWebUrl();
             const selectFields = [
-                'Id','Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields'
+                'Id','Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields','Projektphase','NaechsterMeilenstein'
             ].join(',');
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items(${id})?$select=${selectFields}`;
 
@@ -399,8 +452,42 @@ class ClientDataService {
                     return null;
                 }
             }
-            const item = await response.json();
-            return await this.buildSingleProject(item, id);
+            let item = await response.json();
+            // If proxy returned minimal Atom-normalized shape (d.results array with only Id/Title), refetch without $select in verbose
+            if (item && item.d && Array.isArray(item.d.results)) {
+                const endpoint2 = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items(${id})`;
+                let resp2 = await fetch(endpoint2, { method: 'GET', headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'same-origin' });
+                if (resp2.ok) {
+                    const verbose = await resp2.json();
+                    item = verbose?.d || item;
+                }
+            }
+            const built = await this.buildSingleProject(item, id);
+            if (!built) return null;
+            // If critical text fields are empty, merge from the bulk list as a fallback
+            const needsMerge = !built.title || !built.description || !built.bisher || !built.zukunft || !built.geplante_umsetzung || !built.budget || !built.category || !built.startQuarter || !built.endQuarter;
+            if (needsMerge) {
+                try {
+                    const all = await this.getAllProjects();
+                    const fromList = all.find(p => p.id === id);
+                    if (fromList) {
+                        built.title = built.title || fromList.title;
+                        built.category = built.category || fromList.category;
+                        built.startQuarter = built.startQuarter || fromList.startQuarter;
+                        built.endQuarter = built.endQuarter || fromList.endQuarter;
+                        built.status = built.status || fromList.status;
+                        built.description = built.description || fromList.description;
+                        built.bisher = built.bisher || fromList.bisher;
+                        built.zukunft = built.zukunft || fromList.zukunft;
+                        built.geplante_umsetzung = built.geplante_umsetzung || fromList.geplante_umsetzung;
+                        built.budget = built.budget || fromList.budget;
+                        if (!built.ProjectFields?.length && fromList.ProjectFields?.length) built.ProjectFields = fromList.ProjectFields;
+                        if (!built.projektphase && fromList.projektphase) built.projektphase = fromList.projektphase;
+                        if (!built.naechster_meilenstein && fromList.naechster_meilenstein) built.naechster_meilenstein = fromList.naechster_meilenstein;
+                    }
+                } catch {/* ignore */}
+            }
+            return built;
         } catch (error) {
             console.error(`Error fetching project ${id}:`, error);
             return null;
@@ -441,6 +528,8 @@ class ClientDataService {
             budget: item.Budget || '',
             startDate: item.StartDate || '',
             endDate: item.EndDate || '',
+            projektphase: (item.Projektphase?.toLowerCase?.() || undefined) as any,
+            naechster_meilenstein: item.NaechsterMeilenstein || undefined,
             links
         };
         // derive dates from quarters if missing
@@ -545,7 +634,7 @@ class ClientDataService {
             }
 
             // Create a clean request body with all fields included
-            const body = {
+            const body: any = {
                 '__metadata': { 'type': itemType },
                 'Title': projectData.title || existingProject.title || '',
                 'Category': projectData.category || existingProject.category || '',
@@ -563,6 +652,17 @@ class ClientDataService {
                 'EndDate': projectData.endDate || existingProject.endDate || '',
                 'ProjectFields': projectFieldsValue
             };
+
+            // Conditionally include optional new fields if list supports them
+            try {
+                const fields = await this.getListFieldNames(SP_LISTS.PROJECTS);
+                if (fields.has('Projektphase')) {
+                    body['Projektphase'] = (projectData as any).projektphase || (existingProject as any).projektphase || '';
+                }
+                if (fields.has('NaechsterMeilenstein')) {
+                    body['NaechsterMeilenstein'] = (projectData as any).naechster_meilenstein || (existingProject as any).naechster_meilenstein || '';
+                }
+            } catch {}
 
             console.log('Data being sent to SharePoint:', JSON.stringify(body));
 
@@ -1106,7 +1206,7 @@ class ClientDataService {
             }
 
             // Prepare the request body
-            const body = {
+            const body: any = {
                 '__metadata': { 'type': itemType },
                 'Title': projectData.title,
                 'Category': projectData.category,
@@ -1124,6 +1224,16 @@ class ClientDataService {
                 'EndDate': projectData.endDate,
                 'ProjectFields': cleanFields(projectData.ProjectFields)
             };
+
+            try {
+                const fields = await this.getListFieldNames(SP_LISTS.PROJECTS);
+                if (fields.has('Projektphase')) {
+                    body['Projektphase'] = (projectData as any).projektphase || '';
+                }
+                if (fields.has('NaechsterMeilenstein')) {
+                    body['NaechsterMeilenstein'] = (projectData as any).naechster_meilenstein || '';
+                }
+            } catch {}
 
             // Send the request
             const response = await fetch(endpoint, {

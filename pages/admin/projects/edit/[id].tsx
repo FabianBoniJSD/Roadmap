@@ -64,6 +64,8 @@ const EditProjectPage: React.FC = () => {
         budget: updatedProject.budget || '',
         startDate: '',
         endDate: '',
+            projektphase: updatedProject.projektphase || '',
+            naechster_meilenstein: updatedProject.naechster_meilenstein || '',
         // Make sure ProjectFields is an array to match the Project type
         ProjectFields: [] as string[]
       };

@@ -40,6 +40,17 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   const [fortschritt, setFortschritt] = useState(initialProject?.fortschritt || 0);
   const [geplantUmsetzung, setGeplantUmsetzung] = useState(initialProject?.geplante_umsetzung || '');
   const [budget, setBudget] = useState(initialProject?.budget || '');
+  // Neue Felder: Projektphase & Nächster Meilenstein
+  const normalizePhase = (val?: string) => {
+    if (!val) return 'initialisierung' as const;
+    const v = val.toLowerCase();
+    if (v === 'einführung') return 'einfuehrung';
+    return (v as any);
+  };
+  const [projektphase, setProjektphase] = useState<
+    'initialisierung' | 'konzept' | 'realisierung' | 'einführung' | 'einfuehrung' | 'abschluss'
+  >(normalizePhase(initialProject?.projektphase));
+  const [naechsterMeilenstein, setNaechsterMeilenstein] = useState(initialProject?.naechster_meilenstein || '');
 
   // Team member search functionality
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,6 +143,54 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   useEffect(() => {
     debouncedSearch(searchQuery);
   }, [searchQuery, debouncedSearch]);
+
+  // Sync when initialProject changes (edit mode populates after load)
+  useEffect(() => {
+    if (!initialProject) return;
+    setTitle(initialProject.title || '');
+    setDescription(initialProject.description || '');
+    setStatus(initialProject.status || 'planned');
+    setStartDate(initialProject.startDate ? new Date(initialProject.startDate) : null);
+    setEndDate(initialProject.endDate ? new Date(initialProject.endDate) : null);
+    setSelectedCategory(initialProject.category || '');
+    setProjektleitung(initialProject.projektleitung || '');
+    setBisher(initialProject.bisher || '');
+    setZukunft(initialProject.zukunft || '');
+    setFortschritt(initialProject.fortschritt || 0);
+    setGeplantUmsetzung(initialProject.geplante_umsetzung || '');
+    setBudget(initialProject.budget || '');
+    // ProjectFields normalize
+    if (Array.isArray(initialProject.ProjectFields)) {
+      setSelectedFields(initialProject.ProjectFields);
+    } else if (typeof initialProject.ProjectFields === 'string') {
+      const fieldStr = initialProject.ProjectFields as unknown as string;
+      if (fieldStr.includes(';') || fieldStr.includes(',')) {
+        setSelectedFields(fieldStr.split(/[;,]/).map(f => f.trim()).filter(Boolean));
+      } else if (fieldStr) {
+        setSelectedFields([fieldStr]);
+      } else {
+        setSelectedFields([]);
+      }
+    } else {
+      setSelectedFields([]);
+    }
+    // Links
+    setLinks(initialProject.links || []);
+    // Team members normalize
+    if (initialProject.teamMembers && initialProject.teamMembers.length) {
+      const tms = (initialProject.teamMembers as (string | TeamMember)[]).map(member =>
+        typeof member === 'string'
+          ? { id: `temp-${uuidv4()}`, name: member, role: 'Teammitglied', projectId: initialProject.id }
+          : member
+      );
+      setTeamMembers(tms);
+    } else {
+      setTeamMembers([]);
+    }
+    // Phase & Meilenstein
+    setProjektphase(normalizePhase(initialProject.projektphase));
+    setNaechsterMeilenstein(initialProject.naechster_meilenstein || '');
+  }, [initialProject]);
 
   // Function to add a team member to the project
   const handleAddTeamMember = (member: TeamMember) => {
@@ -293,6 +352,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       fortschritt,
       geplante_umsetzung: geplantUmsetzung,
       budget,
+  projektphase: projektphase === 'einführung' ? 'einfuehrung' : projektphase,
+  naechster_meilenstein: naechsterMeilenstein || undefined,
       teamMembers,
       links,
       ProjectFields: selectedFields
@@ -451,30 +512,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         {errors.projektleitung && <p className="text-red-500 text-sm mt-1">{errors.projektleitung}</p>}
       </div>
 
-      {/* Fortschritt */}
-      <div>
-        <label htmlFor="fortschritt" className="block text-sm font-medium mb-1">
-          Fortschritt (%)
-        </label>
-        <div className="flex items-center space-x-4">
-          <input
-            id="fortschritt"
-            type="range"
-            min="0"
-            max="100"
-            value={fortschritt}
-            onChange={(e) => setFortschritt(parseInt(e.target.value))}
-            className="flex-grow"
-          />
-          <span className="w-12 text-center">{fortschritt}%</span>
-        </div>
-        <div className="w-full bg-gray-700 rounded-full h-2.5 mt-2">
-          <div
-            className="bg-blue-600 h-2.5 rounded-full"
-            style={{ width: `${fortschritt}%` }}
-          ></div>
-        </div>
-      </div>
+  {/* Fortschritt entfernt – Phasensteuerung ersetzt die Prozentanzeige */}
 
       {/* Budget */}
       <div>
@@ -491,6 +529,40 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           required
         />
         {errors.budget && <p className="text-red-500 text-sm mt-1">{errors.budget}</p>}
+      </div>
+
+      {/* Projektphase */}
+      <div>
+        <label htmlFor="projektphase" className="block text-sm font-medium mb-1">
+          Projektphase
+        </label>
+        <select
+          id="projektphase"
+          value={projektphase}
+          onChange={(e) => setProjektphase(e.target.value as any)}
+          className="w-full bg-gray-800 border border-gray-700 rounded p-2"
+        >
+          <option value="initialisierung">Initialisierung</option>
+          <option value="konzept">Konzept</option>
+          <option value="realisierung">Realisierung</option>
+          <option value="einfuehrung">Einführung</option>
+          <option value="abschluss">Abschluss</option>
+        </select>
+      </div>
+
+      {/* Nächster Meilenstein (optional) */}
+      <div>
+        <label htmlFor="naechsterMeilenstein" className="block text-sm font-medium mb-1">
+          Nächster Meilenstein (optional)
+        </label>
+        <input
+          id="naechsterMeilenstein"
+          type="text"
+          value={naechsterMeilenstein}
+          onChange={(e) => setNaechsterMeilenstein(e.target.value)}
+          className="w-full bg-gray-800 border border-gray-700 rounded p-2"
+          placeholder="z.B. Go-Live Q3 2025"
+        />
       </div>
 
       {/* Bisher */}

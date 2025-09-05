@@ -29,6 +29,8 @@ async function setupSharePointLists() {
       await projectsList.list.fields.addNumber("Fortschritt");
       await projectsList.list.fields.addText("GeplantUmsetzung", { MaxLength: 100, Required: false });
       await projectsList.list.fields.addText("Budget", { MaxLength: 100, Required: false });
+  await projectsList.list.fields.addText("Projektphase", { MaxLength: 50, Required: false });
+  await projectsList.list.fields.addText("NaechsterMeilenstein", { MaxLength: 255, Required: false });
     }
     
     // Create Categories list

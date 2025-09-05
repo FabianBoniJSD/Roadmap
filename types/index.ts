@@ -18,6 +18,9 @@ export interface Project {
     startDate: string; // Neues Feld für exaktes Startdatum
     endDate: string;   // Neues Feld für exaktes Enddatum
     links?: { id: string; title: string; url: string }[]; // Neues Feld für Links
+    // Optional neue Felder für phasenbasierten Fortschritt & Meilenstein
+    projektphase?: 'initialisierung' | 'konzept' | 'realisierung' | 'einführung' | 'einfuehrung' | 'abschluss';
+    naechster_meilenstein?: string;
 }
 
 export interface Category {

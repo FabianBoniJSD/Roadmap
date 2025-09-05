@@ -169,23 +169,23 @@ const ProjectDetailPage: React.FC = () => {
         {/* Separator */}
         <div className="w-full h-px bg-gray-700 mb-8"></div>
 
-        {/* Content grid with clear separation */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+  {/* Content grid with clear separation */}
+  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - 3 boxes */}
           <div className="space-y-8">
             <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 shadow-md">
               <h2 className="text-xl font-bold mb-4 pb-3 border-b border-gray-700 text-white">Beschreibung</h2>
-              <p className="text-gray-300 break-words">{project.description}</p>
+              <p className="text-gray-300 break-words">{project.description || 'Keine Daten'}</p>
             </div>
 
             <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 shadow-md">
               <h2 className="text-xl font-bold mb-4 pb-3 border-b border-gray-700 text-white">Bisher</h2>
-              <p className="text-gray-300 break-words">{project.bisher}</p>
+              <p className="text-gray-300 break-words">{project.bisher || 'Keine Daten'}</p>
             </div>
 
             <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 shadow-md">
               <h2 className="text-xl font-bold mb-4 pb-3 border-b border-gray-700 text-white">In Zukunft</h2>
-              <p className="text-gray-300 break-words">{project.zukunft}</p>
+              <p className="text-gray-300 break-words">{project.zukunft || 'Keine Daten'}</p>
             </div>
 
             {/* Links-Bereich */}
@@ -216,7 +216,7 @@ const ProjectDetailPage: React.FC = () => {
           <div className="space-y-8">
             <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 shadow-md">
               <h2 className="text-xl font-bold mb-4 pb-3 border-b border-gray-700 text-white">Felder</h2>
-              <div className="space-y-6">
+      <div className="space-y-6">
                 <div>
                   {project.ProjectFields ? (
                     <ul className="list-disc pl-5">
@@ -225,7 +225,7 @@ const ProjectDetailPage: React.FC = () => {
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-gray-400">Keine Felder vorhanden</p>
+        <p className="text-gray-400">Keine Felder vorhanden</p>
                   )}
                 </div>
               </div>
@@ -301,27 +301,30 @@ const ProjectDetailPage: React.FC = () => {
           {/* Right Column - 3 boxes */}
           <div className="space-y-8">
             <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 shadow-md">
-              <h2 className="text-xl font-bold mb-4 pb-3 border-b border-gray-700 text-white">Fortschritt</h2>
-              <div className="mb-2 flex justify-between">
-                <span className="text-gray-300">{project.fortschritt}%</span>
-              </div>
-              <div className="w-full bg-gray-700 rounded-full h-4">
-                <div
-                  className="bg-blue-600 h-4 rounded-full"
-                  style={{ width: `${project.fortschritt}%` }}
-                ></div>
-              </div>
+              <h2 className="text-xl font-bold mb-4 pb-3 border-b border-gray-700 text-white">Geplante Umsetzung</h2>
+              <p className="text-gray-300 break-words">{project.geplante_umsetzung || 'Keine Daten'}</p>
             </div>
 
-            <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 shadow-md">
-              <h2 className="text-xl font-bold mb-4 pb-3 border-b border-gray-700 text-white">Geplante Umsetzung</h2>
-              <p className="text-gray-300 break-words">{project.geplante_umsetzung}</p>
-            </div>
+            {/* Optional: Nächster Meilenstein nur anzeigen, wenn befüllt */}
+            {project.naechster_meilenstein && project.naechster_meilenstein.trim() !== '' && (
+              <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 shadow-md">
+                <h2 className="text-xl font-bold mb-4 pb-3 border-b border-gray-700 text-white">Nächster Meilenstein</h2>
+                <p className="text-gray-300 break-words">{project.naechster_meilenstein}</p>
+              </div>
+            )}
 
             <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 shadow-md">
               <h2 className="text-xl font-bold mb-4 pb-3 border-b border-gray-700 text-white">Budget</h2>
-              <p className="text-gray-300 text-2xl font-semibold">{project.budget} ₣</p>
+              <p className="text-gray-300 text-2xl font-semibold">{project.budget ? `${project.budget} ₣` : 'Keine Daten'}</p>
             </div>
+          </div>
+        </div>
+
+        {/* Full-width phase tiles at the bottom */}
+        <div className="mt-8">
+          <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 shadow-md">
+            <h2 className="text-xl font-bold mb-4 pb-3 border-b border-gray-700 text-white">Projektphase</h2>
+            {renderPhaseTimeline(project.projektphase)}
           </div>
         </div>
       </div>
@@ -330,3 +333,37 @@ const ProjectDetailPage: React.FC = () => {
 };
 
 export default ProjectDetailPage;
+
+// Helfer: Timeline der Projektphasen mit Markierung der aktiven Phase
+function renderPhaseTimeline(phase?: string) {
+  // Normalize phase key (um Umlaute/Varianten abzudecken)
+  const norm = (phase || '').toLowerCase();
+  const active = norm.replace('ä', 'ae').replace('ö', 'oe').replace('ü', 'ue');
+  const steps: { key: string; label: string; desc: string }[] = [
+    { key: 'initialisierung', label: 'Initialisierung', desc: 'Grundlagen, Ziele und Machbarkeit klären.' },
+    { key: 'konzept', label: 'Konzept', desc: 'Lösungsansätze ausarbeiten, Konzept erstellen.' },
+    { key: 'realisierung', label: 'Realisierung', desc: 'Umsetzung, Integration und Tests.' },
+    { key: 'einfuehrung', label: 'Einführung', desc: 'Schrittweise Überführung und Rollout.' },
+    { key: 'abschluss', label: 'Abschluss', desc: 'Ergebnisse prüfen, Doku übergeben, Abschluss.' },
+  ];
+  return (
+    <div className="rounded border border-gray-700 p-4 bg-gray-900">
+      <div className="grid grid-cols-5 gap-2">
+        {steps.map((s) => {
+          const isActive = active ? active === s.key : false;
+          return (
+            <div key={s.key} className={`relative p-3 rounded-md text-center ${isActive ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-300'}`}>
+              <div className="font-semibold">{s.label}</div>
+              <div className="text-xs mt-1 opacity-80 leading-snug">{s.desc}</div>
+              {/* Chevron effect */}
+              <div className={`absolute top-1/2 -right-2 transform -translate-y-1/2 border-y-8 border-y-transparent border-l-8 ${isActive ? 'border-l-blue-700' : 'border-l-gray-800'}`} />
+            </div>
+          );
+        })}
+      </div>
+      {!active && (
+        <div className="text-xs text-gray-400 mt-3">Keine Phase gesetzt.</div>
+      )}
+    </div>
+  );
+}
