@@ -46,3 +46,65 @@ If you see many `*.js` 404 errors for dynamic chunks after deployment (e.g. `cb3
 5. Set `SUPPRESS_CONFIG_LOG=0` (default) and inspect build logs for the `[next.config]` line to verify the active basePath.
 
 After adjustments, rebuild (`npm run build`) and redeploy.
+
+## Kerberos (Negotiate) Authentication Mode
+
+The application now supports a Kerberos mode (`SP_STRATEGY=kerberos`) that relies on the browser / OS integrated authentication (SPNEGO). In this mode the app does NOT construct NTLM handshakes or send explicit `Authorization` headers from server code; instead the SharePoint / IIS tier challenges with `WWW-Authenticate: Negotiate` and the browser supplies a Kerberos ticket automatically when the site is in the Local Intranet / trusted zone.
+
+### Enable Kerberos in the App
+
+Set environment variables (e.g. in `.env.local` for development):
+
+```
+SP_STRATEGY=kerberos
+NEXT_PUBLIC_SP_AUTH_MODE=kerberos
+```
+
+All SharePoint proxy requests will expose a diagnostic header:
+
+```
+x-sp-auth-mode: kerberos
+```
+
+### SharePoint / IIS Prerequisites
+1. Ensure Windows Authentication is enabled and ordered: `Negotiate` FIRST, `NTLM` SECOND (IIS Manager > Site > Authentication > Windows Authentication > Providers).
+2. Register SPNs for the SharePoint web app service account (run as Domain Admin):
+	```
+	setspn -S HTTP/your-sharepoint-host domain\\spserviceacct
+	setspn -S HTTP/your-sharepoint-host.fqdn domain\\spserviceacct
+	```
+	Verify:
+	```
+	setspn -Q HTTP/your-sharepoint-host
+	```
+3. Time sync: All servers and clients within < 5 min skew (Kerberos requirement).
+4. If a reverse proxy / load balancer sits in front: configure Kerberos constrained delegation (KCD) from the proxy computer account to the HTTP SPN of SharePoint (Active Directory Users & Computers > Delegation tab).
+5. Browsers: Add the SharePoint host and the Next.js host to Local Intranet (IE/Edge) or Auth whitelist policies (Chrome/Edge group policy `AuthServerWhitelist`).
+
+### Application Behavior in Kerberos Mode
+* `utils/spAuth.ts` returns only basic `Accept` header (no `Authorization`).
+* The proxy route skips the cURL/NTLM fallback path.
+* Browser requests to `/api/sharepoint/...` should trigger a 401 + `WWW-Authenticate: Negotiate` once, then succeed with a Kerberos ticket.
+* Server-to-SharePoint direct calls that require delegation are limited unless the Node process itself has a valid TGT (running under a domain account with appropriate SPNs). For most scenarios let the browser perform the authenticated calls through the proxy.
+
+### Validation Steps
+1. Open DevTools Network for a SharePoint proxy request (e.g. `/api/sharepoint/_api/web?$select=Title`).
+2. First response may be 401 with headers:
+	* `WWW-Authenticate: Negotiate` (possibly also NTLM as fallback)
+3. Second request should succeed (200) with request header:
+	* `Authorization: Negotiate <base64>`
+4. Response headers include `x-sp-auth-mode: kerberos`.
+5. On the SharePoint server, check the Security event log for successful Kerberos service ticket (Event ID 4769) for `HTTP/your-sharepoint-host`.
+
+### Troubleshooting
+| Symptom | Check |
+|---------|-------|
+| Still using NTLM | Provider order (Negotiate must be first); SPN duplicates cause fallback. |
+| 401 loop | Missing SPN or browser not in Intranet zone. Use `setspn -Q HTTP/host`. |
+| KRB5KDC_ERR_S_PRINCIPAL_UNKNOWN | SPN not registered or typo in host FQDN. |
+| Works locally, fails via proxy | Delegation/KCD not configured; verify delegation tab settings. |
+| Mixed content blocked | Ensure all endpoints served over HTTPS so Kerberos handshake not downgraded. |
+
+### Rollback
+Set `SP_STRATEGY=onprem` (or previous value) and restart; NTLM logic & cURL fallback re-enable automatically.
+

@@ -33,6 +33,9 @@ export interface Project {
   projektleitungImageUrl?: string | null;
   teamMembers?: TeamMember[];
   links?: { id: string; title: string; url: string }[];
+  // Newly added fields aligned with clientDataService + types
+  projektphase?: string;
+  naechster_meilenstein?: string;
 }
 
 export interface Category {
@@ -91,7 +94,7 @@ export class SharePointDataService implements IDataService {
     try {
       // Fetch base project items including ProjectFields if available
       const items = await this.sp.web.lists.getByTitle(SP_LISTS.PROJECTS).items
-        .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields")
+        .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein")
         .getAll();
 
       // Bulk fetch related lists in parallel (links + team)
@@ -168,7 +171,9 @@ export class SharePointDataService implements IDataService {
           ProjectFields: projectFields,
           projektleitungImageUrl: null,
           teamMembers: (teamByProject[idStr] || []).filter(tm => tm.name && tm.name !== (item.Projektleitung || '')),
-          links: linksByProject[idStr] || []
+          links: linksByProject[idStr] || [],
+          projektphase: item.Projektphase || undefined,
+          naechster_meilenstein: item.NaechsterMeilenstein || undefined
         } as Project;
       });
     } catch (error) {
@@ -181,7 +186,7 @@ export class SharePointDataService implements IDataService {
     try {
       const item = await this.sp.web.lists.getByTitle(SP_LISTS.PROJECTS).items
         .getById(parseInt(id))
-        .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields")();
+        .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein")();
 
       // Fetch related data for just this project
       const [links, team] = await Promise.all([
@@ -243,7 +248,9 @@ export class SharePointDataService implements IDataService {
         ProjectFields: projectFields,
         projektleitungImageUrl: null,
         teamMembers: team.map((t: any) => ({ id: t.Id?.toString?.() || '', name: t.Title, role: t.Role || 'Teammitglied', projectId: id })),
-        links: links.map((l: any) => ({ id: l.Id?.toString?.() || '', title: l.Title, url: l.Url }))
+        links: links.map((l: any) => ({ id: l.Id?.toString?.() || '', title: l.Title, url: l.Url })),
+        projektphase: item.Projektphase || undefined,
+        naechster_meilenstein: item.NaechsterMeilenstein || undefined
       } as Project;
     } catch (error) {
       console.error(`Error fetching project ${id}:`, error);
@@ -274,6 +281,8 @@ export class SharePointDataService implements IDataService {
         Fortschritt: project.fortschritt,
         GeplantUmsetzung: project.geplante_umsetzung,
         Budget: project.budget,
+        Projektphase: (project as any).projektphase || '',
+        NaechsterMeilenstein: (project as any).naechster_meilenstein || ''
       });
       
       return {
@@ -301,7 +310,9 @@ export class SharePointDataService implements IDataService {
       if (project.zukunft !== undefined) updateData.Zukunft = project.zukunft;
       if (project.fortschritt !== undefined) updateData.Fortschritt = project.fortschritt;
       if (project.geplante_umsetzung !== undefined) updateData.GeplantUmsetzung = project.geplante_umsetzung;
-      if (project.budget !== undefined) updateData.Budget = project.budget;
+  if (project.budget !== undefined) updateData.Budget = project.budget;
+  if ((project as any).projektphase !== undefined) updateData.Projektphase = (project as any).projektphase;
+  if ((project as any).naechster_meilenstein !== undefined) updateData.NaechsterMeilenstein = (project as any).naechster_meilenstein;
       
       await this.sp.web.lists.getByTitle(SP_LISTS.PROJECTS).items.getById(parseInt(id)).update(updateData);
     } catch (error) {

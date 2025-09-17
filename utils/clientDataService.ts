@@ -329,7 +329,7 @@ class ClientDataService {
             try {
                 const minimal = await this.fetchFromSharePoint(
                     SP_LISTS.PROJECTS,
-                    'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate'
+                    'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein'
                 );
                 initialResult = Array.isArray(minimal) ? minimal : [];
             } catch (e) {
@@ -344,7 +344,7 @@ class ClientDataService {
             try {
                 const alt = await this.fetchFromSharePoint(
                     SP_LISTS.PROJECTS,
-                    'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields'
+                    'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein'
                 );
                 if (Array.isArray(alt) && alt.length > 0) items = alt;
             } catch {/* ignore */}
@@ -703,8 +703,10 @@ class ClientDataService {
             const updatedProject: Project = {
                 ...existingProject,
                 ...projectData,
-                id, // Ensure ID is preserved
-            };
+                id,
+                projektphase: (body as any).Projektphase || (projectData as any).projektphase || (existingProject as any).projektphase,
+                naechster_meilenstein: (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein || (existingProject as any).naechster_meilenstein
+            } as Project;
 
             // Return the updated project
             return updatedProject;
@@ -1235,6 +1237,8 @@ class ClientDataService {
                 }
             } catch {}
 
+            console.log('[saveProject] Body payload:', body);
+
             // Send the request
             const response = await fetch(endpoint, {
                 method,
@@ -1257,7 +1261,7 @@ class ClientDataService {
             // Get the saved project data
             let savedProject: Project;
 
-            if (isNewProject) {
+        if (isNewProject) {
                 const newItem = await response.json();
                 const d = newItem?.d || newItem;
                 const newId = (d?.Id ?? d?.ID ?? d?.id);
@@ -1265,14 +1269,18 @@ class ClientDataService {
                     ...projectData,
                     id: String(newId),
                     links: [],
-                    teamMembers: []
+            teamMembers: [],
+            projektphase: (body as any).Projektphase || (projectData as any).projektphase,
+            naechster_meilenstein: (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein
                 };
             } else {
                 savedProject = {
                     ...projectData,
                     id: project.id,
                     links: [],
-                    teamMembers: []
+            teamMembers: [],
+            projektphase: (body as any).Projektphase || (projectData as any).projektphase,
+            naechster_meilenstein: (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein
                 };
             }
 

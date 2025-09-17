@@ -66,7 +66,16 @@ export async function getSharePointAuthHeaders(): Promise<Record<string,string>>
   const permutations: any[] = [];
   const ws = workstationEnv || os.hostname().split('.')[0];
 
-  if (strategy === 'fba') {
+  if (strategy === 'kerberos') {
+    // Kerberos: rely on browser/OS negotiation; server-side calls typically run under a domain account or are avoided.
+    // We purposefully do NOT inject Authorization header; SharePoint/IIS will issue 401 with WWW-Authenticate: Negotiate and browser will respond.
+    // For server initiated calls (Node) you would need a separate Kerberos client lib; out-of-scope here.
+    const headers: Record<string,string> = { 'Accept': 'application/json;odata=verbose' };
+    // Short TTL since no token stored, just semantic caching
+    cachedAuth = { headers, expires: Date.now() + 5 * 60 * 1000 };
+    debugLog('kerberos mode headers prepared (no Authorization)');
+    return headers;
+  } else if (strategy === 'fba') {
     // FBA will be handled separately below; permutations not needed.
     permutations.push({ fba: true });
   } else if (strategy === 'online') {

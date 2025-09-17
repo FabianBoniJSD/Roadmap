@@ -99,8 +99,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Optional curl path (replicates working system curl NTLM handshake). Enabled via SP_USE_CURL=true
-  if (process.env.SP_USE_CURL === 'true') {
+  // Optional curl path (replicates working system curl NTLM handshake). Disabled for kerberos mode.
+  const strategy = process.env.SP_STRATEGY || '';
+  if (process.env.SP_USE_CURL === 'true' && strategy !== 'kerberos') {
       const username = process.env.SP_USERNAME || '';
       const password = process.env.SP_PASSWORD || '';
       if (!username || !password) return res.status(500).json({ error: 'Missing SP_USERNAME/SP_PASSWORD for curl mode' });
@@ -277,6 +278,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const authHeaders = await getSharePointAuthHeaders();
+    if ((process.env.SP_STRATEGY || '') === 'kerberos') {
+      res.setHeader('x-sp-auth-mode','kerberos');
+    }
     const targetUrl = site.replace(/\/$/, '') + fullPath;
 
     const method = req.method || 'GET';
