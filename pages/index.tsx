@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import Roadmap from '../components/Roadmap';
-import { clientDataService } from '../utils/clientDataService';
 import { Project } from '../types'; // Import the Project interface
 import JSDoITLoader from '../components/JSDoITLoader';
 
@@ -12,10 +11,18 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const data = await clientDataService.getAllProjects();
-        setProjects(data);
+        const resp = await fetch('/api/projects', { headers: { 'Accept': 'application/json' } });
+        if (!resp.ok) {
+          const t = await resp.text();
+          console.error('Error fetching projects (API):', resp.status, resp.statusText, t);
+          setProjects([]);
+        } else {
+          const data: Project[] = await resp.json();
+          setProjects(Array.isArray(data) ? data : []);
+        }
       } catch (error) {
         console.error('Error fetching projects:', error);
+        setProjects([]);
       } finally {
         setLoading(false);
       }

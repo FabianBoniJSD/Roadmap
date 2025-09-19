@@ -21,10 +21,34 @@ class ClientDataService {
     private requestDigestCache: { value: string; expiration: number } | null = null;
     // Cache for list field internal names
     private listFieldsCache: Record<string, Set<string>> = {};
+    // Cache for resolved list titles (handles space/no-space variants)
+    private listTitleCache: Record<string, string> = {};
 
     private getWebUrl(): string {
         // Route all SharePoint REST calls through Next.js API proxy to avoid CORS
+        // On the server, Node's fetch requires an absolute URL
+        if (typeof window === 'undefined') {
+            const base = (process.env.INTERNAL_API_BASE_URL || 'http://localhost:3000').replace(/\/$/,'');
+            return base + '/api/sharepoint';
+        }
         return '/api/sharepoint';
+    }
+
+    // Resolve actual list title by trying preferred and known variants, cache result
+    private async resolveListTitle(preferred: string, variants: string[] = []): Promise<string> {
+        if (this.listTitleCache[preferred]) return this.listTitleCache[preferred];
+        const candidates = [preferred, ...variants].filter(Boolean);
+        const webUrl = this.getWebUrl();
+        for (const name of candidates) {
+            try {
+                const url = `${webUrl}/_api/web/lists/getByTitle('${name}')?$select=Title&$top=1`;
+                const r = await fetch(url, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+                if (r.ok) { this.listTitleCache[preferred] = name; return name; }
+            } catch {/* ignore and try next */}
+        }
+        // Fallback to preferred even if not confirmed
+        this.listTitleCache[preferred] = preferred;
+        return preferred;
     }
 
     // Discover internal field names for a list and cache them
@@ -189,9 +213,13 @@ class ClientDataService {
                     throw new Error(`SharePoint request failed: ${response.statusText}`);
                 }
             }
-            // Lightweight JSON success
+            // Lightweight JSON success (but some farms still return verbose shape with 200)
             const data = await response.json();
-            return data.value || [];
+            if (Array.isArray(data?.value)) return data.value;
+            if (Array.isArray(data?.d?.results)) return data.d.results;
+            // Some endpoints may return a single item in data.d
+            if (data?.d && Array.isArray(data.d)) return data.d;
+            return [];
         } catch (error) {
             console.error(`Error fetching from SharePoint list ${listName}:`, error);
             throw error;
@@ -248,7 +276,7 @@ class ClientDataService {
     // PROJECT OPERATIONS
     async getAllProjects(): Promise<Project[]> {
         const candidateFields = [
-            'Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields','Projektphase','NaechsterMeilenstein'
+            'Title','Category','CategoryId','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields','Projektphase','NaechsterMeilenstein'
         ];
         // Cache of validated fields (in-memory for runtime)
         // @ts-ignore attach dynamic cache property
@@ -258,8 +286,9 @@ class ClientDataService {
             const unique = Array.from(new Set(['Id', ...fields]));
             return unique.join(',');
         };
-        const webUrl = this.getWebUrl();
-        const baseItemsUrl = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items`;
+    const webUrl = this.getWebUrl();
+    const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
+    const baseItemsUrl = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items`;
 
         const fetchItems = async (selectFields: string[]): Promise<any[] | { error: string; body?: string; status?: number; }> => {
             const sel = buildSelect(selectFields);
@@ -300,8 +329,17 @@ class ClientDataService {
         let fieldsToUse = (this as any)._validProjectFields || candidateFields.slice();
         let initialResult = await fetchItems(fieldsToUse);
 
-        // Detect InvalidClientQueryException / invalid argument
-    const isInvalidArg = (r: any) => typeof r === 'object' && r && 'error' in r && r.error === 'http' && /InvalidClientQuery|Invalid argument/i.test(r.body || '');
+        // Detect InvalidClientQueryException / invalid argument / unknown field errors
+        const isInvalidArg = (r: any) => {
+            if (!(r && typeof r === 'object' && 'error' in r && r.error === 'http')) return false;
+            const body = String((r as any).body || '');
+            const status = Number((r as any).status || 0);
+            // SharePoint often returns messages like:
+            // "The property 'StartQuarter' does not exist on type..." or "The field or property..."
+            // Older farms may also emit "PropertyNotFoundException"
+            const fieldErr = /InvalidClientQuery|Invalid argument|does not exist|PropertyNotFound|The field or property|Could not find a property named/i.test(body);
+            return fieldErr || status === 400; // treat generic 400 on first attempt as a bad $select
+        };
 
         if (isInvalidArg(initialResult)) {
             console.warn('[clientDataService] Full select failed, probing individual fields to isolate invalid ones');
@@ -328,7 +366,7 @@ class ClientDataService {
             // Final defensive fallback using generic helper (handles Atom/XML etc.)
             try {
                 const minimal = await this.fetchFromSharePoint(
-                    SP_LISTS.PROJECTS,
+                    resolvedProjects,
                     'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein'
                 );
                 initialResult = Array.isArray(minimal) ? minimal : [];
@@ -343,13 +381,97 @@ class ClientDataService {
         if (Array.isArray(items) && items.length === 0) {
             try {
                 const alt = await this.fetchFromSharePoint(
-                    SP_LISTS.PROJECTS,
+                    resolvedProjects,
                     'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein'
                 );
                 if (Array.isArray(alt) && alt.length > 0) items = alt;
             } catch {/* ignore */}
         }
+
+        // Final ultra-minimal fallback: Id,Title only
+        if (Array.isArray(items) && items.length === 0) {
+            try {
+                const minimal = await this.fetchFromSharePoint(
+                    resolvedProjects,
+                    'Id,Title'
+                );
+                if (Array.isArray(minimal) && minimal.length > 0) {
+                    items = minimal.map((m: any) => ({
+                        Id: m.Id,
+                        Title: m.Title,
+                        Category: '',
+                        StartQuarter: 'Q1',
+                        EndQuarter: 'Q1',
+                        Description: '',
+                        Status: 'planned',
+                        Projektleitung: '',
+                        Bisher: '',
+                        Zukunft: '',
+                        Fortschritt: 0,
+                        GeplantUmsetzung: '',
+                        Budget: '',
+                        StartDate: '',
+                        EndDate: '',
+                        ProjectFields: []
+                    }));
+                }
+            } catch {/* ignore */}
+        }
+        // Dynamic detection of alternative category field if current selection produced only empty categories
+        const shouldProbeAltCategory = Array.isArray(items) && items.length > 0 && items.every(it => {
+            const v = it.Category ?? it.category ?? it.CategoryId ?? it.CategoryID ?? it.Category0;
+            return v === undefined || v === null || String(v).trim() === '';
+        });
+        if (shouldProbeAltCategory) {
+            try {
+                // Fetch list fields (InternalName + Title) to discover any custom category field naming (e.g., 'Kategorie')
+                const webUrl2 = this.getWebUrl();
+                const fieldsEndpoint = `${webUrl2}/_api/web/lists/getByTitle('${resolvedProjects}')/fields?$select=InternalName,Title`;
+                let fResp = await fetch(fieldsEndpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+                if (!fResp.ok) {
+                    // retry verbose
+                    fResp = await fetch(fieldsEndpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
+                }
+                if (fResp.ok) {
+                    const fJson = await fResp.json();
+                    const fieldArray: any[] = Array.isArray(fJson?.value) ? fJson.value : (fJson?.d?.results || []);
+                    // Find candidate internal names containing category/kategorie not already selected
+                    const candidates: string[] = [];
+                    for (const f of fieldArray) {
+                        const internal = f.InternalName || f.internalName || '';
+                        const title = f.Title || f.title || '';
+                        if (/kategor|categor/i.test(internal) || /kategor|categor/i.test(title)) {
+                            if (!['Category','CategoryId','CategoryID','Category0'].includes(internal)) candidates.push(internal);
+                        }
+                    }
+                    if (candidates.length > 0) {
+                        const altCatField = candidates[0];
+                        if (!fieldsToUse.includes(altCatField)) {
+                            // Refetch including alternative category field
+                            const refetchFields = fieldsToUse.concat([altCatField]);
+                            const second = await fetchItems(refetchFields);
+                            if (Array.isArray(second) && second.length > 0) {
+                                items = second;
+                                (this as any)._validProjectFields = refetchFields; // cache for future
+                                // annotate items with Category if missing so downstream mapping picks it up
+                                for (const it of items) {
+                                    if ((it.Category === undefined || it.Category === '' || it.Category === null) && it[altCatField] !== undefined) {
+                                        it.Category = it[altCatField];
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[clientDataService] Alternate category probe failed', e);
+            }
+        }
+
         const projects = items.map(item => {
+            if ((process as any)?.env?.NEXT_PUBLIC_DEBUG_EXPOSE === '1' && typeof window !== 'undefined') {
+                try { console.debug('[getAllProjects] raw item keys:', Object.keys(item)); } catch {}
+            }
             let projectFields: string[] = [];
             const raw = item.ProjectFields;
             if (raw) {
@@ -360,24 +482,43 @@ class ClientDataService {
                     else projectFields = [raw.trim()];
                 }
             }
+            // Extract raw category value from possible field variants (SharePoint can vary casing or provide lookup objects)
+            const categoryFieldCandidates = ['Category','category','CategoryId','CategoryID','Category0'];
+            let rawCategory: any = undefined;
+            for (const key of categoryFieldCandidates) {
+                if (item[key] !== undefined && item[key] !== null) { rawCategory = item[key]; break; }
+            }
+            // If verbose lookup object (e.g., { Id: 7, Title: '...' })
+            if (rawCategory && typeof rawCategory === 'object') {
+                if (rawCategory.Id !== undefined) rawCategory = rawCategory.Id;
+                else if (rawCategory.ID !== undefined) rawCategory = rawCategory.ID;
+            }
+            // Normalize category: trim and collapse numeric-like values (e.g., "7.0" -> "7")
+            let normalizedCategory = '';
+            if (rawCategory !== undefined && rawCategory !== null) {
+                const s = String(rawCategory).trim();
+                if (/^\d+(?:\.\d+)?$/.test(s)) normalizedCategory = String(parseInt(s,10));
+                else normalizedCategory = s;
+            }
+
             const project: Project = {
                 id: item.Id?.toString?.() || String(item.Id),
                 title: item.Title,
-                category: item.Category,
-                startQuarter: item.StartQuarter,
-                endQuarter: item.EndQuarter,
+                category: normalizedCategory,
+                startQuarter: (item.StartQuarter !== undefined && item.StartQuarter !== null) ? String(item.StartQuarter) : '',
+                endQuarter: (item.EndQuarter !== undefined && item.EndQuarter !== null) ? String(item.EndQuarter) : '',
                 description: item.Description || '',
-                status: (item.Status?.toLowerCase?.() || 'planned') as any,
+                status: (String(item.Status || 'planned').toLowerCase() as any),
                 ProjectFields: projectFields,
                 projektleitung: item.Projektleitung || '',
                 bisher: item.Bisher || '',
                 zukunft: item.Zukunft || '',
-                fortschritt: item.Fortschritt || 0,
+                fortschritt: Number(item.Fortschritt || 0),
                 geplante_umsetzung: item.GeplantUmsetzung || '',
                 budget: item.Budget || '',
-                startDate: item.StartDate || '',
-                endDate: item.EndDate || '',
-                projektphase: (item.Projektphase?.toLowerCase?.() || undefined) as any,
+                startDate: (item.StartDate !== undefined && item.StartDate !== null) ? String(item.StartDate) : '',
+                endDate: (item.EndDate !== undefined && item.EndDate !== null) ? String(item.EndDate) : '',
+                projektphase: (item.Projektphase ? String(item.Projektphase).toLowerCase() : undefined) as any,
                 naechster_meilenstein: item.NaechsterMeilenstein || undefined,
                 links: [],
                 teamMembers: []
@@ -416,6 +557,9 @@ class ClientDataService {
         } catch (aggErr) {
             console.warn('[clientDataService] Aggregation failed', aggErr);
         }
+        if ((process as any)?.env?.NEXT_PUBLIC_DEBUG_EXPOSE === '1' && typeof window !== 'undefined') {
+            console.debug('[getAllProjects] mapped sample:', projects.slice(0,5).map(p => ({ id: p.id, cat: p.category })));
+        }
         return projects;
     }
     
@@ -425,7 +569,8 @@ class ClientDataService {
             const selectFields = [
                 'Id','Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields','Projektphase','NaechsterMeilenstein'
             ].join(',');
-            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items(${id})?$select=${selectFields}`;
+            const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
+            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})?$select=${selectFields}`;
 
             let response = await fetch(endpoint, { method: 'GET', headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
             if (!response.ok) {
@@ -455,7 +600,7 @@ class ClientDataService {
             let item = await response.json();
             // If proxy returned minimal Atom-normalized shape (d.results array with only Id/Title), refetch without $select in verbose
             if (item && item.d && Array.isArray(item.d.results)) {
-                const endpoint2 = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items(${id})`;
+                const endpoint2 = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})`;
                 let resp2 = await fetch(endpoint2, { method: 'GET', headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'same-origin' });
                 if (resp2.ok) {
                     const verbose = await resp2.json();
@@ -507,6 +652,7 @@ class ClientDataService {
                 else projectFields = [raw.trim()];
             }
         }
+
         const teamMembers = await this.getTeamMembersForProject(id);
         const links = await this.getProjectLinks(id);
         const project: Project = {
@@ -637,7 +783,7 @@ class ClientDataService {
             const body: any = {
                 '__metadata': { 'type': itemType },
                 'Title': projectData.title || existingProject.title || '',
-                'Category': projectData.category || existingProject.category || '',
+                'Category': projectData.category || existingProject.category || '', // may be removed if lookup (CategoryId)
                 'StartQuarter': projectData.startQuarter || existingProject.startQuarter || '',
                 'EndQuarter': projectData.endQuarter || existingProject.endQuarter || '',
                 'Description': projectData.description || existingProject.description || '',
@@ -657,10 +803,18 @@ class ClientDataService {
             try {
                 const fields = await this.getListFieldNames(SP_LISTS.PROJECTS);
                 if (fields.has('Projektphase')) {
-                    body['Projektphase'] = (projectData as any).projektphase || (existingProject as any).projektphase || '';
+                    const phaseRaw = (projectData as any).projektphase || (existingProject as any).projektphase || '';
+                    const phase = String(phaseRaw || '').toLowerCase();
+                    body['Projektphase'] = phase === 'einführung' ? 'einfuehrung' : phase;
                 }
                 if (fields.has('NaechsterMeilenstein')) {
                     body['NaechsterMeilenstein'] = (projectData as any).naechster_meilenstein || (existingProject as any).naechster_meilenstein || '';
+                }
+                if (fields.has('CategoryId')) {
+                    const catVal = projectData.category || existingProject.category || '';
+                    const num = parseInt(String(catVal).trim(), 10);
+                    body['CategoryId'] = isNaN(num) ? null : num;
+                    delete body['Category'];
                 }
             } catch {}
 
@@ -704,7 +858,7 @@ class ClientDataService {
                 ...existingProject,
                 ...projectData,
                 id,
-                projektphase: (body as any).Projektphase || (projectData as any).projektphase || (existingProject as any).projektphase,
+                projektphase: ((body as any).Projektphase || (projectData as any).projektphase || (existingProject as any).projektphase) as any,
                 naechster_meilenstein: (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein || (existingProject as any).naechster_meilenstein
             } as Project;
 
@@ -837,10 +991,14 @@ class ClientDataService {
 
     async getAllCategories(): Promise<Category[]> {
         try {
+            const resolvedCategories = await this.resolveListTitle(SP_LISTS.CATEGORIES, ['Roadmap Categories']);
             const items = await this.fetchFromSharePoint(
-                SP_LISTS.CATEGORIES,
+                resolvedCategories,
                 'Id,Title,Color,Icon,ParentCategoryId,IsSubcategory'
             );
+            if (!Array.isArray(items) || items.length === 0) {
+                console.warn('[clientDataService] getAllCategories returned no items for list resolved as', resolvedCategories);
+            }
 
             return items.map(item => ({
                 id: item.Id.toString(),
@@ -893,7 +1051,8 @@ class ClientDataService {
     async getProjectLinks(projectId: string): Promise<ProjectLink[]> {
         try {
             const webUrl = this.getWebUrl();
-            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECT_LINKS}')/items?$filter=ProjectId eq '${projectId}'&$select=Id,Title,Url,ProjectId`;
+            const resolvedLinks = await this.resolveListTitle(SP_LISTS.PROJECT_LINKS, ['Roadmap Project Links']);
+            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedLinks}')/items?$filter=ProjectId eq '${projectId}'&$select=Id,Title,Url,ProjectId`;
 
             const response = await fetch(endpoint, {
                 method: 'GET',
@@ -926,7 +1085,8 @@ class ClientDataService {
     private async fetchAllProjectLinks(): Promise<ProjectLink[]> {
         try {
             const webUrl = this.getWebUrl();
-            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECT_LINKS}')/items?$select=Id,Title,Url,ProjectId`;
+            const resolvedLinks = await this.resolveListTitle(SP_LISTS.PROJECT_LINKS, ['Roadmap Project Links']);
+            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedLinks}')/items?$select=Id,Title,Url,ProjectId`;
             const response = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
             if (!response.ok) return [];
             const data = await response.json();
@@ -937,7 +1097,8 @@ class ClientDataService {
     private async fetchAllTeamMembers(): Promise<TeamMember[]> {
         try {
             const webUrl = this.getWebUrl();
-            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.TEAM_MEMBERS}')/items?$select=Id,Title,Role,ProjectId`;
+            const resolvedMembers = await this.resolveListTitle(SP_LISTS.TEAM_MEMBERS, ['Roadmap Team Members']);
+            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedMembers}')/items?$select=Id,Title,Role,ProjectId`;
             const response = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
             if (!response.ok) return [];
             const data = await response.json();
@@ -1211,7 +1372,7 @@ class ClientDataService {
             const body: any = {
                 '__metadata': { 'type': itemType },
                 'Title': projectData.title,
-                'Category': projectData.category,
+                'Category': projectData.category, // will be replaced by CategoryId if lookup detected
                 'StartQuarter': projectData.startQuarter,
                 'EndQuarter': projectData.endQuarter,
                 'Description': projectData.description,
@@ -1230,10 +1391,18 @@ class ClientDataService {
             try {
                 const fields = await this.getListFieldNames(SP_LISTS.PROJECTS);
                 if (fields.has('Projektphase')) {
-                    body['Projektphase'] = (projectData as any).projektphase || '';
+                    const phaseRaw = (projectData as any).projektphase || '';
+                    const phase = String(phaseRaw || '').toLowerCase();
+                    body['Projektphase'] = phase === 'einführung' ? 'einfuehrung' : phase;
                 }
                 if (fields.has('NaechsterMeilenstein')) {
                     body['NaechsterMeilenstein'] = (projectData as any).naechster_meilenstein || '';
+                }
+                if (fields.has('CategoryId')) {
+                    const catVal = projectData.category || '';
+                    const num = parseInt(String(catVal).trim(), 10);
+                    body['CategoryId'] = isNaN(num) ? null : num;
+                    delete body['Category'];
                 }
             } catch {}
 
@@ -1776,6 +1945,77 @@ class ClientDataService {
         } catch (error) {
             console.error('Error searching users:', error);
             return [];
+        }
+    }
+
+    // ATTACHMENTS
+    async listAttachments(projectId: string): Promise<Array<{ FileName: string; ServerRelativeUrl: string }>> {
+        try {
+            const r = await fetch(`/api/attachments/${encodeURIComponent(projectId)}`, { headers: { 'Accept': 'application/json' } });
+            if (!r.ok) return [];
+            const data = await r.json();
+            return Array.isArray(data) ? data : [];
+        } catch {
+            return [];
+        }
+    }
+
+    async uploadAttachment(projectId: string, file: File, opts?: { onProgress?: (pct: number) => void; signal?: AbortSignal }): Promise<{ ok: boolean; error?: string; aborted?: boolean }> {
+        const maxSize = 25 * 1024 * 1024; // 25MB default SP classic limit
+        const allowed = [/\.pdf$/i, /\.docx?$/i, /\.xlsx?$/i, /\.pptx?$/i, /\.png$/i, /\.jpe?g$/i, /\.txt$/i, /\.csv$/i, /\.zip$/i];
+        if (file.size > maxSize) return { ok: false, error: 'Datei ist zu groß (max. 25MB)' };
+        if (!allowed.some(rx => rx.test(file.name))) return { ok: false, error: 'Dateityp nicht erlaubt' };
+
+        const url = `/api/attachments/${encodeURIComponent(projectId)}?name=${encodeURIComponent(file.name)}`;
+        // Use XHR to get progress
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', url, true);
+                xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable && opts?.onProgress) {
+                        const pct = Math.round((e.loaded / e.total) * 100);
+                        opts.onProgress(pct);
+                    }
+                };
+                // Abort handling
+                let aborted = false;
+                const onAbort = () => {
+                    aborted = true;
+                    try { xhr.abort(); } catch {}
+                };
+                if (opts?.signal) {
+                    if (opts.signal.aborted) onAbort();
+                    else opts.signal.addEventListener('abort', onAbort);
+                }
+                xhr.onload = () => {
+                    if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
+                    if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
+                    if (xhr.status >= 200 && xhr.status < 300) return resolve();
+                    reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
+                };
+                xhr.onerror = () => {
+                    if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
+                    if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
+                    reject(new Error('Netzwerkfehler beim Upload'));
+                };
+                xhr.send(file);
+            });
+            return { ok: true };
+        } catch (e: any) {
+            if (e?.name === 'AbortError') return { ok: false, aborted: true, error: 'Upload abgebrochen' };
+            return { ok: false, error: e?.message || 'Upload fehlgeschlagen' };
+        }
+    }
+
+    async deleteAttachment(projectId: string, fileName: string): Promise<boolean> {
+        const url = `/api/attachments/${encodeURIComponent(projectId)}?name=${encodeURIComponent(fileName)}`;
+        try {
+            const r = await fetch(url, { method: 'DELETE' });
+            return r.ok;
+        } catch {
+            return false;
         }
     }
 }

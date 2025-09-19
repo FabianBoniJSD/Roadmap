@@ -35,8 +35,11 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   const [monthRange, setMonthRange] = useState<{start:number; end:number}>({ start: 1, end: 12 });
   const [onlyRunning, setOnlyRunning] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'timeline' | 'tiles'>('timeline');
+  const UNCATEGORIZED_ID = '__uncategorized__';
 
   const sidebarRef = useRef<HTMLDivElement>(null);
+  // Track whether URL-derived category selection has been applied to prevent race conditions
+  const urlCatsAppliedRef = useRef(false);
 
   // Close mobile menu when clicking outside
   useEffect(() => {
@@ -69,7 +72,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
   // Load filters from URL on mount and whenever query changes
   useEffect(() => {
-  const { q, status, tags, start, end, running, cats, view } = router.query as Record<string, string | string[]>;
+    const { q, status, tags, start, end, running, cats, view } = router.query as Record<string, string | string[]>;
     if (q && typeof q === 'string') setFilterText(q);
     if (status) {
       const list = Array.isArray(status) ? status : status.split(',');
@@ -80,20 +83,18 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       setTagFilters(list.filter(Boolean));
     }
     const sNum = Number(start); const eNum = Number(end);
-    if (!isNaN(sNum) && sNum >= 1 && sNum <= 12) {
-      setMonthRange(r => ({ ...r, start: Math.max(1, Math.min(12, sNum)) }));
-    }
-    if (!isNaN(eNum) && eNum >= 1 && eNum <= 12) {
-      setMonthRange(r => ({ ...r, end: Math.max(r.start, Math.min(12, eNum)) }));
-    }
+    if (!isNaN(sNum) && sNum >= 1 && sNum <= 12) setMonthRange(r => ({ ...r, start: Math.max(1, Math.min(12, sNum)) }));
+    if (!isNaN(eNum) && eNum >= 1 && eNum <= 12) setMonthRange(r => ({ ...r, end: Math.max(r.start, Math.min(12, eNum)) }));
     if (running === '1') setOnlyRunning(true);
-  if (view === 'tiles') setViewMode('tiles');
-    if (cats && typeof cats === 'string') {
-      // optional: preset activeCategories from URL (ids separated by comma)
+    if (view === 'tiles') setViewMode('tiles');
+    if (!urlCatsAppliedRef.current && cats && typeof cats === 'string') {
       const list = cats.split(',').filter(Boolean);
-      if (list.length) setActiveCategories(list);
+      if (list.length) {
+        setActiveCategories(list);
+        urlCatsAppliedRef.current = true;
+      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.query]);
 
   // Persist filters to URL (shallow) to allow shareable state
@@ -154,14 +155,23 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   // Fetch categories and filter projects based on the selected year
   useEffect(() => {
     // Filter projects based on year
-    const filteredProjects = initialProjects.filter(project => {
-      if (!project.startDate || !project.endDate) {
-        return false; // Ignoriere Projekte ohne Datumsangaben
+    const derive = (q: string, end = false): string => {
+      const y = currentYear;
+      switch ((q || '').toUpperCase()) {
+        case 'Q1': return end ? new Date(Date.UTC(y,2,31,23,59,59)).toISOString() : new Date(Date.UTC(y,0,1)).toISOString();
+        case 'Q2': return end ? new Date(Date.UTC(y,5,30,23,59,59)).toISOString() : new Date(Date.UTC(y,3,1)).toISOString();
+        case 'Q3': return end ? new Date(Date.UTC(y,8,30,23,59,59)).toISOString() : new Date(Date.UTC(y,6,1)).toISOString();
+        case 'Q4': return end ? new Date(Date.UTC(y,11,31,23,59,59)).toISOString() : new Date(Date.UTC(y,9,1)).toISOString();
+        default: return end ? new Date(Date.UTC(y,11,31,23,59,59)).toISOString() : new Date(Date.UTC(y,0,1)).toISOString();
       }
+    };
+    const filteredProjects = initialProjects.filter(project => {
+      const startIso = project.startDate || (project.startQuarter ? derive(project.startQuarter, false) : '');
+      const endIso = project.endDate || (project.endQuarter || project.startQuarter ? derive(project.endQuarter || project.startQuarter, true) : '');
+      if (!startIso || !endIso) return false;
 
-      const startYear = getYearFromISOString(project.startDate);
-      const endYear = getYearFromISOString(project.endDate);
-
+      const startYear = getYearFromISOString(startIso);
+      const endYear = getYearFromISOString(endIso);
       return startYear <= currentYear && endYear >= currentYear;
     });
 
@@ -172,8 +182,13 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       try {
         const categoriesData = await clientDataService.getAllCategories();
         setCategories(categoriesData);
-        // Initially set all categories as active
-        setActiveCategories(categoriesData.map(c => c.id));
+        // Only set active categories automatically if none have been applied yet
+        setActiveCategories(prev => {
+          if (prev.length === 0 && !urlCatsAppliedRef.current) {
+            return [...categoriesData.map(c => c.id), UNCATEGORIZED_ID];
+          }
+          return prev;
+        });
       } catch (error) {
         console.error('Error fetching categories:', error);
       }
@@ -182,12 +197,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
     fetchCategories();
   }, [currentYear, initialProjects]);
 
-  // Debugging-Ausgaben
-  useEffect(() => {
-    console.log('Initial projects:', initialProjects);
-    console.log('Displayed projects:', displayedProjects);
-    console.log('Active categories:', activeCategories);
-  }, [initialProjects, displayedProjects, activeCategories]);
+  // Debug logs removed (noise in production); enable via manual insertion if needed.
 
   const toggleCategory = (categoryId: string) => {
     if (activeCategories.includes(categoryId)) {
@@ -201,9 +211,28 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   const allStatuses = Array.from(new Set(displayedProjects.map(p => (p.status || '').toLowerCase()).filter(Boolean)));
   const allTags = Array.from(new Set(displayedProjects.flatMap(p => (p as any).ProjectFields || []).filter(Boolean)));
 
+  // Normalize a project's category to an ID using loaded categories
+  const normalizeCategoryId = (project: Project): string => {
+    const rawVal: any = (project as any).category;
+    const raw = (rawVal === null || rawVal === undefined) ? '' : String(rawVal).trim();
+    if (!raw) return UNCATEGORIZED_ID;
+    // Direct match
+    if (categories.some(c => c.id === raw)) return raw;
+    // Numeric-like normalization (e.g., "7.0" -> "7")
+    const numericLike = /^\d+(?:\.\d+)?$/.test(raw) ? String(parseInt(raw, 10)) : raw;
+    if (categories.some(c => c.id === numericLike)) return numericLike;
+    // Compare numeric forms of category IDs as well
+    const byNumeric = categories.find(c => /^\d+$/.test(c.id) && c.id === String(parseInt(raw, 10)));
+    if (byNumeric) return byNumeric.id;
+    // Name-based match
+    const byName = categories.find(c => (c.name || '').trim().toLowerCase() === raw.toLowerCase());
+    return byName?.id || UNCATEGORIZED_ID;
+  };
+
   // Filter projects by active categories + advanced filters
   const filteredProjects = displayedProjects.filter(project => {
-    if (!activeCategories.includes(project.category)) return false;
+    const catId = normalizeCategoryId(project);
+    if (!activeCategories.includes(catId)) return false;
 
     // Text filter (title/description)
     if (filterText.trim()) {
@@ -252,23 +281,27 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
   // Group projects by category (Bereich)
   const projectsByCategory = filteredProjects.reduce<Record<string, Project[]>>((acc, p) => {
-    (acc[p.category] ||= []).push(p);
+    const catId = normalizeCategoryId(p);
+    (acc[catId] ||= []).push(p);
     return acc;
   }, {});
 
   // Ordered list of visible categories (only those with projects)
-  const visibleCategoryIds = categories
-    .filter(c => projectsByCategory[c.id]?.length)
-    .map(c => c.id);
+  const visibleCategoryIds = [
+    ...categories.filter(c => projectsByCategory[c.id]?.length).map(c => c.id),
+    ...(projectsByCategory[UNCATEGORIZED_ID]?.length ? [UNCATEGORIZED_ID] : [])
+  ];
 
   // Get category name by ID
   const getCategoryName = (categoryId: string) => {
+    if (categoryId === UNCATEGORIZED_ID) return 'Uncategorized';
     const category = categories.find(cat => cat.id === categoryId);
     return category?.name || 'Uncategorized';
   };
 
   // Get category color by ID
   const getCategoryColor = (categoryId: string) => {
+    if (categoryId === UNCATEGORIZED_ID) return '#777777';
     const category = categories.find(cat => cat.id === categoryId);
     return category?.color || '#777777';
   };
@@ -399,7 +432,21 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
     return { startPosition, width };
   };
 
-  // Calculate position for week view
+  // ISO-8601 helpers for weeks
+  const getISOWeek = (date: Date): number => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7; // 1..7 (Mon..Sun)
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  };
+  const getISOWeeksInYear = (year: number): number => {
+    const d = new Date(Date.UTC(year, 11, 31));
+    const week = getISOWeek(d);
+    return week === 1 ? 52 : week; // if Dec 31 falls in week 1 of next year, then 52 weeks; else 52/53
+  };
+
+  // Calculate position for week view (ISO weeks, dynamic 52/53)
   const calculateWeekPosition = (project: Project): { startPosition: number, width: number } => {
     if (!project.startDate || !project.endDate) {
       return { startPosition: 0, width: 0 };
@@ -412,17 +459,11 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       return { startPosition: 0, width: 0 };
     }
 
-    // Berechne die Wochennummer (ungefähr)
-    const getWeekNumber = (date: Date): number => {
-      const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-      const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
-      return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-    };
-
     const startYear = startDate.getFullYear();
     const endYear = endDate.getFullYear();
-    const startWeek = getWeekNumber(startDate);
-    const endWeek = getWeekNumber(endDate);
+    const weeksInCurrent = getISOWeeksInYear(currentYear);
+    const startWeek = getISOWeek(startDate);
+    const endWeek = getISOWeek(endDate);
 
     let startPosition = 0;
     let width = 0;
@@ -432,7 +473,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       startPosition = 0;
     } else if (startYear === currentYear) {
       // Project starts in current year
-      startPosition = ((startWeek - 1) / 52) * 100;
+      startPosition = ((Math.max(1, Math.min(startWeek, weeksInCurrent)) - 1) / weeksInCurrent) * 100;
     }
 
     if (endYear > currentYear) {
@@ -440,7 +481,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       width = 100 - startPosition;
     } else if (endYear === currentYear) {
       // Project ends in current year
-      width = (endWeek / 52) * 100 - startPosition;
+      width = ((Math.max(1, Math.min(endWeek, weeksInCurrent))) / weeksInCurrent) * 100 - startPosition;
     }
 
     return { startPosition, width };
@@ -622,13 +663,15 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                       style={{ background: 'linear-gradient(to right, #ae3f00, #a83800)' }}>Dez</div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-52 gap-0 mb-4 md:mb-6 overflow-x-auto">
-                    {Array.from({ length: 52 }, (_, i) => i + 1).map(week => (
+                  <div
+                    className="mb-4 md:mb-6 overflow-x-auto"
+                    style={{ display: 'grid', gridTemplateColumns: `repeat(${getISOWeeksInYear(currentYear)}, minmax(30px, 1fr))`, gap: 0 }}
+                  >
+                    {Array.from({ length: getISOWeeksInYear(currentYear) }, (_, i) => i + 1).map(week => (
                       <div
                         key={week}
                         className="p-1 text-center font-semibold text-xs"
                         style={{
-                          minWidth: '30px',
                           background: `linear-gradient(to right, 
                             hsl(${Math.max(40 - week * 0.5, 0)}, 90%, ${Math.max(50 - week * 0.3, 30)}%)
                           )`
@@ -651,7 +694,6 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                 {/* Project timeline bars grouped by Bereich (category) */}
                 <div className="space-y-6 md:space-y-8 relative">
                   {visibleCategoryIds.map(catId => {
-                    const cat = categories.find(c => c.id === catId)!;
                     const groupProjects = projectsByCategory[catId] || [];
                     return (
                       <div key={catId} className="relative">
@@ -662,7 +704,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                             style={{ backgroundColor: getCategoryColor(catId) }}
                           />
                           <h2 className="text-lg md:text-xl font-semibold m-0">
-                            {cat.name}
+                            {getCategoryName(catId)}
                           </h2>
                           <span className="ml-2 text-xs md:text-sm px-2 py-0.5 rounded-full bg-gray-800/80 border border-white/10 text-gray-200">
                             {groupProjects.length} {groupProjects.length === 1 ? 'Projekt' : 'Projekte'}
@@ -705,8 +747,11 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                               ))}
                             </div>
                           ) : (
-                            <div className="grid grid-cols-52 gap-0 h-full">
-                              {Array.from({ length: 52 }, (_, i) => (
+                            <div
+                              className="h-full"
+                              style={{ display: 'grid', gridTemplateColumns: `repeat(${getISOWeeksInYear(currentYear)}, minmax(0, 1fr))`, gap: 0 }}
+                            >
+                              {Array.from({ length: getISOWeeksInYear(currentYear) }, (_, i) => (
                                 <div key={i} className="bg-gray-800 rounded-lg opacity-30"></div>
                               ))}
                             </div>
@@ -719,7 +764,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                           style={{
                             left: `${startPosition}%`,
                             width: `${width}%`,
-                            backgroundColor: getCategoryColor(project.category),
+                            backgroundColor: getCategoryColor(catId),
                             opacity: 0.85
                           }}
                           onMouseEnter={(e) => handleMouseOver(e, project)}
@@ -762,13 +807,12 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                 {viewMode === 'tiles' && (
                   <div className="space-y-8">
                     {visibleCategoryIds.map(catId => {
-                      const cat = categories.find(c => c.id === catId)!;
                       const groupProjects = projectsByCategory[catId] || [];
                       return (
                         <div key={catId}>
                           <div className="flex items-center gap-3 mb-3">
                             <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: getCategoryColor(catId) }} />
-                            <h2 className="text-lg md:text-xl font-semibold m-0">{cat.name}</h2>
+                            <h2 className="text-lg md:text-xl font-semibold m-0">{getCategoryName(catId)}</h2>
                             <span className="ml-2 text-xs md:text-sm px-2 py-0.5 rounded-full bg-gray-800/80 border border-white/10 text-gray-200">{groupProjects.length} {groupProjects.length===1?'Projekt':'Projekte'}</span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
@@ -776,7 +820,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                               <CompactProjectCard
                                 key={project.id}
                                 project={project}
-                                categoryName={cat.name}
+                                categoryName={getCategoryName(catId)}
                                 categoryColor={getCategoryColor(catId)}
                                 onClick={handleProjectClick}
                               />
@@ -832,23 +876,21 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                       : 'n/a'}
                   </span>
                 </span>
-                {typeof hoveredProject.fortschritt === 'number' && (
+                {hoveredProject.projektphase && (
                   <span className="inline-flex items-center gap-1">
-                    <span className="opacity-70">Fortschritt:</span>
-                    <span className="px-1.5 py-0.5 rounded bg-black/30 border border-white/10">{hoveredProject.fortschritt}%</span>
+                    <span className="opacity-70">Phase:</span>
+                    <span className="px-1.5 py-0.5 rounded bg-black/30 border border-white/10">
+                      {(() => {
+                        const p = (hoveredProject.projektphase || '').toLowerCase();
+                        if (p === 'einfuehrung' || p === 'einführung') return 'Einführung';
+                        return p.charAt(0).toUpperCase() + p.slice(1);
+                      })()}
+                    </span>
                   </span>
                 )}
               </div>
             </div>
 
-            {typeof hoveredProject.fortschritt === 'number' && (
-              <div className="w-full h-2 bg-gray-700/60 rounded mb-3 overflow-hidden">
-                <div
-                  className="h-full rounded bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all"
-                  style={{ width: `${Math.min(Math.max(hoveredProject.fortschritt,0),100)}%` }}
-                />
-              </div>
-            )}
 
             {/* Description (truncated) */}
             {hoveredProject.description && (
@@ -908,13 +950,16 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
             )}
 
             {/* Footer meta / budget etc. */}
-            {(hoveredProject.budget || hoveredProject.geplante_umsetzung) && (
+            {(hoveredProject.budget || hoveredProject.geplante_umsetzung || hoveredProject.naechster_meilenstein) && (
               <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-2 text-[10px] text-gray-400">
                 {hoveredProject.budget && (
-                  <span className="bg-black/30 px-2 py-0.5 rounded border border-white/10" title="Budget">Budget: {hoveredProject.budget}</span>
+                  <span className="bg-black/30 px-2 py-0.5 rounded border border-white/10" title="Budget">Budget: {hoveredProject.budget} CHF</span>
                 )}
                 {hoveredProject.geplante_umsetzung && (
                   <span className="bg-black/30 px-2 py-0.5 rounded border border-white/10" title="Geplante Umsetzung">Plan: {hoveredProject.geplante_umsetzung}</span>
+                )}
+                {hoveredProject.naechster_meilenstein && (
+                  <span className="bg-black/30 px-2 py-0.5 rounded border border-white/10" title="Nächster Meilenstein">Meilenstein: {hoveredProject.naechster_meilenstein}</span>
                 )}
               </div>
             )}

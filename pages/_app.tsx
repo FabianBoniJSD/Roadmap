@@ -1,4 +1,5 @@
 import { JSX, useEffect } from 'react';
+import { clientDataService } from '@/utils/clientDataService';
 import { initializeIcons } from '@fluentui/react/lib/Icons';
 import type { AppProps } from 'next/app';
 import './globals.css';
@@ -38,6 +39,25 @@ function MyApp({ Component, pageProps }: AppProps): JSX.Element {
             // swallow and fall through
           }
           return originalFetch(input as any, init);
+        };
+      }
+
+      // Optional debug exposure (development / analysis only)
+      if (process.env.NEXT_PUBLIC_DEBUG_EXPOSE === '1') {
+        (window as any).clientDataService = clientDataService;
+        (window as any).fetchCategoriesAndProjects = async () => {
+          const [cats, projs] = await Promise.all([
+            clientDataService.getAllCategories(),
+            clientDataService.getAllProjects()
+          ]);
+          (window as any).__categories = cats;
+            (window as any).__projects = projs;
+          const catIds = new Set(cats.map(c => c.id));
+          const unmapped = projs.filter(p => !catIds.has(String((p as any).category || '')));
+          console.log('[debug] categories:', cats);
+          console.log('[debug] projects (first 5):', projs.slice(0,5));
+          console.log('[debug] unmapped project categories count:', unmapped.length, unmapped.slice(0,10).map(p=>({id:p.id,cat:(p as any).category,title:p.title})));
+          return { cats, projs, unmapped };
         };
       }
     }
