@@ -27,8 +27,9 @@ export default async function handler(
       res.setHeader('x-projects-count', String(Array.isArray(projects) ? projects.length : 0));
       res.setHeader('x-projects-empty-primary', String(emptyPrimary));
 
-      // Server-side minimal fallback via proxy if no projects came back
-      if (!Array.isArray(projects) || projects.length === 0) {
+      // Server-side minimal fallback via proxy if no projects came back OR all projects have empty categories
+      const allHaveEmptyCategories = Array.isArray(projects) && projects.length > 0 && projects.every(p => !p.category || String(p.category).trim() === '');
+      if (!Array.isArray(projects) || projects.length === 0 || allHaveEmptyCategories) {
         let base = (process.env.INTERNAL_API_BASE_URL || '').replace(/\/$/, '');
         try {
           const xfProto = (req.headers['x-forwarded-proto'] as string) || '';
@@ -48,41 +49,58 @@ export default async function handler(
             const j = await r.json();
             const items: any[] = Array.isArray(j?.value) ? j.value : (Array.isArray(j?.d?.results) ? j.d.results : []);
             if (items.length > 0) {
-              projects = items.map((it: any) => {
-                return {
-                  id: String(it.Id ?? it.ID ?? ''),
-                  title: it.Title || '',
-                  category: it.Category,
-                  startQuarter: 'Q1',
-                  endQuarter: 'Q4',
-                  description: '',
-                  status: 'planned',
-                  ProjectFields: [],
-                  projektleitung: '',
-                  bisher: '',
-                  zukunft: '',
-                  fortschritt: 0,
-                  geplante_umsetzung: '',
-                  budget: '',
-                  startDate: '',
-                  endDate: '',
-                  links: []
-                };
-              });
-              res.setHeader('x-projects-fallback', 'minimal');
+              // If we already have projects but with empty categories, merge the category data
+              if (allHaveEmptyCategories && Array.isArray(projects)) {
+                // Create a map of existing projects by ID for efficient lookup
+                const existingProjectsMap = new Map(projects.map(p => [p.id, p]));
+                
+                // Update existing projects with categories from SharePoint
+                items.forEach((it: any) => {
+                  const id = String(it.Id ?? it.ID ?? '');
+                  const existingProject = existingProjectsMap.get(id);
+                  if (existingProject && it.Category) {
+                    existingProject.category = String(it.Category).trim();
+                  }
+                });
+                res.setHeader('x-projects-fallback', 'category-fix');
+              } else {
+                // No existing projects, create new ones from SharePoint data
+                projects = items.map((it: any) => {
+                  return {
+                    id: String(it.Id ?? it.ID ?? ''),
+                    title: it.Title || '',
+                    category: it.Category,
+                    startQuarter: 'Q1',
+                    endQuarter: 'Q4',
+                    description: '',
+                    status: 'planned',
+                    ProjectFields: [],
+                    projektleitung: '',
+                    bisher: '',
+                    zukunft: '',
+                    fortschritt: 0,
+                    geplante_umsetzung: '',
+                    budget: '',
+                    startDate: '',
+                    endDate: '',
+                    links: []
+                  };
+                });
+                res.setHeader('x-projects-fallback', 'minimal');
+              }
             }
           } else {
             const txt = await r.text();
-            console.warn('projects minimal fallback failed', r.status, r.statusText, txt);
+            console.warn('[projects fallback] SharePoint API failed:', r.status, r.statusText, txt);
           }
         } catch (e) {
-          console.warn('projects minimal fallback threw', e);
+          console.warn('[projects fallback] SharePoint API request threw:', e);
         }
       }
 
       // After possible fallback, compute final empty categories and attach header
       if (Array.isArray(projects)) {
-        const emptyFinal = projects.filter(p => !p.category).length;
+        const emptyFinal = projects.filter(p => !p.category || String(p.category).trim() === '').length;
         res.setHeader('x-projects-empty-final', String(emptyFinal));
         // Debug log (server)
         console.log('[api/projects] sample mapped categories:', projects.slice(0, 5).map(p => ({ id: p.id, cat: p.category })));
