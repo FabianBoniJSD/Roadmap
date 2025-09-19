@@ -276,7 +276,7 @@ class ClientDataService {
     // PROJECT OPERATIONS
     async getAllProjects(): Promise<Project[]> {
         const candidateFields = [
-            'Title','Category','CategoryId','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields','Projektphase','NaechsterMeilenstein'
+            'Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields','Projektphase','NaechsterMeilenstein'
         ];
         // Cache of validated fields (in-memory for runtime)
         // @ts-ignore attach dynamic cache property
@@ -419,7 +419,7 @@ class ClientDataService {
         }
         // Dynamic detection of alternative category field if current selection produced only empty categories
         const shouldProbeAltCategory = Array.isArray(items) && items.length > 0 && items.every(it => {
-            const v = it.Category ?? it.category ?? it.CategoryId ?? it.CategoryID ?? it.Category0;
+            const v = it.Category ?? it.category ?? it.Category0;
             return v === undefined || v === null || String(v).trim() === '';
         });
         if (shouldProbeAltCategory) {
@@ -441,7 +441,7 @@ class ClientDataService {
                         const internal = f.InternalName || f.internalName || '';
                         const title = f.Title || f.title || '';
                         if (/kategor|categor/i.test(internal) || /kategor|categor/i.test(title)) {
-                            if (!['Category','CategoryId','CategoryID','Category0'].includes(internal)) candidates.push(internal);
+                            if (!['Category','Category0'].includes(internal)) candidates.push(internal);
                         }
                     }
                     if (candidates.length > 0) {
@@ -483,11 +483,20 @@ class ClientDataService {
                 }
             }
             // Extract raw category value from possible field variants (SharePoint can vary casing or provide lookup objects)
-            const categoryFieldCandidates = ['Category','category','CategoryId','CategoryID','Category0'];
+            // Prioritize 'Category' field first since it's confirmed to work in direct SharePoint calls
             let rawCategory: any = undefined;
-            for (const key of categoryFieldCandidates) {
-                if (item[key] !== undefined && item[key] !== null) { rawCategory = item[key]; break; }
+            if (item.Category !== undefined && item.Category !== null && item.Category !== '') {
+                rawCategory = item.Category;
+            } else if (item.category !== undefined && item.category !== null && item.category !== '') {
+                rawCategory = item.category;
+            } else if (item.CategoryId !== undefined && item.CategoryId !== null && item.CategoryId !== '') {
+                rawCategory = item.CategoryId;
+            } else if (item.CategoryID !== undefined && item.CategoryID !== null && item.CategoryID !== '') {
+                rawCategory = item.CategoryID;
+            } else if (item.Category0 !== undefined && item.Category0 !== null && item.Category0 !== '') {
+                rawCategory = item.Category0;
             }
+            
             // If verbose lookup object (e.g., { Id: 7, Title: '...' })
             if (rawCategory && typeof rawCategory === 'object') {
                 if (rawCategory.Id !== undefined) rawCategory = rawCategory.Id;
@@ -497,8 +506,10 @@ class ClientDataService {
             let normalizedCategory = '';
             if (rawCategory !== undefined && rawCategory !== null) {
                 const s = String(rawCategory).trim();
-                if (/^\d+(?:\.\d+)?$/.test(s)) normalizedCategory = String(parseInt(s,10));
-                else normalizedCategory = s;
+                if (s !== '') {
+                    if (/^\d+(?:\.\d+)?$/.test(s)) normalizedCategory = String(parseInt(s,10));
+                    else normalizedCategory = s;
+                }
             }
 
             const project: Project = {
