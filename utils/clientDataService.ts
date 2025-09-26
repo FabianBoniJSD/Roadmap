@@ -21,6 +21,8 @@ class ClientDataService {
     private requestDigestCache: { value: string; expiration: number } | null = null;
     // Cache for list field internal names
     private listFieldsCache: Record<string, Set<string>> = {};
+    // Cache for list field types (InternalName -> TypeAsString)
+    private listFieldTypeCache: Record<string, Record<string, string>> = {};
     // Cache for resolved list titles (handles space/no-space variants)
     private listTitleCache: Record<string, string> = {};
 
@@ -75,6 +77,37 @@ class ClientDataService {
             console.warn('[clientDataService] Could not fetch field names for list', listName, e);
             this.listFieldsCache[listName] = new Set();
             return this.listFieldsCache[listName];
+        }
+    }
+
+    // Discover InternalName -> TypeAsString for a list (cached)
+    private async getListFieldTypes(listName: string): Promise<Record<string, string>> {
+        if (this.listFieldTypeCache[listName]) return this.listFieldTypeCache[listName];
+        try {
+            const webUrl = this.getWebUrl();
+            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${listName}')/fields?$select=InternalName,TypeAsString`;
+            let resp = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            if (!resp.ok) {
+                // Retry verbose
+                resp = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
+                if (!resp.ok) throw new Error('Failed to read field types');
+                const dataV = await resp.json();
+                const arr: any[] = dataV?.d?.results || [];
+                const map: Record<string,string> = {};
+                for (const f of arr) if (f.InternalName) map[String(f.InternalName)] = String(f.TypeAsString || '');
+                this.listFieldTypeCache[listName] = map;
+                return map;
+            }
+            const data = await resp.json();
+            const values: any[] = data?.value || [];
+            const map: Record<string,string> = {};
+            for (const f of values) if (f.InternalName) map[String(f.InternalName)] = String(f.TypeAsString || '');
+            this.listFieldTypeCache[listName] = map;
+            return map;
+        } catch (e) {
+            console.warn('[clientDataService] Could not fetch field types for list', listName, e);
+            this.listFieldTypeCache[listName] = {};
+            return {};
         }
     }
 
@@ -276,7 +309,7 @@ class ClientDataService {
     // PROJECT OPERATIONS
     async getAllProjects(): Promise<Project[]> {
         const candidateFields = [
-            'Title','Category','CategoryId','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields','Projektphase','NaechsterMeilenstein'
+            'Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields','Projektphase','NaechsterMeilenstein'
         ];
         // Cache of validated fields (in-memory for runtime)
         // @ts-ignore attach dynamic cache property
@@ -285,6 +318,56 @@ class ClientDataService {
         const buildSelect = (fields: string[]) => {
             const unique = Array.from(new Set(['Id', ...fields]));
             return unique.join(',');
+        };
+    const categoryFieldCandidates = ['Category'];
+    const categorySelectFields = Array.from(new Set(['Id', ...categoryFieldCandidates]));
+        const pickCategoryValue = (source: any): any => {
+            if (!source || typeof source !== 'object') return undefined;
+            for (const key of categoryFieldCandidates) {
+                const value = source[key];
+                if (value !== undefined && value !== null) return value;
+            }
+            if (source.category !== undefined && source.category !== null) return source.category;
+            return undefined;
+        };
+        const normalizeCategoryValue = (value: any): string => {
+            if (value === undefined || value === null) return '';
+            if (typeof value === 'number') return String(value);
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (!trimmed) return '';
+                if (/^\d+(?:\.\d+)?$/.test(trimmed)) return String(parseInt(trimmed, 10));
+                return trimmed;
+            }
+            if (Array.isArray(value)) {
+                for (const entry of value) {
+                    const normalized = normalizeCategoryValue(entry);
+                    if (normalized) return normalized;
+                }
+                return '';
+            }
+            if (typeof value === 'object') {
+                const obj: any = value;
+                if (Array.isArray(obj.results)) {
+                    for (const nested of obj.results) {
+                        const normalized = normalizeCategoryValue(nested);
+                        if (normalized) return normalized;
+                    }
+                }
+                const possibleKeys = ['Id','ID','Value','LookupId','lookupId','LookupValue','lookupValue','Title','Name'];
+                for (const key of possibleKeys) {
+                    if (obj[key] !== undefined && obj[key] !== null) {
+                        const normalized = normalizeCategoryValue(obj[key]);
+                        if (normalized) return normalized;
+                    }
+                }
+            }
+            return '';
+        };
+        const getNormalizedCategoryFromEntity = (entity: any): string => {
+            const primary = normalizeCategoryValue(pickCategoryValue(entity));
+            if (primary) return primary;
+            return normalizeCategoryValue(entity?.category);
         };
     const webUrl = this.getWebUrl();
     const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
@@ -377,6 +460,27 @@ class ClientDataService {
         }
 
         let items = initialResult;
+
+        // Phase 1 minimal category fetch (avoid problematic fields like CategoryId that trigger SP exceptions on this farm)
+        let earlyCategoryMap: Record<string,string> = {};
+        try {
+            const catMinimal = await this.fetchFromSharePoint(
+                resolvedProjects,
+                categorySelectFields.join(',')
+            );
+            if (Array.isArray(catMinimal)) {
+                for (const r of catMinimal) {
+                    const pid = (r.Id ?? r.ID ?? '').toString();
+                    if (!pid) continue;
+                    const normalized = normalizeCategoryValue(pickCategoryValue(r));
+                    if (normalized) {
+                        earlyCategoryMap[pid] = normalized;
+                    }
+                }
+            }
+        } catch (ecErr) {
+            console.warn('[clientDataService] early minimal category fetch failed', ecErr);
+        }
         // If we got an empty array (possible Atom-minimal normalization), try generic helper as a second chance
         if (Array.isArray(items) && items.length === 0) {
             try {
@@ -417,10 +521,56 @@ class ClientDataService {
                 }
             } catch {/* ignore */}
         }
+
+        // Category recovery fetch: if after all fallbacks every item still lacks ANY category signal, do one extremely tolerant fetch
+        // Pre-patch items with early category map before deciding on recovery
+        if (Array.isArray(items) && Object.keys(earlyCategoryMap).length) {
+            for (const it of items) {
+                const pid = (it.Id ?? it.ID ?? '').toString();
+                const existing = getNormalizedCategoryFromEntity(it);
+                if (pid && !existing) {
+                    if (earlyCategoryMap[pid]) it.Category = earlyCategoryMap[pid];
+                }
+            }
+        }
+        const needsCategoryRecovery = Array.isArray(items) && items.length > 0 && items.every(it => {
+            const v = it.Category ?? it.Bereich ?? it.Bereiche;
+            return v === undefined || v === null || String(v).trim() === '';
+        });
+        if (needsCategoryRecovery) {
+            try {
+                const catOnly = await this.fetchFromSharePoint(
+                    resolvedProjects,
+                    categorySelectFields.join(',')
+                );
+                if (Array.isArray(catOnly) && catOnly.length > 0) {
+                    const catMap: Record<string,string> = {};
+                    for (const c of catOnly) {
+                        const idStr = (c.Id ?? c.ID ?? '').toString();
+                        const normalized = normalizeCategoryValue(pickCategoryValue(c));
+                        if (normalized) {
+                            catMap[idStr] = normalized;
+                        }
+                    }
+                    if (Object.keys(catMap).length) {
+                        for (const it of items) {
+                            const idStr = (it.Id ?? it.ID ?? '').toString();
+                            if (idStr && (!it.Category || String(it.Category).trim() === '')) {
+                                if (catMap[idStr]) it.Category = catMap[idStr];
+                            }
+                        }
+                        if ((process as any)?.env?.NEXT_PUBLIC_DEBUG_EXPOSE === '1') {
+                            console.warn('[clientDataService] Applied category recovery fetch', { count: Object.keys(catMap).length });
+                        }
+                    }
+                }
+            } catch (recErr) {
+                console.warn('[clientDataService] Category recovery fetch failed', recErr);
+            }
+        }
         // Dynamic detection of alternative category field if current selection produced only empty categories
         const shouldProbeAltCategory = Array.isArray(items) && items.length > 0 && items.every(it => {
-            const v = it.Category ?? it.category ?? it.CategoryId ?? it.CategoryID ?? it.Category0;
-            return v === undefined || v === null || String(v).trim() === '';
+            return !getNormalizedCategoryFromEntity(it);
         });
         if (shouldProbeAltCategory) {
             try {
@@ -435,13 +585,13 @@ class ClientDataService {
                 if (fResp.ok) {
                     const fJson = await fResp.json();
                     const fieldArray: any[] = Array.isArray(fJson?.value) ? fJson.value : (fJson?.d?.results || []);
-                    // Find candidate internal names containing category/kategorie not already selected
+                    // Find candidate internal names containing category/kategorie/bereich not already selected
                     const candidates: string[] = [];
                     for (const f of fieldArray) {
                         const internal = f.InternalName || f.internalName || '';
                         const title = f.Title || f.title || '';
-                        if (/kategor|categor/i.test(internal) || /kategor|categor/i.test(title)) {
-                            if (!['Category','CategoryId','CategoryID','Category0'].includes(internal)) candidates.push(internal);
+                        if (/kategor|categor|bereich/i.test(internal) || /kategor|categor|bereich/i.test(title)) {
+                            if (!['Category'].includes(internal)) candidates.push(internal);
                         }
                     }
                     if (candidates.length > 0) {
@@ -456,7 +606,8 @@ class ClientDataService {
                                 // annotate items with Category if missing so downstream mapping picks it up
                                 for (const it of items) {
                                     if ((it.Category === undefined || it.Category === '' || it.Category === null) && it[altCatField] !== undefined) {
-                                        it.Category = it[altCatField];
+                                        const normalizedAlt = normalizeCategoryValue(it[altCatField]);
+                                        if (normalizedAlt) it.Category = normalizedAlt;
                                     }
                                 }
                             }
@@ -482,31 +633,15 @@ class ClientDataService {
                     else projectFields = [raw.trim()];
                 }
             }
-            // Extract raw category value from possible field variants (SharePoint can vary casing or provide lookup objects)
-            const categoryFieldCandidates = ['Category','category','CategoryId','CategoryID','Category0'];
-            let rawCategory: any = undefined;
-            for (const key of categoryFieldCandidates) {
-                if (item[key] !== undefined && item[key] !== null) { rawCategory = item[key]; break; }
-            }
-            // If verbose lookup object (e.g., { Id: 7, Title: '...' })
-            if (rawCategory && typeof rawCategory === 'object') {
-                if (rawCategory.Id !== undefined) rawCategory = rawCategory.Id;
-                else if (rawCategory.ID !== undefined) rawCategory = rawCategory.ID;
-            }
-            // Normalize category: trim and collapse numeric-like values (e.g., "7.0" -> "7")
-            let normalizedCategory = '';
-            if (rawCategory !== undefined && rawCategory !== null) {
-                const s = String(rawCategory).trim();
-                if (/^\d+(?:\.\d+)?$/.test(s)) normalizedCategory = String(parseInt(s,10));
-                else normalizedCategory = s;
-            }
+            const normalizedCategory = getNormalizedCategoryFromEntity(item);
+            if (normalizedCategory) item.Category = normalizedCategory;
 
             const project: Project = {
                 id: item.Id?.toString?.() || String(item.Id),
                 title: item.Title,
                 category: normalizedCategory,
-                startQuarter: (item.StartQuarter !== undefined && item.StartQuarter !== null) ? String(item.StartQuarter) : '',
-                endQuarter: (item.EndQuarter !== undefined && item.EndQuarter !== null) ? String(item.EndQuarter) : '',
+                startQuarter: (item.StartQuarter !== undefined && item.StartQuarter !== null) ? String(item.StartQuarter).replace(/(Q[1-4])\s+20\d{2}/,'$1') : '',
+                endQuarter: (item.EndQuarter !== undefined && item.EndQuarter !== null) ? String(item.EndQuarter).replace(/(Q[1-4])\s+20\d{2}/,'$1') : '',
                 description: item.Description || '',
                 status: (String(item.Status || 'planned').toLowerCase() as any),
                 ProjectFields: projectFields,
@@ -559,6 +694,36 @@ class ClientDataService {
         }
         if ((process as any)?.env?.NEXT_PUBLIC_DEBUG_EXPOSE === '1' && typeof window !== 'undefined') {
             console.debug('[getAllProjects] mapped sample:', projects.slice(0,5).map(p => ({ id: p.id, cat: p.category })));
+        }
+
+        // Forced final category hydration: if every project still has empty category, perform a minimal refetch (Id,Category)
+        if (projects.length > 0 && projects.every(p => !p.category)) {
+            try {
+                const catHydrate = await this.fetchFromSharePoint(
+                    resolvedProjects,
+                    categorySelectFields.join(',')
+                );
+                if (Array.isArray(catHydrate) && catHydrate.length) {
+                    const cMap: Record<string,string> = {};
+                    for (const row of catHydrate) {
+                        const pid = (row.Id ?? row.ID ?? '').toString();
+                        const normalized = normalizeCategoryValue(pickCategoryValue(row));
+                        if (normalized) {
+                            cMap[pid] = normalized;
+                        }
+                    }
+                    if (Object.keys(cMap).length) {
+                        for (const p of projects) {
+                            if (!p.category && cMap[p.id]) p.category = cMap[p.id];
+                        }
+                        if ((process as any)?.env?.NEXT_PUBLIC_DEBUG_EXPOSE === '1' && typeof window !== 'undefined') {
+                            console.warn('[getAllProjects] forced category hydration applied', { hydrated: Object.keys(cMap).length });
+                        }
+                    }
+                }
+            } catch (fhErr) {
+                console.warn('[clientDataService] forced category hydration failed', fhErr);
+            }
         }
         return projects;
     }
@@ -755,9 +920,10 @@ class ClientDataService {
 
             // Get SharePoint environment details
             const webUrl = this.getWebUrl();
-            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items(${id})`;
+            const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
+            const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})`;
             const requestDigest = await this.getRequestDigest();
-            const itemType = await this.getListMetadata(SP_LISTS.PROJECTS);
+            const itemType = await this.getListMetadata(resolvedProjects);
 
             // Process ProjectFields value
             let projectFieldsValue = '';
@@ -801,7 +967,7 @@ class ClientDataService {
 
             // Conditionally include optional new fields if list supports them
             try {
-                const fields = await this.getListFieldNames(SP_LISTS.PROJECTS);
+                const fields = await this.getListFieldNames(resolvedProjects);
                 if (fields.has('Projektphase')) {
                     const phaseRaw = (projectData as any).projektphase || (existingProject as any).projektphase || '';
                     const phase = String(phaseRaw || '').toLowerCase();
@@ -810,11 +976,31 @@ class ClientDataService {
                 if (fields.has('NaechsterMeilenstein')) {
                     body['NaechsterMeilenstein'] = (projectData as any).naechster_meilenstein || (existingProject as any).naechster_meilenstein || '';
                 }
-                if (fields.has('CategoryId')) {
-                    const catVal = projectData.category || existingProject.category || '';
-                    const num = parseInt(String(catVal).trim(), 10);
-                    body['CategoryId'] = isNaN(num) ? null : num;
-                    delete body['Category'];
+                // Category handling: decide between CategoryId (lookup) vs Category (number/text)
+                const catVal = projectData.category || existingProject.category || '';
+                const num = parseInt(String(catVal).trim(), 10);
+                if (!isNaN(num)) {
+                    console.log('[updateProject] Available fields:', Array.from(fields));
+                    let choseLookup = false;
+                    let catType: string | undefined;
+                    try {
+                        const types = await this.getListFieldTypes(resolvedProjects);
+                        catType = types['Category'];
+                        // Prefer lookup if Category is a lookup-type (Lookup/LookupMulti)
+                        if (catType && /lookup/i.test(catType) && fields.has('CategoryId')) {
+                            body['CategoryId'] = num;
+                            delete body['Category'];
+                            choseLookup = true;
+                        }
+                    } catch {}
+                    if (choseLookup) {
+                        console.log('[updateProject] Using CategoryId (lookup) for category value', num);
+                    } else {
+                        // Use Category for Number/Text-based columns and match type
+                        if (catType && /number/i.test(catType)) body['Category'] = num; else body['Category'] = String(num);
+                        delete body['CategoryId'];
+                        console.log('[updateProject] Using Category (', catType || 'text', ') for category value', body['Category']);
+                    }
                 }
             } catch {}
 
@@ -861,6 +1047,24 @@ class ClientDataService {
                 projektphase: ((body as any).Projektphase || (projectData as any).projektphase || (existingProject as any).projektphase) as any,
                 naechster_meilenstein: (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein || (existingProject as any).naechster_meilenstein
             } as Project;
+
+            // Read-back minimal fields to confirm persistence (esp. Category)
+            try {
+                const verifyEndpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})?$select=Id,Category`;
+                let v = await fetch(verifyEndpoint, { headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
+                if (!v.ok) {
+                    const txt = await v.text().catch(()=>'');
+                    console.warn('[updateProject] read-back failed', { status: v.status, body: txt });
+                } else {
+                    const j = await v.json();
+                    let cat: any = j?.Category;
+                    if (cat && typeof cat === 'object') cat = (cat.Id ?? cat.ID ?? '');
+                    if (cat !== undefined && cat !== null) updatedProject.category = String(cat).trim();
+                    console.log('[updateProject] read-back Category =', updatedProject.category);
+                }
+            } catch (vbErr) {
+                console.warn('[updateProject] read-back threw', vbErr);
+            }
 
             // Return the updated project
             return updatedProject;
@@ -1000,14 +1204,33 @@ class ClientDataService {
                 console.warn('[clientDataService] getAllCategories returned no items for list resolved as', resolvedCategories);
             }
 
-            return items.map(item => ({
-                id: item.Id.toString(),
-                name: item.Title,
-                color: item.Color,
-                icon: item.Icon || '',
-                parentId: item.ParentCategoryId ? item.ParentCategoryId.toString() : undefined,
-                isSubcategory: item.IsSubcategory === true
-            }));
+            return items.map(item => {
+                const parentRaw = item.ParentCategoryId ?? item.ParentCategoryID ?? item.ParentId ?? item.ParentCategory;
+                let parentId: string | undefined;
+                if (parentRaw !== undefined && parentRaw !== null) {
+                    if (typeof parentRaw === 'object') {
+                        const obj: any = parentRaw;
+                        if (obj.Id !== undefined && obj.Id !== null) parentId = String(obj.Id);
+                        else if (obj.ID !== undefined && obj.ID !== null) parentId = String(obj.ID);
+                    } else {
+                        parentId = String(parentRaw);
+                    }
+                    if (parentId) {
+                        parentId = parentId.trim();
+                        if (/^\d+(?:\.\d+)?$/.test(parentId)) parentId = String(parseInt(parentId, 10));
+                        if (!parentId) parentId = undefined;
+                    }
+                }
+
+                return {
+                    id: item.Id.toString(),
+                    name: item.Title,
+                    color: item.Color,
+                    icon: item.Icon || '',
+                    parentId,
+                    isSubcategory: item.IsSubcategory === true
+                };
+            });
         } catch (error) {
             console.error('Error fetching categories:', error);
             return [];
@@ -1334,8 +1557,9 @@ class ClientDataService {
             // Get request digest for write operations
             const requestDigest = await this.getRequestDigest();
 
-            // Get the correct metadata type
-            const itemType = await this.getListMetadata(SP_LISTS.PROJECTS);
+            // Resolve actual list title and get the correct metadata type
+            const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
+            const itemType = await this.getListMetadata(resolvedProjects);
 
             // Clone project to avoid modifying the original
             const projectData = { ...project };
@@ -1350,8 +1574,8 @@ class ClientDataService {
 
             // Prepare the endpoint and method
             const endpoint = isNewProject
-                ? `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items`
-                : `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items(${project.id})`;
+                ? `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items`
+                : `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${project.id})`;
 
             const method = isNewProject ? 'POST' : 'POST'; // POST for both, but with different headers for update
 
@@ -1389,7 +1613,7 @@ class ClientDataService {
             };
 
             try {
-                const fields = await this.getListFieldNames(SP_LISTS.PROJECTS);
+                const fields = await this.getListFieldNames(resolvedProjects);
                 if (fields.has('Projektphase')) {
                     const phaseRaw = (projectData as any).projektphase || '';
                     const phase = String(phaseRaw || '').toLowerCase();
@@ -1398,11 +1622,28 @@ class ClientDataService {
                 if (fields.has('NaechsterMeilenstein')) {
                     body['NaechsterMeilenstein'] = (projectData as any).naechster_meilenstein || '';
                 }
-                if (fields.has('CategoryId')) {
-                    const catVal = projectData.category || '';
-                    const num = parseInt(String(catVal).trim(), 10);
-                    body['CategoryId'] = isNaN(num) ? null : num;
-                    delete body['Category'];
+                const catVal = projectData.category || '';
+                const num = parseInt(String(catVal).trim(), 10);
+                if (!isNaN(num)) {
+                    console.log('[saveProject] Available fields:', Array.from(fields));
+                    let choseLookup = false;
+                    let catType: string | undefined;
+                    try {
+                        const types = await this.getListFieldTypes(resolvedProjects);
+                        catType = types['Category'];
+                        if (catType && /lookup/i.test(catType) && fields.has('CategoryId')) {
+                            body['CategoryId'] = num;
+                            delete body['Category'];
+                            choseLookup = true;
+                        }
+                    } catch {}
+                    if (choseLookup) {
+                        console.log('[saveProject] Using CategoryId (lookup) for category value', num);
+                    } else {
+                        if (catType && /number/i.test(catType)) body['Category'] = num; else body['Category'] = String(num);
+                        delete body['CategoryId'];
+                        console.log('[saveProject] Using Category (', catType || 'text', ') for category value', body['Category']);
+                    }
                 }
             } catch {}
 
@@ -1464,6 +1705,24 @@ class ClientDataService {
                     projectId: savedProject.id
                 })));
                 savedProject.links = links;
+            }
+
+            // Read-back minimal fields (Id,Category) to confirm persistence
+            try {
+                const verifyEndpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${savedProject.id})?$select=Id,Category`;
+                let v = await fetch(verifyEndpoint, { headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
+                if (!v.ok) {
+                    const txt = await v.text().catch(()=>'');
+                    console.warn('[saveProject] read-back failed', { status: v.status, body: txt });
+                } else {
+                    const j = await v.json();
+                    let cat: any = j?.Category;
+                    if (cat && typeof cat === 'object') cat = (cat.Id ?? cat.ID ?? '');
+                    if (cat !== undefined && cat !== null) savedProject.category = String(cat).trim();
+                    console.log('[saveProject] read-back Category =', savedProject.category);
+                }
+            } catch (vbErr) {
+                console.warn('[saveProject] read-back threw', vbErr);
             }
 
             return savedProject;
@@ -1865,7 +2124,42 @@ class ClientDataService {
                 throw new Error(`Failed to get current user: ${userResponse.statusText}`);
             }
             const userData = await userResponse.json();
-            return userData.IsSiteAdmin === true;
+            if (userData.IsSiteAdmin === true || userData?.d?.IsSiteAdmin === true) return true;
+
+            // Fallback: treat membership in the site's Owners group as admin.
+            // 1) Read the site's associated owners group
+            const ownerGroupResp = await fetch(`${webUrl}/_api/web/AssociatedOwnerGroup?$select=Id,Title`, {
+                headers: { 'Accept': 'application/json;odata=nometadata' },
+                credentials: 'same-origin'
+            });
+            if (!ownerGroupResp.ok) {
+                // If this fails, try a heuristic on group titles
+                const groupsHeuristic = await fetch(`${webUrl}/_api/web/currentuser/Groups?$select=Id,Title`, {
+                    headers: { 'Accept': 'application/json;odata=nometadata' },
+                    credentials: 'same-origin'
+                });
+                if (groupsHeuristic.ok) {
+                    const gj = await groupsHeuristic.json();
+                    const titles: string[] = (gj?.value || gj?.d?.results || []).map((g: any) => String(g.Title || '')).filter(Boolean);
+                    const matchOwner = titles.some(t => /\b(owner|besitzer)\b/i.test(t));
+                    if (matchOwner) return true;
+                }
+                return false;
+            }
+            const ownerGroup = await ownerGroupResp.json();
+            const ownerId: number | undefined = ownerGroup?.Id ?? ownerGroup?.d?.Id;
+            const ownerTitle: string | undefined = ownerGroup?.Title ?? ownerGroup?.d?.Title;
+            if (!ownerId && !ownerTitle) return false;
+
+            // 2) Fetch current user's groups and check membership against owners group
+            const groupsResp = await fetch(`${webUrl}/_api/web/currentuser/Groups?$select=Id,Title`, {
+                headers: { 'Accept': 'application/json;odata=nometadata' },
+                credentials: 'same-origin'
+            });
+            if (!groupsResp.ok) return false;
+            const groups = await groupsResp.json();
+            const entries: any[] = (groups?.value || groups?.d?.results || []) as any[];
+            return entries.some(g => (ownerId && g.Id === ownerId) || (ownerTitle && String(g.Title) === String(ownerTitle)));
         } catch (error) {
             console.error('Error checking admin status:', error);
             return false;

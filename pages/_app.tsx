@@ -2,11 +2,17 @@ import { JSX, useEffect } from 'react';
 import { clientDataService } from '@/utils/clientDataService';
 import { initializeIcons } from '@fluentui/react/lib/Icons';
 import type { AppProps } from 'next/app';
+import type { Category, Project } from '@/types';
 import './globals.css';
 
 // Define a type for the window with our custom property
 interface CustomWindow extends Window {
   __fluentUIIconsInitialized?: boolean;
+  __spFetchPatched?: boolean;
+  clientDataService?: typeof clientDataService;
+  fetchCategoriesAndProjects?: () => Promise<{ cats: Category[]; projs: Project[]; unmapped: Project[] }>;
+  __categories?: Category[];
+  __projects?: Project[];
 }
 
 function MyApp({ Component, pageProps }: AppProps): JSX.Element {
@@ -21,9 +27,9 @@ function MyApp({ Component, pageProps }: AppProps): JSX.Element {
 
       // Temporary fetch monkey patch to reroute any lingering absolute SharePoint REST calls via proxy (CORS bypass)
       const SP_HOST = 'https://spi-u.intranet.bs.ch';
-      if (!(window as any).__spFetchPatched) {
+      if (!customWindow.__spFetchPatched) {
         const originalFetch = window.fetch.bind(window);
-        (window as any).__spFetchPatched = true;
+        customWindow.__spFetchPatched = true;
         window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
           try {
             if (typeof input === 'string' && input.startsWith(SP_HOST)) {
@@ -35,28 +41,28 @@ function MyApp({ Component, pageProps }: AppProps): JSX.Element {
                 return originalFetch(proxyUrl, init);
               }
             }
-          } catch (e) {
+          } catch {
             // swallow and fall through
           }
-          return originalFetch(input as any, init);
+          return originalFetch(input, init);
         };
       }
 
       // Optional debug exposure (development / analysis only)
       if (process.env.NEXT_PUBLIC_DEBUG_EXPOSE === '1') {
-        (window as any).clientDataService = clientDataService;
-        (window as any).fetchCategoriesAndProjects = async () => {
+        customWindow.clientDataService = clientDataService;
+        customWindow.fetchCategoriesAndProjects = async () => {
           const [cats, projs] = await Promise.all([
             clientDataService.getAllCategories(),
             clientDataService.getAllProjects()
           ]);
-          (window as any).__categories = cats;
-            (window as any).__projects = projs;
+          customWindow.__categories = cats;
+          customWindow.__projects = projs;
           const catIds = new Set(cats.map(c => c.id));
-          const unmapped = projs.filter(p => !catIds.has(String((p as any).category || '')));
+          const unmapped = projs.filter(p => !catIds.has(String(p.category || '')));
           console.log('[debug] categories:', cats);
           console.log('[debug] projects (first 5):', projs.slice(0,5));
-          console.log('[debug] unmapped project categories count:', unmapped.length, unmapped.slice(0,10).map(p=>({id:p.id,cat:(p as any).category,title:p.title})));
+          console.log('[debug] unmapped project categories count:', unmapped.length, unmapped.slice(0,10).map(p=>({id:p.id,cat:p.category,title:p.title})));
           return { cats, projs, unmapped };
         };
       }

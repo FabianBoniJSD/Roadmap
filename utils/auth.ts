@@ -16,6 +16,26 @@ const SECRET_KEY = process.env.JWT_SECRET || 'roadmap-jsd-secret-key-change-in-p
 // Token expiration time in seconds (4 hours)
 const TOKEN_EXPIRY = 4 * 60 * 60;
 
+// Lightweight debug switch for verbose console logs around auth/admin flows
+function debugAuthEnabled(): boolean {
+  try {
+    // Build-time flag or runtime query/localStorage toggles
+    if (typeof process !== 'undefined' && process.env && (process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true')) return true;
+    if (typeof window !== 'undefined') {
+      if (/([?&])debug=auth(?![\w-])/i.test(window.location.search)) return true;
+      const ls = window.localStorage?.getItem('debugAuth');
+      if (ls && ls !== '0' && ls.toLowerCase() !== 'false') return true;
+    }
+  } catch { /* ignore */ }
+  return false;
+}
+function log(...args: any[]) {
+  if (debugAuthEnabled()) {
+    // eslint-disable-next-line no-console
+    console.log('[admin-auth]', ...args);
+  }
+}
+
 /**
  * Authenticate a user against the SharePoint Users list
  * @param username User's email
@@ -193,11 +213,14 @@ export async function isAuthenticated(): Promise<boolean> {
   try {
     // Always go through our SharePoint proxy
     const webUrl = (clientDataService as any).getWebUrl?.() || '/api/sharepoint';
-    const response = await fetch(`${webUrl}/_api/web/currentuser`, {
+    const url = `${webUrl}/_api/web/currentuser`;
+    log('isAuthenticated: calling', url);
+    const response = await fetch(url, {
       method: 'GET',
       headers: { 'Accept': 'application/json;odata=nometadata' },
       credentials: 'include'
     });
+    log('isAuthenticated: response', { ok: response.ok, status: response.status });
     return response.ok;
   } catch (error) {
     console.error('Authentication check failed:', error);
@@ -208,7 +231,45 @@ export async function isAuthenticated(): Promise<boolean> {
 // Check if the user has admin access
 export async function hasAdminAccess(): Promise<boolean> {
   try {
-    return await clientDataService.isCurrentUserAdmin();
+    log('hasAdminAccess: start');
+    // If running in the browser, first try a direct call to SharePoint when same-origin.
+    // This enables seamless Kerberos/SSO when the app is hosted within a SharePoint page (same-origin),
+    // where the browser can negotiate auth. If that fails (outside webpart/CORS), fall back to proxy.
+    if (typeof window !== 'undefined') {
+      try {
+        const spSite = resolveSharePointSiteUrl();
+        const spOrigin = new URL(spSite).origin;
+        const appOrigin = window.location.origin;
+        if (spOrigin !== appOrigin) {
+          log('hasAdminAccess: skipping direct SP fetch due to cross-origin', { spOrigin, appOrigin });
+          throw new Error('cross-origin-skip');
+        }
+        const url = spSite.replace(/\/$/, '') + '/_api/web/currentuser';
+        log('hasAdminAccess: direct SP fetch', url);
+        const r = await fetch(url, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json;odata=nometadata' },
+          credentials: 'include'
+        } as RequestInit);
+        log('hasAdminAccess: direct response', { ok: r.ok, status: r.status });
+        if (r.ok) {
+          const j: any = await r.json();
+          const isSiteAdmin = j?.IsSiteAdmin === true || j?.d?.IsSiteAdmin === true;
+          log('hasAdminAccess: direct json parsed', { IsSiteAdmin: isSiteAdmin, rawKeys: Object.keys(j || {}) });
+          if (isSiteAdmin === true) return true;
+          // If explicitly false or missing, do not return false here; allow proxy fallback to check Owners group.
+        }
+      } catch (_) {
+        // Ignore and try proxy fallback below
+        log('hasAdminAccess: direct fetch failed, will use proxy');
+      }
+    }
+
+    // Fallback: go through our proxy (works for Online/NTLM/FBA; requires server auth config)
+    log('hasAdminAccess: proxy fallback via clientDataService.isCurrentUserAdmin');
+    const viaProxy = await clientDataService.isCurrentUserAdmin();
+    log('hasAdminAccess: proxy result', viaProxy);
+    return viaProxy;
   } catch (error) {
     console.error('Admin check failed:', error);
     return false;

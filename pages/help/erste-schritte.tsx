@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
 import Footer from '@/components/Footer';
@@ -53,7 +54,14 @@ export default function ErsteSchritte() {
   );
 }
 
-function Step({ n, title, icon, children }: any) {
+interface StepProps {
+  n: number;
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
+}
+
+function Step({ n, title, icon, children }: StepProps) {
   return (
     <section className="bg-gray-800 rounded-lg p-4 border border-gray-700">
       <div className="flex items-center gap-2">

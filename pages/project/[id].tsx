@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import Image from 'next/image';
 import { clientDataService } from '@/utils/clientDataService';
 import { FaExternalLinkAlt } from 'react-icons/fa';
 import { Project, TeamMember } from '@/types';
@@ -108,6 +109,8 @@ const ProjectDetailPage: React.FC = () => {
   const [uploadError, setUploadError] = useState<string>('');
   const [currentFileName, setCurrentFileName] = useState<string>('');
   const [abortCtrl, setAbortCtrl] = useState<AbortController | null>(null);
+  const [leadImageBroken, setLeadImageBroken] = useState(false);
+  const [memberImageErrors, setMemberImageErrors] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (id) {
@@ -167,6 +170,8 @@ const ProjectDetailPage: React.FC = () => {
       </div>
     );
   }
+
+  const canShowLeadImage = Boolean(project.projektleitungImageUrl) && !leadImageBroken;
 
   return (
     <div className="w-full min-h-screen bg-gray-900 text-white">
@@ -269,21 +274,20 @@ const ProjectDetailPage: React.FC = () => {
                 {/* Project Lead */}
                 {project.projektleitung && (
                   <div key='0' className="bg-gray-700 rounded-lg p-4 flex items-center space-x-3">
-                    {project.projektleitungImageUrl ? (
-                      <img
-                        src={project.projektleitungImageUrl}
+                    {canShowLeadImage ? (
+                      <Image
+                        src={project.projektleitungImageUrl!}
                         alt={project.projektleitung}
+                        width={48}
+                        height={48}
                         className="w-12 h-12 flex-shrink-0 rounded-full object-cover border border-gray-600"
-                        onError={(e) => {
-                          // If image fails to load, fall back to initials
-                          (e.target as HTMLImageElement).style.display = 'none';
-                          (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                        }}
+                        onError={() => setLeadImageBroken(true)}
+                        unoptimized
                       />
                     ) : null}
 
                     {/* Fallback to initials */}
-                    <div className={`w-12 h-12 flex-shrink-0 rounded-full bg-gray-600 flex items-center justify-center text-white text-lg ${project.projektleitungImageUrl ? 'hidden' : ''}`}>
+                    <div className={`w-12 h-12 flex-shrink-0 rounded-full bg-gray-600 flex items-center justify-center text-white text-lg ${canShowLeadImage ? 'hidden' : ''}`}>
                       {project.projektleitung[0]}
                     </div>
 
@@ -298,21 +302,20 @@ const ProjectDetailPage: React.FC = () => {
                 {project.teamMembers && project.teamMembers.length > 0 ? (
                   project.teamMembers.map((teamMember: TeamMember, index: number) => (
                     <div key={index} className="bg-gray-700 rounded-lg p-4 flex items-center space-x-3">
-                      {teamMember.imageUrl ? (
-                        <img
+                      {teamMember.imageUrl && !memberImageErrors[index] ? (
+                        <Image
                           src={teamMember.imageUrl}
-                          alt={teamMember.name}
+                          alt={teamMember.name || 'Teammitglied'}
+                          width={48}
+                          height={48}
                           className="w-12 h-12 flex-shrink-0 rounded-full object-cover border border-gray-600"
-                          onError={(e) => {
-                            // If image fails to load, fall back to initials
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                          }}
+                          onError={() => setMemberImageErrors(prev => ({ ...prev, [index]: true }))}
+                          unoptimized
                         />
                       ) : null}
 
                       {/* Fallback to initials */}
-                      <div className={`w-12 h-12 flex-shrink-0 rounded-full bg-gray-600 flex items-center justify-center text-white text-lg ${teamMember.imageUrl ? 'hidden' : ''}`}>
+                      <div className={`w-12 h-12 flex-shrink-0 rounded-full bg-gray-600 flex items-center justify-center text-white text-lg ${teamMember.imageUrl && !memberImageErrors[index] ? 'hidden' : ''}`}>
                         {teamMember.name ? teamMember.name.charAt(0) : 'T'}
                       </div>
 

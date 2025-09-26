@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/ban-ts-comment */
 // Diagnostic NTLM challenge dump (enabled only when SP_PROXY_DEBUG=true)
 // Returns raw NTLM Type2 challenge metadata for troubleshooting.
 // NOTE: Keep this route protected/disabled in production.

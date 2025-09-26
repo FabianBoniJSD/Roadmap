@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-require-imports */
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import { getSharePointAuthHeaders } from '@/utils/spAuth';
@@ -36,6 +37,10 @@ function isAllowedPath(path: string) {
   if (cleaned === '/_api/contextinfo') return true;
   // Allow current user lookup for authentication checks
   if (cleaned === '/_api/web/currentuser') return true;
+  // Allow current user's SharePoint groups (needed for Owners membership checks)
+  if (cleaned === '/_api/web/currentuser/Groups') return true;
+  // Allow querying the site's associated owners group (Id/Title)
+  if (cleaned === '/_api/web/AssociatedOwnerGroup') return true;
   // Allow People Picker API used by admin search
   if (/^\/_api\/SP\.UI\.ApplicationPages\.ClientPeoplePickerWebServiceInterface\.clientPeoplePickerSearchUser$/i.test(cleaned)) return true;
   // Allow SharePoint User Profiles properties lookup
@@ -121,8 +126,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Optional curl path: supports NTLM (with user/pass) and Kerberos (with system creds via kinit)
   const strategy = process.env.SP_STRATEGY || '';
   if (process.env.SP_USE_CURL === 'true') {
-      const username = process.env.SP_USERNAME || '';
-      const password = process.env.SP_PASSWORD || '';
+    const username = process.env.SP_USERNAME || '';
+    const password = process.env.SP_PASSWORD || '';
     const isKerb = strategy === 'kerberos';
     const allowNtlmFallback = process.env.SP_FALLBACK_NTLM === 'true' && !!username && !!password;
     const domain = process.env.SP_ONPREM_DOMAIN || (username.includes('\\') ? username.split('\\')[0] : '');
@@ -149,7 +154,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           else if (caPath) headArgs.unshift('--cacert', caPath);
           if (process.env.SP_CURL_VERBOSE === 'true') headArgs.unshift('-v');
           try {
-            const out: { stdout: string; stderr: string } = await new Promise((resolveExec, rejectExec) => {
+            await new Promise((resolveExec, rejectExec) => {
               execFile('curl', headArgs, { timeout: 15000 }, (err: any, stdout: string, stderr: string) => {
                 if (err) return rejectExec(Object.assign(err, { stderr }));
                 resolveExec({ stdout, stderr });
@@ -209,7 +214,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               });
             });
             try { const j = JSON.parse(ciOut.stdout); formDigest = j.FormDigestValue || null; } catch { formDigest = null; }
-          } catch (e:any) {
+          } catch {
             if (isKerb && allowNtlmFallback) {
               try {
                 const ciNArgs = ['-sS', '--ntlm', '--user', cred, '-X', 'POST'];
@@ -336,7 +341,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
           rawOut = out2.stdout;
           res.setHeader('x-sp-proxy-fallback','ntlm');
-        } catch (fe:any) {
+        } catch {
           // keep original rawOut
         }
       }

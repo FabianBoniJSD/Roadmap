@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
+import type { ParsedUrlQuery } from 'querystring';
 import RoadmapYearNavigation from './RoadmapYearNavigation';
 import { Category, Project } from '../types';
 import { clientDataService } from '../utils/clientDataService';
+import { normalizeCategoryId, UNCATEGORIZED_ID } from '../utils/categoryUtils';
 import CategorySidebar from './CategorySidebar';
 import Footer from './Footer';
 import { FaBars, FaTimes } from 'react-icons/fa';
@@ -11,6 +13,15 @@ import { loadThemeSettings } from '../utils/theme';
 import StatusLegend from './StatusLegend';
 import RoadmapFilters from './RoadmapFilters';
 import CompactProjectCard from './CompactProjectCard';
+
+const getYearFromISOString = (isoString: string, fallbackYear: number): number => {
+  const date = new Date(isoString);
+  return Number.isNaN(date.getTime()) ? fallbackYear : date.getFullYear();
+};
+
+const getQuarterFromDate = (date: Date): number => {
+  return Math.floor(date.getMonth() / 3) + 1;
+};
 
 interface RoadmapProps {
   initialProjects: Project[];
@@ -35,7 +46,6 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   const [monthRange, setMonthRange] = useState<{start:number; end:number}>({ start: 1, end: 12 });
   const [onlyRunning, setOnlyRunning] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'timeline' | 'tiles'>('timeline');
-  const UNCATEGORIZED_ID = '__uncategorized__';
 
   const sidebarRef = useRef<HTMLDivElement>(null);
   // Track whether URL-derived category selection has been applied to prevent race conditions
@@ -99,22 +109,36 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
   // Persist filters to URL (shallow) to allow shareable state
   useEffect(() => {
-    const readQuery = (q: Record<string, any>) => {
-      const status = (q.status ? (Array.isArray(q.status) ? q.status.join(',') : q.status) : '').split(',').filter(Boolean).map((s:string)=>s.toLowerCase());
-      const tags = (q.tags ? (Array.isArray(q.tags) ? q.tags.join(',') : q.tags) : '').split(',').filter(Boolean);
-      const cats = (q.cats ? (Array.isArray(q.cats) ? q.cats.join(',') : q.cats) : '').split(',').filter(Boolean);
+    const readQuery = (q: ParsedUrlQuery) => {
+      const rawStatus = q['status'];
+      const rawTags = q['tags'];
+      const rawCats = q['cats'];
+      const rawStart = q['start'];
+      const rawEnd = q['end'];
+      const rawRunning = q['running'];
+      const rawQ = q['q'];
+      const toScalar = (value: string | string[] | undefined): string => (Array.isArray(value) ? value[0] ?? '' : value ?? '');
+      const status = (rawStatus ? (Array.isArray(rawStatus) ? rawStatus.join(',') : rawStatus) : '').split(',').filter(Boolean).map((s:string)=>s.toLowerCase());
+      const tags = (rawTags ? (Array.isArray(rawTags) ? rawTags.join(',') : rawTags) : '').split(',').filter(Boolean);
+      const cats = (rawCats ? (Array.isArray(rawCats) ? rawCats.join(',') : rawCats) : '').split(',').filter(Boolean);
       return {
-        q: q.q || '',
+        q: toScalar(rawQ),
         status,
         tags,
-        start: Number(q.start) || 1,
-        end: Number(q.end) || 12,
-        running: q.running === '1',
+        start: Number(toScalar(rawStart)) || 1,
+        end: Number(toScalar(rawEnd)) || 12,
+        running: toScalar(rawRunning) === '1',
         cats,
       };
     };
 
-    const current = readQuery(router.query as any);
+    const current = readQuery(router.query);
+    // Determine whether current category selection is effectively default
+    const hasAllNamed = categories.length > 0 && categories.every(c => activeCategories.includes(c.id));
+    const hasUncat = activeCategories.includes(UNCATEGORIZED_ID);
+    const isDefaultCats = hasAllNamed && hasUncat && activeCategories.length === categories.length + 1;
+    const isAllNamedOnly = hasAllNamed && !hasUncat && activeCategories.length === categories.length;
+
     const next = {
       q: filterText || '',
       status: [...statusFilters].map(s=>s.toLowerCase()),
@@ -122,12 +146,13 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       start: monthRange.start,
       end: monthRange.end,
       running: onlyRunning,
-      cats: activeCategories.length && activeCategories.length !== categories.length ? [...activeCategories] : [],
+      // Omit cats from URL when selection equals default (all named +/- uncategorized)
+      cats: (isDefaultCats || isAllNamedOnly || activeCategories.length === 0) ? [] : [...activeCategories],
       view: viewMode,
     };
 
     if (JSON.stringify(current) !== JSON.stringify(next)) {
-      const query: Record<string, any> = {};
+  const query: Record<string, string> = {};
       if (next.q) query.q = next.q;
       if (next.status.length) query.status = next.status.join(',');
       if (next.tags.length) query.tags = next.tags.join(',');
@@ -140,17 +165,6 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterText, statusFilters, tagFilters, monthRange.start, monthRange.end, onlyRunning, activeCategories, categories.length]);
-
-  // Hilfsfunktion zum Extrahieren des Jahres aus einem ISO-Datumsstring
-  const getYearFromISOString = (isoString: string): number => {
-    const date = new Date(isoString);
-    return !isNaN(date.getTime()) ? date.getFullYear() : currentYear;
-  };
-
-  // Hilfsfunktion zum Extrahieren des Quartals aus einem Datum
-  const getQuarterFromDate = (date: Date): number => {
-    return Math.floor(date.getMonth() / 3) + 1;
-  };
 
   // Fetch categories and filter projects based on the selected year
   useEffect(() => {
@@ -170,8 +184,8 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       const endIso = project.endDate || (project.endQuarter || project.startQuarter ? derive(project.endQuarter || project.startQuarter, true) : '');
       if (!startIso || !endIso) return false;
 
-      const startYear = getYearFromISOString(startIso);
-      const endYear = getYearFromISOString(endIso);
+  const startYear = getYearFromISOString(startIso, currentYear);
+  const endYear = getYearFromISOString(endIso, currentYear);
       return startYear <= currentYear && endYear >= currentYear;
     });
 
@@ -209,29 +223,17 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
   // Derive filter options from displayed projects
   const allStatuses = Array.from(new Set(displayedProjects.map(p => (p.status || '').toLowerCase()).filter(Boolean)));
-  const allTags = Array.from(new Set(displayedProjects.flatMap(p => (p as any).ProjectFields || []).filter(Boolean)));
-
-  // Normalize a project's category to an ID using loaded categories
-  const normalizeCategoryId = (project: Project): string => {
-    const rawVal: any = (project as any).category;
-    const raw = (rawVal === null || rawVal === undefined) ? '' : String(rawVal).trim();
-    if (!raw) return UNCATEGORIZED_ID;
-    // Direct match
-    if (categories.some(c => c.id === raw)) return raw;
-    // Numeric-like normalization (e.g., "7.0" -> "7")
-    const numericLike = /^\d+(?:\.\d+)?$/.test(raw) ? String(parseInt(raw, 10)) : raw;
-    if (categories.some(c => c.id === numericLike)) return numericLike;
-    // Compare numeric forms of category IDs as well
-    const byNumeric = categories.find(c => /^\d+$/.test(c.id) && c.id === String(parseInt(raw, 10)));
-    if (byNumeric) return byNumeric.id;
-    // Name-based match
-    const byName = categories.find(c => (c.name || '').trim().toLowerCase() === raw.toLowerCase());
-    return byName?.id || UNCATEGORIZED_ID;
-  };
+  const allTags = Array.from(
+    new Set(
+      displayedProjects
+        .flatMap(project => project.ProjectFields ?? [])
+        .filter((value): value is string => Boolean(value))
+    )
+  );
 
   // Filter projects by active categories + advanced filters
   const filteredProjects = displayedProjects.filter(project => {
-    const catId = normalizeCategoryId(project);
+    const catId = normalizeCategoryId(project.category, categories);
     if (!activeCategories.includes(catId)) return false;
 
     // Text filter (title/description)
@@ -250,7 +252,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
     // Tag filter (ProjectFields contains any of selected)
     if (tagFilters.length > 0) {
-      const pf: string[] = ((project as any).ProjectFields || []).map((t: string) => (t || '').toLowerCase());
+  const pf: string[] = (project.ProjectFields ?? []).map(t => (t || '').toLowerCase());
       const hasAny = tagFilters.some(t => pf.includes(t.toLowerCase()));
       if (!hasAny) return false;
     }
@@ -281,7 +283,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
   // Group projects by category (Bereich)
   const projectsByCategory = filteredProjects.reduce<Record<string, Project[]>>((acc, p) => {
-    const catId = normalizeCategoryId(p);
+    const catId = normalizeCategoryId(p.category, categories);
     (acc[catId] ||= []).push(p);
     return acc;
   }, {});
@@ -316,24 +318,6 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       case 'cancelled': return '#EF4444'; // red-500
       default: return '#6B7280'; // gray-500
     }
-  };
-
-  // Tag color helper (deterministic fallback hashing)
-  const tagPalette = [
-    '#059669','#6366F1','#DB2777','#0EA5E9','#D97706','#9333EA','#16A34A','#F43F5E','#0891B2','#7C3AED'
-  ];
-  const specialTagColors: Record<string,string> = {
-    'm365':'#059669',
-    'rpa':'#6366F1',
-    'ai':'#9333EA',
-    'cloud':'#0EA5E9',
-    'security':'#DB2777'
-  };
-  const getTagColor = (tag: string): string => {
-    const key = tag.trim().toLowerCase();
-    if (specialTagColors[key]) return specialTagColors[key];
-    let hash = 0; for (let i=0;i<key.length;i++) hash = ((hash<<5)-hash)+key.charCodeAt(i);
-    const idx = Math.abs(hash) % tagPalette.length; return tagPalette[idx];
   };
 
   // Handle mouse over for project tooltip

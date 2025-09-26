@@ -43,9 +43,9 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({ project, catego
       </div>
 
       {/* Fortschritt */}
-      {typeof (project as any).fortschritt === 'number' && (
+      {typeof project.fortschritt === 'number' && (
         <div className="w-full h-2 bg-gray-700/60 rounded overflow-hidden">
-          <div className="h-full bg-emerald-500" style={{ width: `${Math.min(Math.max((project as any).fortschritt,0),100)}%` }} />
+          <div className="h-full bg-emerald-500" style={{ width: `${Math.min(Math.max(project.fortschritt,0),100)}%` }} />
         </div>
       )}
 
@@ -56,8 +56,8 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({ project, catego
 
       {/* Footer meta */}
       <div className="mt-auto pt-2 text-[11px] text-gray-300 flex flex-wrap gap-2">
-        {(project as any).ProjectFields && (project as any).ProjectFields.length > 0 && (
-          <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">{(project as any).ProjectFields.length} Tags</span>
+        {project.ProjectFields && project.ProjectFields.length > 0 && (
+          <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">{project.ProjectFields.length} Tags</span>
         )}
         {project.links && project.links.length > 0 && (
           <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">{project.links.length} Links</span>

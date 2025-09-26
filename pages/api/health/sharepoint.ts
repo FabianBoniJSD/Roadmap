@@ -11,7 +11,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       elapsedMs: Date.now() - start,
       site: process.env.NEXT_PUBLIC_DEPLOYMENT_ENV,
     });
-  } catch (e: any) {
-    res.status(500).json({ ok: false, error: e?.message || 'Unknown error' });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    res.status(500).json({ ok: false, error: message });
   }
 }

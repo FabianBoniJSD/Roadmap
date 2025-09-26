@@ -1,43 +1,75 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { isAuthenticated, hasAdminAccess, redirectToLogin } from '@/utils/auth';
+import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import Link from 'next/link';
 
 const AdminLogin: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [diag, setDiag] = useState<Record<string, unknown> | null>(null);
   const router = useRouter();
+  const dbg = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    const hasFlag = Boolean(window.localStorage && localStorage.getItem('debugAuth'));
+    const queryMatch = /([?&])debug=auth(?![\w-])/i.test(window.location.search);
+    return hasFlag || queryMatch;
+  };
 
   useEffect(() => {
+    const runDiagnostics = async () => {
+      try {
+        const out: Record<string, unknown> = { now: new Date().toISOString() };
+        const webUrl = '/api/sharepoint';
+        out.webUrl = webUrl;
+        try {
+          const r = await fetch(`${webUrl}/_api/web/currentuser`, { headers: { Accept: 'application/json;odata=nometadata' }, credentials: 'include' });
+          out.proxy = { ok: r.ok, status: r.status, ct: r.headers.get('content-type') };
+          if (!r.ok) out.proxyBody = (await r.text()).slice(0,200);
+        } catch (e: unknown) { out.proxyError = e instanceof Error ? e.message : String(e); }
+        try {
+          const directUrl = resolveSharePointSiteUrl().replace(/\/$/, '') + '/_api/web/currentuser';
+          out.directUrl = directUrl;
+          const r2 = await fetch(directUrl, { headers: { Accept: 'application/json;odata=nometadata' }, credentials: 'include' } as RequestInit);
+          out.direct = { ok: r2.ok, status: r2.status };
+        } catch (e2: unknown) { out.directError = e2 instanceof Error ? e2.message : String(e2); }
+        setDiag(out);
+      } catch {}
+    };
     const checkAuth = async () => {
       try {
         // Check if user is authenticated with SharePoint
-        const authenticated = await isAuthenticated();
+  const authenticated = await isAuthenticated();
+  if (dbg()) console.log('[admin/login] isAuthenticated =', authenticated);
         
         if (!authenticated) {
           // Redirect to SharePoint login
+          if (dbg()) console.log('[admin/login] not authenticated -> redirectToLogin');
           redirectToLogin();
           return;
         }
         
         // Check if user has admin access
-        const isAdmin = await hasAdminAccess();
+  const isAdmin = await hasAdminAccess();
+  if (dbg()) console.log('[admin/login] hasAdminAccess =', isAdmin);
         
         if (isAdmin) {
           // Store a simple flag in localStorage
+          if (dbg()) console.log('[admin/login] setting localStorage isAdmin=true and redirect /admin');
           localStorage.setItem('isAdmin', 'true');
           router.push('/admin');
         } else {
           setError('You do not have administrator privileges');
           setLoading(false);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error('Auth check error:', err);
+        if (dbg()) console.log('[admin/login] exception during checkAuth', err);
         setError('An error occurred while checking your credentials');
         setLoading(false);
       }
     };
-    
+    if (dbg()) runDiagnostics();
     checkAuth();
   }, [router]);
 
@@ -69,6 +101,12 @@ const AdminLogin: React.FC = () => {
             {error}
           </p>
         </div>
+        {dbg() && (
+          <div className="mt-4 text-xs text-gray-200 bg-gray-700 rounded p-3 overflow-auto max-h-96">
+            <div className="font-semibold mb-1">Debug (auth)</div>
+            <pre className="whitespace-pre-wrap break-words">{JSON.stringify(diag, null, 2)}</pre>
+          </div>
+        )}
         
         <div className="mt-6">
           <Link

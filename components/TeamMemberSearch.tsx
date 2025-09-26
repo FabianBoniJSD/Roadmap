@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TeamMember } from '@/types';
 import { clientDataService } from '@/utils/clientDataService';
 
@@ -18,34 +18,38 @@ const TeamMemberSearch: React.FC<TeamMemberSearchProps> = ({
   const [isSearching, setIsSearching] = useState(false);
 
   // Debounced search function
-  const debouncedSearch = useCallback(
-    (() => {
-      let timeout: NodeJS.Timeout | null = null;
-      
-      return (query: string) => {
-        if (timeout) clearTimeout(timeout);
-        
-        if (!query.trim()) {
-          setSearchResults([]);
-          setIsSearching(false);
-          return;
-        }
-        
-        setIsSearching(true);
-        timeout = setTimeout(async () => {
-          try {
-            const results = await clientDataService.searchUsers(query);
-            setSearchResults(results);
-          } catch (error) {
-            console.error('Error searching for users:', error);
-          } finally {
-            setIsSearching(false);
-          }
-        }, 300);
-      };
-    })(),
-    []
-  );
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedSearch = useCallback((query: string) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    timeoutRef.current = setTimeout(async () => {
+      try {
+        const results = await clientDataService.searchUsers(trimmedQuery);
+        setSearchResults(results);
+      } catch (error) {
+        console.error('Error searching for users:', error);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+  }, []);
+
+  useEffect(() => () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+  }, []);
 
   // Auto-search when query changes
   useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Project, Category, ProjectLink, TeamMember } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import DatePicker from 'react-datepicker';
@@ -12,6 +12,17 @@ interface ProjectFormProps {
   onSubmit: (project: Project) => void;
   onCancel: () => void;
 }
+
+type ProjectPhase = 'initialisierung' | 'konzept' | 'realisierung' | 'einführung' | 'einfuehrung' | 'abschluss';
+
+const normalizePhase = (val?: string): ProjectPhase => {
+  if (!val) return 'initialisierung';
+  const lowered = val.toLowerCase();
+  if (lowered === 'einführung') return 'einführung';
+  if (lowered === 'einfuehrung') return 'einfuehrung';
+  const allowed: ProjectPhase[] = ['initialisierung', 'konzept', 'realisierung', 'abschluss'];
+  return allowed.includes(lowered as ProjectPhase) ? (lowered as ProjectPhase) : 'initialisierung';
+};
 
 const ProjectForm: React.FC<ProjectFormProps> = ({
   initialProject,
@@ -41,15 +52,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   const [geplantUmsetzung, setGeplantUmsetzung] = useState(initialProject?.geplante_umsetzung || '');
   const [budget, setBudget] = useState(initialProject?.budget || '');
   // Neue Felder: Projektphase & Nächster Meilenstein
-  const normalizePhase = (val?: string) => {
-    if (!val) return 'initialisierung' as const;
-    const v = val.toLowerCase();
-    if (v === 'einführung') return 'einfuehrung';
-    return (v as any);
-  };
-  const [projektphase, setProjektphase] = useState<
-    'initialisierung' | 'konzept' | 'realisierung' | 'einführung' | 'einfuehrung' | 'abschluss'
-  >(normalizePhase(initialProject?.projektphase));
+  const [projektphase, setProjektphase] = useState<ProjectPhase>(normalizePhase(initialProject?.projektphase));
   const [naechsterMeilenstein, setNaechsterMeilenstein] = useState(initialProject?.naechster_meilenstein || '');
 
   // Team member search functionality
@@ -60,19 +63,19 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   // Teammitglieder
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
     if (!initialProject?.teamMembers) return [];
+    const rawMembers = initialProject.teamMembers as (TeamMember | string)[];
+    if (!rawMembers.length) return [];
 
-    // If it's already string[], convert to TeamMember objects
-    if (typeof initialProject.teamMembers[0] === 'string') {
-      return (initialProject.teamMembers as unknown as string[]).map(name => ({
+    if (typeof rawMembers[0] === 'string') {
+      return rawMembers.map(member => ({
         id: `temp-${uuidv4()}`,
-        name,
+        name: String(member),
         role: 'Teammitglied',
         projectId: initialProject.id
       }));
     }
 
-    // If it's TeamMember[], use it directly
-    return (initialProject.teamMembers as (string | TeamMember)[]).map(member =>
+    return rawMembers.map(member =>
       typeof member === 'string'
         ? { id: `temp-${uuidv4()}`, name: member, role: 'Teammitglied', projectId: initialProject.id }
         : member
@@ -110,34 +113,40 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Team member search functionality
-  const debouncedSearch = useCallback(
-    (() => {
-      let timeout: NodeJS.Timeout | null = null;
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-      return (query: string) => {
-        if (timeout) clearTimeout(timeout);
+  const debouncedSearch = useCallback((query: string) => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
 
-        if (!query.trim()) {
-          setSearchResults([]);
-          setIsSearching(false);
-          return;
-        }
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
 
-        setIsSearching(true);
-        timeout = setTimeout(async () => {
-          try {
-            const results = await clientDataService.searchUsers(query);
-            setSearchResults(results);
-          } catch (error) {
-            console.error('Error searching for users:', error);
-          } finally {
-            setIsSearching(false);
-          }
-        }, 300);
-      };
-    })(),
-    []
-  );
+    setIsSearching(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const results = await clientDataService.searchUsers(trimmed);
+        setSearchResults(results);
+      } catch (error) {
+        console.error('Error searching for users:', error);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Auto-search when query changes
   useEffect(() => {
@@ -539,7 +548,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         <select
           id="projektphase"
           value={projektphase}
-          onChange={(e) => setProjektphase(e.target.value as any)}
+          onChange={(e) => setProjektphase(normalizePhase(e.target.value))}
           className="w-full bg-gray-800 border border-gray-700 rounded p-2"
         >
           <option value="initialisierung">Initialisierung</option>

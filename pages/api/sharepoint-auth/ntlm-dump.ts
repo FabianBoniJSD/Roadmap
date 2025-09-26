@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-require-imports */
 // Lightweight ambient Node & Next shims (avoid needing full type packages)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const require: any;
@@ -240,7 +241,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const wwwVar = rVar.headers.get('www-authenticate') || '';
           const mVar = wwwVar.match(/NTLM\s+([A-Za-z0-9+/=]+)/i);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          let ntlmInfo: any = { found: false };
+          const ntlmInfo: any = { found: false };
           if (mVar) {
             const b64v = mVar[1];
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

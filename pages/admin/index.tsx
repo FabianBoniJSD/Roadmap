@@ -5,6 +5,7 @@ import { clientDataService } from '@/utils/clientDataService';
 import { hasAdminAccess } from '@/utils/auth';
 import withAdminAuth from '@/components/withAdminAuth';
 import { AppSettings, Category, Project } from '@/types';
+import { normalizeCategoryId, resolveCategoryName, UNCATEGORIZED_ID } from '@/utils/categoryUtils';
 
 
 
@@ -35,8 +36,13 @@ const AdminPage: React.FC = () => {
 
         const settingsData = await clientDataService.getAppSettings();
         setSettings(settingsData);
-
-        setProjects(projectsData);
+        const normalizedProjects = Array.isArray(projectsData)
+          ? projectsData.map(project => ({
+              ...project,
+              category: normalizeCategoryId(project.category, categoriesData)
+            }))
+          : projectsData;
+        setProjects(normalizedProjects);
         setCategories(categoriesData);
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -74,6 +80,17 @@ const AdminPage: React.FC = () => {
 
     checkAdminAccess();
   }, [router]);
+
+  // Re-normalize project categories whenever the category list updates (e.g., after edits)
+  useEffect(() => {
+    if (!categories.length) return;
+    setProjects(prevProjects =>
+      prevProjects.map(project => ({
+        ...project,
+        category: normalizeCategoryId(project.category, categories)
+      }))
+    );
+  }, [categories]);
 
   // Project management functions
   const handleAddProject = () => {
@@ -128,9 +145,32 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const getCategoryName = (categoryId: string) => {
-    const category = categories.find(cat => cat.id === categoryId);
-    return category ? category.name : 'Unknown';
+  const getCategoryName = (categoryValue: string) => {
+    const normalizedId = normalizeCategoryId(categoryValue, categories);
+    if (normalizedId === UNCATEGORIZED_ID) {
+      return 'Unkategorisiert';
+    }
+
+    const byId = categories.find(cat => cat.id === normalizedId);
+    if (byId) {
+      return byId.name;
+    }
+
+    if (!categoryValue) {
+      return 'Unkategorisiert';
+    }
+
+    const fallback = resolveCategoryName(categoryValue, categories, {
+      emptyLabel: 'Unkategorisiert',
+      unknownLabel: categoryValue,
+      preferRawFallback: true
+    });
+
+    if (fallback && fallback.trim()) {
+      return fallback;
+    }
+
+    return categoryValue || 'Unknown';
   };
 
   const getStatusBadgeClass = (status: string) => {

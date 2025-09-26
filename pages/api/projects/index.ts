@@ -1,4 +1,4 @@
-import { NextApiRequest, NextApiResponse } from 'next'
+import { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
 
 export default async function handler(
@@ -8,90 +8,92 @@ export default async function handler(
   // GET - Fetch all projects
   if (req.method === 'GET') {
     try {
-      // Use clientDataService directly
-      let projects = await clientDataService.getAllProjects();
-      // Normalize category field defensively (handle numeric-like strings with decimals / whitespace)
+      const projects = await clientDataService.getAllProjects();
+      // Normalize category values (trim + numeric-like collapse) to keep consistent with UI expectations
       if (Array.isArray(projects)) {
         for (const p of projects) {
           if (p && typeof p.category === 'string') {
             const trimmed = p.category.trim();
-            if (/^\d+\.0$/.test(trimmed)) p.category = String(parseInt(trimmed, 10));
-            else p.category = trimmed;
+            if (/^\d+\.0$/.test(trimmed)) p.category = String(parseInt(trimmed, 10)); else p.category = trimmed;
           } else if (p && p.category != null) {
             p.category = String(p.category);
           }
         }
       }
       const emptyPrimary = Array.isArray(projects) ? projects.filter(p => !p.category).length : 0;
-      // Add visibility header for quick diagnostics
       res.setHeader('x-projects-count', String(Array.isArray(projects) ? projects.length : 0));
       res.setHeader('x-projects-empty-primary', String(emptyPrimary));
 
-      // Server-side minimal fallback via proxy if no projects came back
-      if (!Array.isArray(projects) || projects.length === 0) {
-        let base = (process.env.INTERNAL_API_BASE_URL || '').replace(/\/$/, '');
+      // Server-side minimal category hydration if still all empty
+      if (Array.isArray(projects) && projects.length > 0 && projects.every(p => !p.category)) {
         try {
-          const xfProto = (req.headers['x-forwarded-proto'] as string) || '';
-          const xfHost = (req.headers['x-forwarded-host'] as string) || '';
-          const hostHdr = (req.headers.host as string) || '';
-          const socketAny = (req as any)?.socket as any;
-          const isHttps = !!(socketAny && socketAny.encrypted);
-          const proto = xfProto || (isHttps ? 'https' : 'http');
-          const host = xfHost || hostHdr;
-          if (host) base = `${proto}://${host}`;
-        } catch { }
-        if (!base) base = 'https://jdservsvtapp01.bs.ch';
-        const url = `${base}/api/sharepoint/_api/web/lists/getByTitle('RoadmapProjects')/items?$select=Id,Title,Category`;
-        try {
+          const base = (process.env.INTERNAL_API_BASE_URL || '').replace(/\/$/, '') || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+          const url = `${base}/api/sharepoint/_api/web/lists/getByTitle('RoadmapProjects')/items?$select=Id,Category`;
           const r = await fetch(url, { headers: { 'Accept': 'application/json;odata=nometadata' } });
           if (r.ok) {
             const j = await r.json();
-            const items: any[] = Array.isArray(j?.value) ? j.value : (Array.isArray(j?.d?.results) ? j.d.results : []);
-            if (items.length > 0) {
-              projects = items.map((it: any) => {
-                return {
-                  id: String(it.Id ?? it.ID ?? ''),
-                  title: it.Title || '',
-                  category: it.Category,
-                  startQuarter: 'Q1',
-                  endQuarter: 'Q4',
-                  description: '',
-                  status: 'planned',
-                  ProjectFields: [],
-                  projektleitung: '',
-                  bisher: '',
-                  zukunft: '',
-                  fortschritt: 0,
-                  geplante_umsetzung: '',
-                  budget: '',
-                  startDate: '',
-                  endDate: '',
-                  links: []
-                };
-              });
-              res.setHeader('x-projects-fallback', 'minimal');
+            const rawItems = Array.isArray(j?.value)
+              ? j.value
+              : (Array.isArray(j?.d?.results) ? j.d.results : []);
+            type SharePointCategoryRow = {
+              Id?: number | string;
+              ID?: number | string;
+              Category?: unknown;
+              Bereich?: unknown;
+              Bereiche?: unknown;
+            };
+            const items: SharePointCategoryRow[] = Array.isArray(rawItems)
+              ? (rawItems as SharePointCategoryRow[])
+              : [];
+            if (items.length) {
+              const map: Record<string,string> = {};
+              const normalize = (input: unknown): string => {
+                if (input === null || input === undefined) return '';
+                if (typeof input === 'number') return String(input);
+                if (typeof input === 'string') {
+                  const trimmed = input.trim();
+                  if (!trimmed) return '';
+                  if (/^\d+(?:\.\d+)?$/.test(trimmed)) return String(parseInt(trimmed, 10));
+                  return trimmed;
+                }
+                if (typeof input === 'object') {
+                  const obj = input as Record<string, unknown>;
+                  const candidateKeys = ['Id', 'ID', 'Value', 'LookupId', 'LookupID'];
+                  for (const key of candidateKeys) {
+                    if (obj[key] !== undefined) {
+                      const normalized = normalize(obj[key]);
+                      if (normalized) return normalized;
+                    }
+                  }
+                }
+                return '';
+              };
+              for (const it of items) {
+                const pid = String(it.Id ?? it.ID ?? '');
+                if (!pid) continue;
+                const normalized = normalize(it.Category ?? it.Bereich ?? it.Bereiche);
+                if (normalized) map[pid] = normalized;
+              }
+              for (const p of projects) {
+                if (!p.category && map[p.id]) p.category = map[p.id];
+              }
+              res.setHeader('x-projects-fallback', 'minimal-category-hydration');
             }
-          } else {
-            const txt = await r.text();
-            console.warn('projects minimal fallback failed', r.status, r.statusText, txt);
           }
-        } catch (e) {
-          console.warn('projects minimal fallback threw', e);
+        } catch (e: unknown) {
+          console.warn('[api/projects] server category hydration failed', e);
         }
       }
 
-      // After possible fallback, compute final empty categories and attach header
       if (Array.isArray(projects)) {
         const emptyFinal = projects.filter(p => !p.category).length;
         res.setHeader('x-projects-empty-final', String(emptyFinal));
-        // Debug log (server)
-        console.log('[api/projects] sample mapped categories:', projects.slice(0, 5).map(p => ({ id: p.id, cat: p.category })));
+        console.log('[api/projects] sample mapped categories:', projects.slice(0,5).map(p => ({ id: p.id, cat: p.category })));
       }
-
-      res.status(200).json(projects)
-    } catch (error) {
-      console.error('Error fetching projects:', error)
-      res.status(500).json({ error: 'Failed to fetch projects' })
+      res.status(200).json(projects);
+    } catch (error: unknown) {
+      console.error('Error fetching projects:', error);
+      res.status(500).json({ error: 'Failed to fetch projects' });
     }
   }
   // POST - Create a new project
@@ -104,13 +106,13 @@ export default async function handler(
       }
       const projectData = req.body;
       const newProject = await clientDataService.createProject(projectData);
-      res.status(201).json(newProject)
-    } catch (error) {
-      console.error('Error creating project:', error)
-      res.status(500).json({ error: 'Failed to create project' })
+      res.status(201).json(newProject);
+    } catch (error: unknown) {
+      console.error('Error creating project:', error);
+      res.status(500).json({ error: 'Failed to create project' });
     }
   } else {
-    res.setHeader('Allow', ['GET', 'POST'])
-    res.status(405).end(`Method ${req.method} Not Allowed`)
+    res.setHeader('Allow', ['GET', 'POST']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }

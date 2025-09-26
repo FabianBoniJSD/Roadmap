@@ -1,7 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
-import { getSharePointAuthHeaders } from '@/utils/spAuth';
-import { sharePointHttpsAgent, sharePointDispatcher } from '@/utils/httpsAgent';
 
 export const config = {
   api: {
@@ -29,56 +26,36 @@ async function readRawBody(req: NextApiRequest): Promise<Uint8Array> {
   });
 }
 
-interface DigestCacheEntry { value: string; expires: number }
-let digestCache: DigestCacheEntry | null = null;
-async function getDigest(site: string, authHeaders: Record<string,string>): Promise<string> {
-  const now = Date.now();
-  if (digestCache && digestCache.expires > now) return digestCache.value;
-  const r = await fetch(site.replace(/\/$/,'') + '/_api/contextinfo', {
-    method: 'POST',
-    headers: { 'Accept': 'application/json;odata=nometadata', 'Content-Length': '0', ...authHeaders },
-    // @ts-ignore
-    dispatcher: sharePointDispatcher ?? undefined,
-    // @ts-ignore
-    agent: sharePointHttpsAgent,
-  });
-  if (!r.ok) throw new Error('Failed to get contextinfo');
-  const j = await r.json();
-  digestCache = { value: j.FormDigestValue, expires: now + (j.FormDigestTimeoutSeconds * 1000) - 60000 };
-  return digestCache.value;
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const site = resolveSharePointSiteUrl();
   const { id } = req.query as { id: string };
   const name = (req.query.name as string) || '';
 
   if (!id || Array.isArray(id)) return res.status(400).json({ error: 'Invalid id' });
 
   try {
-    const auth = await getSharePointAuthHeaders();
-    const base = site.replace(/\/$/, '') + `/_api/web/lists/getByTitle('RoadmapProjects')/items(${encodeURIComponent(id)})/AttachmentFiles`;
+    const baseUrl = (process.env.INTERNAL_API_BASE_URL || '').replace(/\/$/, '') || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+    const base = baseUrl + `/api/sharepoint/_api/web/lists/getByTitle('RoadmapProjects')/items(${encodeURIComponent(id)})/AttachmentFiles`;
 
     if (req.method === 'GET') {
       const url = base + '?$select=FileName,ServerRelativeUrl';
-      const r = await fetch(url, {
-        headers: { 'Accept': 'application/json;odata=nometadata', ...auth },
-        // @ts-ignore
-        dispatcher: sharePointDispatcher ?? undefined,
-        // @ts-ignore
-        agent: sharePointHttpsAgent,
-      });
+      const r = await fetch(url, { headers: { 'Accept': 'application/json;odata=nometadata' } });
       const txt = await r.text();
       const ct = r.headers.get('content-type') || '';
-      let payload: any = txt;
-      if (ct.includes('application/json')) { try { payload = JSON.parse(txt); } catch {} }
-      if (!r.ok) return res.status(r.status).json({ error: 'sp-error', payload });
-      return res.status(200).json(Array.isArray(payload?.value) ? payload.value : []);
+      let payload: unknown = txt;
+      if (ct.includes('application/json')) {
+        try { payload = JSON.parse(txt); } catch { /* ignore parse errors */ }
+      }
+      if (!r.ok) {
+        return res.status(r.status).json({ error: 'sp-error', payload });
+      }
+      const value = typeof payload === 'object' && payload !== null && 'value' in payload
+        ? (payload as { value?: unknown }).value
+        : undefined;
+      return res.status(200).json(Array.isArray(value) ? value : []);
     }
 
     if (req.method === 'POST') {
       if (!name) return res.status(400).json({ error: 'Missing name' });
-      const digest = await getDigest(site, auth);
       const binary = await readRawBody(req);
       const url = base + `/add(FileName='${encodeURIComponent(name).replace(/'/g, "''")}')`;
       const r = await fetch(url, {
@@ -86,14 +63,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         headers: {
           'Accept': 'application/json;odata=nometadata',
           'Content-Type': 'application/octet-stream',
-          'X-RequestDigest': digest,
-          ...auth,
         },
-        body: (binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength) as ArrayBuffer) as any,
-        // @ts-ignore
-        dispatcher: sharePointDispatcher ?? undefined,
-        // @ts-ignore
-        agent: sharePointHttpsAgent,
+  body: binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength) as ArrayBuffer,
       });
       const ok = r.ok;
       const body = await r.text();
@@ -103,22 +74,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === 'DELETE') {
       if (!name) return res.status(400).json({ error: 'Missing name' });
-      const digest = await getDigest(site, auth);
       const url = base + `/getByFileName('${encodeURIComponent(name).replace(/'/g, "''")}')`;
       const r = await fetch(url, {
         method: 'POST',
         headers: {
           'Accept': 'application/json;odata=nometadata',
           'Content-Type': 'application/json;odata=verbose',
-          'X-RequestDigest': digest,
           'X-HTTP-Method': 'DELETE',
           'IF-MATCH': '*',
-          ...auth,
         },
-        // @ts-ignore
-        dispatcher: sharePointDispatcher ?? undefined,
-        // @ts-ignore
-        agent: sharePointHttpsAgent,
       });
       const ok = r.ok;
       const body = await r.text();
@@ -128,7 +92,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.setHeader('Allow', 'GET,POST,DELETE');
     return res.status(405).json({ error: 'Method not allowed' });
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message || 'attachments error' });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'attachments error';
+    return res.status(500).json({ error: message });
   }
 }
