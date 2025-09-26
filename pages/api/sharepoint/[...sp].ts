@@ -18,6 +18,17 @@ const invalidateCurlCache = () => {
   for (const k of Object.keys(curlCache)) delete curlCache[k];
 };
 
+const applyNoCacheHeaders = (res: NextApiResponse) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  const maybeRemovable = res as NextApiResponse & { removeHeader?: (name: string) => void };
+  if (typeof maybeRemovable.removeHeader === 'function') {
+    maybeRemovable.removeHeader('etag');
+  }
+};
+
 // Whitelisted lists for safety
 const ALLOWED_LISTS = new Set([
   'RoadmapProjects', 'Roadmap Projects',
@@ -121,6 +132,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!isAllowedPath(apiPath)) {
     return res.status(400).json({ error: 'Path not allowed' });
   }
+
+  applyNoCacheHeaders(res);
 
   try {
   // Optional curl path: supports NTLM (with user/pass) and Kerberos (with system creds via kinit)
@@ -409,6 +422,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const method = req.method || 'GET';
     const isWrite = ['POST','PATCH','MERGE','PUT','DELETE'].includes(method);
+    const prepareRequestBody = (): BodyInit | undefined => {
+      if (!isWrite) return undefined;
+      const incoming = req.body as unknown;
+      if (incoming == null) return undefined;
+      if (typeof incoming === 'string') return incoming;
+  if (incoming instanceof Uint8Array) return incoming as unknown as BodyInit;
+  if (incoming instanceof ArrayBuffer) return incoming as unknown as BodyInit;
+      try {
+        return JSON.stringify(incoming);
+      } catch (err) {
+        console.warn('[sharepoint proxy] failed to stringify request body, sending empty payload', err);
+        return undefined;
+      }
+    };
+    const preparedBody = prepareRequestBody();
     // Forward client's Accept when possible to preserve expected payload shape (nometadata vs verbose)
     const clientAccept = req.headers['accept'];
     const wantsBinary = apiPath.startsWith('/_layouts/15/userphoto.aspx');
@@ -444,7 +472,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return fetch(targetUrl, {
         method: effectiveMethod,
         headers: h,
-        body: isWrite ? JSON.stringify(req.body) : undefined,
+        body: preparedBody,
         // @ts-ignore undici dispatcher (may be root cause for 'Invalid argument' in some builds; keep but could disable via env)
         dispatcher: process.env.SP_DISABLE_DISPATCHER === 'true' ? undefined : (insecure ? new UndiciAgent({ connect: { rejectUnauthorized: false } }) : (sharePointDispatcher ?? undefined)),
         // @ts-ignore optional legacy agent

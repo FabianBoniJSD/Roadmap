@@ -5,8 +5,20 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const disableCache = () => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+    const maybeRemovable = res as NextApiResponse & { removeHeader?: (name: string) => void };
+    if (typeof maybeRemovable.removeHeader === 'function') {
+      maybeRemovable.removeHeader('etag');
+    }
+  };
+
   // GET - Fetch all projects
   if (req.method === 'GET') {
+    disableCache();
     try {
       const projects = await clientDataService.getAllProjects();
       // Normalize category values (trim + numeric-like collapse) to keep consistent with UI expectations
@@ -98,6 +110,7 @@ export default async function handler(
   }
   // POST - Create a new project
   else if (req.method === 'POST') {
+    disableCache();
     try {
       // Admin-only: ensure caller is a Site Collection Admin
       const isAdmin = await clientDataService.isCurrentUserAdmin();

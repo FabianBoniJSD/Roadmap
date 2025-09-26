@@ -26,6 +26,39 @@ class ClientDataService {
     // Cache for resolved list titles (handles space/no-space variants)
     private listTitleCache: Record<string, string> = {};
 
+    private prepareFetch(url: string, init: RequestInit = {}): { url: string; init: RequestInit & { next?: { revalidate?: number } } } {
+        const prepared = { ...init } as RequestInit & { next?: { revalidate?: number } };
+        const isServer = typeof window === 'undefined';
+        const originalMethod = (prepared.method || 'GET').toString().toUpperCase();
+
+        if (isServer) {
+            prepared.cache = 'no-store';
+            prepared.next = { ...(prepared.next || {}), revalidate: 0 };
+            const existingHeaders = new Headers(prepared.headers as HeadersInit | undefined);
+            if (!existingHeaders.has('Cache-Control')) {
+                existingHeaders.set('Cache-Control', 'no-cache');
+            }
+            prepared.headers = existingHeaders;
+        }
+
+        let finalUrl = url;
+        if (isServer && finalUrl.startsWith('/')) {
+            const base = (process.env.INTERNAL_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+            finalUrl = base + finalUrl;
+        }
+        if (isServer && (originalMethod === 'GET' || originalMethod === 'HEAD')) {
+            const cacheBust = `cb=${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+            finalUrl += (finalUrl.includes('?') ? '&' : '?') + cacheBust;
+        }
+
+        return { url: finalUrl, init: prepared };
+    }
+
+    private async spFetch(url: string, init: RequestInit = {}): Promise<Response> {
+        const { url: finalUrl, init: prepared } = this.prepareFetch(url, init);
+        return fetch(finalUrl, prepared);
+    }
+
     private getWebUrl(): string {
         // Route all SharePoint REST calls through Next.js API proxy to avoid CORS
         // On the server, Node's fetch requires an absolute URL
@@ -44,7 +77,7 @@ class ClientDataService {
         for (const name of candidates) {
             try {
                 const url = `${webUrl}/_api/web/lists/getByTitle('${name}')?$select=Title&$top=1`;
-                const r = await fetch(url, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+                const r = await this.spFetch(url, { headers: { 'Accept': 'application/json;odata=nometadata' } });
                 if (r.ok) { this.listTitleCache[preferred] = name; return name; }
             } catch {/* ignore and try next */}
         }
@@ -59,10 +92,10 @@ class ClientDataService {
         try {
             const webUrl = this.getWebUrl();
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${listName}')/fields?$select=InternalName`;
-            const resp = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            const resp = await this.spFetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
             if (!resp.ok) {
                 // Retry verbose
-                const resp2 = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
+                const resp2 = await this.spFetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
                 if (!resp2.ok) throw new Error('Failed to read fields');
                 const data2 = await resp2.json();
                 const results = (data2?.d?.results || []).map((f: any) => f.InternalName).filter(Boolean);
@@ -86,10 +119,10 @@ class ClientDataService {
         try {
             const webUrl = this.getWebUrl();
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${listName}')/fields?$select=InternalName,TypeAsString`;
-            let resp = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            let resp = await this.spFetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
             if (!resp.ok) {
                 // Retry verbose
-                resp = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
+                resp = await this.spFetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
                 if (!resp.ok) throw new Error('Failed to read field types');
                 const dataV = await resp.json();
                 const arr: any[] = dataV?.d?.results || [];
@@ -122,7 +155,7 @@ class ClientDataService {
             const webUrl = this.getWebUrl();
             const endpoint = `${webUrl}/_api/contextinfo`;
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json;odata=nometadata'
@@ -190,19 +223,19 @@ class ClientDataService {
 
         try {
             // 1) First attempt: modern lightweight JSON
-            let response = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            let response = await this.spFetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
             if (!response.ok) {
                 const firstText = await response.text();
                 const invalid = /InvalidClientQuery|Invalid argument/i.test(firstText);
                 if (invalid) {
                     // 2) Second attempt: verbose JSON (older SP2013+ requirement)
-                    response = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
+                    response = await this.spFetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
                     if (!response.ok) {
                         const secondText = await response.text();
                         const stillInvalid = /InvalidClientQuery|Invalid argument/i.test(secondText);
                         if (stillInvalid) {
                             // 3) Third attempt: Atom (some legacy farms only answer with Atom for $select)
-                            const atomResp = await fetch(endpoint, { headers: { 'Accept': 'application/atom+xml' } });
+                            const atomResp = await this.spFetch(endpoint, { headers: { 'Accept': 'application/atom+xml' } });
                             if (atomResp.ok) {
                                 const atomXml = await atomResp.text();
                                 const items = parseAtom(atomXml);
@@ -270,7 +303,7 @@ class ClientDataService {
             const webUrl = this.getWebUrl();
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${listName}')?$select=ListItemEntityTypeFullName`;
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json;odata=nometadata'
@@ -375,15 +408,20 @@ class ClientDataService {
 
         const fetchItems = async (selectFields: string[]): Promise<any[] | { error: string; body?: string; status?: number; }> => {
             const sel = buildSelect(selectFields);
-            const endpoint = `${baseItemsUrl}?$select=${sel}`; // do not encode commas; SharePoint expects raw list
-            let resp = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            const params = new URLSearchParams();
+            params.set('$select', sel);
+            params.set('$expand', 'Category');
+            params.set('$orderby', 'Id desc');
+            params.set('$top', '5000');
+            const endpoint = `${baseItemsUrl}?${params.toString()}`;
+            let resp = await this.spFetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
             let bodyText: string | null = null;
             if (!resp.ok) {
                 bodyText = await resp.text();
                 const invalid = /InvalidClientQuery|Invalid argument/i.test(bodyText);
                 if (invalid) {
                     // Retry verbose
-                    resp = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
+                    resp = await this.spFetch(endpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
                     if (!resp.ok) {
                         const second = await resp.text();
                         return { error: 'http', body: second, status: resp.status };
@@ -577,10 +615,10 @@ class ClientDataService {
                 // Fetch list fields (InternalName + Title) to discover any custom category field naming (e.g., 'Kategorie')
                 const webUrl2 = this.getWebUrl();
                 const fieldsEndpoint = `${webUrl2}/_api/web/lists/getByTitle('${resolvedProjects}')/fields?$select=InternalName,Title`;
-                let fResp = await fetch(fieldsEndpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+                let fResp = await this.spFetch(fieldsEndpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
                 if (!fResp.ok) {
                     // retry verbose
-                    fResp = await fetch(fieldsEndpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
+                    fResp = await this.spFetch(fieldsEndpoint, { headers: { 'Accept': 'application/json;odata=verbose' } });
                 }
                 if (fResp.ok) {
                     const fJson = await fResp.json();
@@ -737,12 +775,12 @@ class ClientDataService {
             const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})?$select=${selectFields}`;
 
-            let response = await fetch(endpoint, { method: 'GET', headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
+            let response = await this.spFetch(endpoint, { method: 'GET', headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
             if (!response.ok) {
                 // Retry verbose then atom similar to bulk fetch
                 const firstBody = await response.text();
                 if (/InvalidClientQuery|Invalid argument/i.test(firstBody)) {
-                    response = await fetch(endpoint, { method: 'GET', headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'same-origin' });
+                    response = await this.spFetch(endpoint, { method: 'GET', headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'same-origin' });
                     if (!response.ok) {
                         const second = await response.text();
                         console.error('Project Fetch Error Response (verbose retry):', { status: response.status, statusText: response.statusText, url: response.url, body: second });
@@ -766,7 +804,7 @@ class ClientDataService {
             // If proxy returned minimal Atom-normalized shape (d.results array with only Id/Title), refetch without $select in verbose
             if (item && item.d && Array.isArray(item.d.results)) {
                 const endpoint2 = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})`;
-                let resp2 = await fetch(endpoint2, { method: 'GET', headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'same-origin' });
+                let resp2 = await this.spFetch(endpoint2, { method: 'GET', headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'same-origin' });
                 if (resp2.ok) {
                     const verbose = await resp2.json();
                     item = verbose?.d || item;
@@ -876,7 +914,7 @@ class ClientDataService {
             // Get request digest for write operations
             const requestDigest = await this.getRequestDigest();
 
-        const response = await fetch(endpoint, {
+    const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
             'Accept': 'application/json;odata=verbose',
@@ -1007,7 +1045,7 @@ class ClientDataService {
             console.log('Data being sent to SharePoint:', JSON.stringify(body));
 
             // Send the update request to SharePoint
-        const response = await fetch(endpoint, {
+    const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
             'Accept': 'application/json;odata=verbose',
@@ -1051,7 +1089,7 @@ class ClientDataService {
             // Read-back minimal fields to confirm persistence (esp. Category)
             try {
                 const verifyEndpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})?$select=Id,Category`;
-                let v = await fetch(verifyEndpoint, { headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
+                let v = await this.spFetch(verifyEndpoint, { headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
                 if (!v.ok) {
                     const txt = await v.text().catch(()=>'');
                     console.warn('[updateProject] read-back failed', { status: v.status, body: txt });
@@ -1104,7 +1142,7 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.CATEGORIES);
 
-        const response = await fetch(endpoint, {
+    const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
             'Accept': 'application/json;odata=verbose',
@@ -1154,7 +1192,7 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.CATEGORIES);
 
-        const response = await fetch(endpoint, {
+    const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
             'Accept': 'application/json;odata=verbose',
@@ -1242,7 +1280,7 @@ class ClientDataService {
             const webUrl = this.getWebUrl();
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.CATEGORIES}')/items(${id})?$select=Id,Title,Color,Icon,ParentCategoryId,IsSubcategory`;
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json;odata=nometadata'
@@ -1277,7 +1315,7 @@ class ClientDataService {
             const resolvedLinks = await this.resolveListTitle(SP_LISTS.PROJECT_LINKS, ['Roadmap Project Links']);
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedLinks}')/items?$filter=ProjectId eq '${projectId}'&$select=Id,Title,Url,ProjectId`;
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json;odata=nometadata'
@@ -1310,7 +1348,7 @@ class ClientDataService {
             const webUrl = this.getWebUrl();
             const resolvedLinks = await this.resolveListTitle(SP_LISTS.PROJECT_LINKS, ['Roadmap Project Links']);
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedLinks}')/items?$select=Id,Title,Url,ProjectId`;
-            const response = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            const response = await this.spFetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
             if (!response.ok) return [];
             const data = await response.json();
             const items = data.value || [];
@@ -1322,7 +1360,7 @@ class ClientDataService {
             const webUrl = this.getWebUrl();
             const resolvedMembers = await this.resolveListTitle(SP_LISTS.TEAM_MEMBERS, ['Roadmap Team Members']);
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedMembers}')/items?$select=Id,Title,Role,ProjectId`;
-            const response = await fetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+            const response = await this.spFetch(endpoint, { headers: { 'Accept': 'application/json;odata=nometadata' } });
             if (!response.ok) return [];
             const data = await response.json();
             const items = data.value || [];
@@ -1338,7 +1376,7 @@ class ClientDataService {
             // Get request digest for write operations
             const requestDigest = await this.getRequestDigest();
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json;odata=nometadata',
@@ -1397,7 +1435,7 @@ class ClientDataService {
 
             console.log('Creating project link with data:', JSON.stringify(requestBody));
 
-        const response = await fetch(endpoint, {
+    const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
             'Accept': 'application/json;odata=verbose',
@@ -1453,7 +1491,7 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.PROJECT_LINKS);
 
-            const response = await fetch(endpoint, {
+        const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json;odata=nometadata',
@@ -1490,7 +1528,7 @@ class ClientDataService {
             // Get request digest for write operations
             const requestDigest = await this.getRequestDigest();
 
-        const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
             'Accept': 'application/json;odata=verbose',
@@ -1650,7 +1688,7 @@ class ClientDataService {
             console.log('[saveProject] Body payload:', body);
 
             // Send the request
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method,
                 headers,
                 body: JSON.stringify(body),
@@ -1710,7 +1748,7 @@ class ClientDataService {
             // Read-back minimal fields (Id,Category) to confirm persistence
             try {
                 const verifyEndpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${savedProject.id})?$select=Id,Category`;
-                let v = await fetch(verifyEndpoint, { headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
+                let v = await this.spFetch(verifyEndpoint, { headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
                 if (!v.ok) {
                     const txt = await v.text().catch(()=>'');
                     console.warn('[saveProject] read-back failed', { status: v.status, body: txt });
@@ -1758,7 +1796,7 @@ class ClientDataService {
             // Call the SharePoint API to get user profile
             const endpoint = `${webUrl}/_api/SP.UserProfiles.PeopleManager/GetPropertiesFor(accountName=@v)?@v=${encodedAccount}`;
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json;odata=verbose'
@@ -1792,7 +1830,7 @@ class ClientDataService {
             const webUrl = this.getWebUrl();
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.TEAM_MEMBERS}')/items?$filter=ProjectId eq '${projectId}'&$select=Id,Title,Role,ProjectId`;
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json;odata=nometadata'
@@ -1864,7 +1902,7 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.TEAM_MEMBERS);
 
-        const response = await fetch(endpoint, {
+    const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
             'Accept': 'application/json;odata=verbose',
@@ -1906,7 +1944,7 @@ class ClientDataService {
             // Get request digest for write operations
             const requestDigest = await this.getRequestDigest();
 
-        const response = await fetch(endpoint, {
+    const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
             'Accept': 'application/json;odata=verbose',
@@ -1938,7 +1976,7 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.SETTINGS);
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json;odata=nometadata',
@@ -2009,7 +2047,7 @@ class ClientDataService {
             const webUrl = this.getWebUrl();
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.SETTINGS}')/items?$filter=Title eq '${key}'&$select=Id,Title,Value,Description`;
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json;odata=nometadata'
@@ -2052,7 +2090,7 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.SETTINGS);
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json;odata=nometadata',
@@ -2090,7 +2128,7 @@ class ClientDataService {
             // Get request digest for write operations
             const requestDigest = await this.getRequestDigest();
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json;odata=nometadata',
@@ -2115,7 +2153,7 @@ class ClientDataService {
             const webUrl = this.getWebUrl();
             // Strict: only Site Collection Administrators are considered admins
             const userEndpoint = `${webUrl}/_api/web/currentuser`;
-            const userResponse = await fetch(userEndpoint, {
+            const userResponse = await this.spFetch(userEndpoint, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json;odata=nometadata' },
                 credentials: 'same-origin'
@@ -2128,13 +2166,13 @@ class ClientDataService {
 
             // Fallback: treat membership in the site's Owners group as admin.
             // 1) Read the site's associated owners group
-            const ownerGroupResp = await fetch(`${webUrl}/_api/web/AssociatedOwnerGroup?$select=Id,Title`, {
+            const ownerGroupResp = await this.spFetch(`${webUrl}/_api/web/AssociatedOwnerGroup?$select=Id,Title`, {
                 headers: { 'Accept': 'application/json;odata=nometadata' },
                 credentials: 'same-origin'
             });
             if (!ownerGroupResp.ok) {
                 // If this fails, try a heuristic on group titles
-                const groupsHeuristic = await fetch(`${webUrl}/_api/web/currentuser/Groups?$select=Id,Title`, {
+                const groupsHeuristic = await this.spFetch(`${webUrl}/_api/web/currentuser/Groups?$select=Id,Title`, {
                     headers: { 'Accept': 'application/json;odata=nometadata' },
                     credentials: 'same-origin'
                 });
@@ -2152,7 +2190,7 @@ class ClientDataService {
             if (!ownerId && !ownerTitle) return false;
 
             // 2) Fetch current user's groups and check membership against owners group
-            const groupsResp = await fetch(`${webUrl}/_api/web/currentuser/Groups?$select=Id,Title`, {
+            const groupsResp = await this.spFetch(`${webUrl}/_api/web/currentuser/Groups?$select=Id,Title`, {
                 headers: { 'Accept': 'application/json;odata=nometadata' },
                 credentials: 'same-origin'
             });
@@ -2195,7 +2233,7 @@ class ClientDataService {
                 }
             };
 
-            const response = await fetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json;odata=verbose',
@@ -2245,7 +2283,7 @@ class ClientDataService {
     // ATTACHMENTS
     async listAttachments(projectId: string): Promise<Array<{ FileName: string; ServerRelativeUrl: string }>> {
         try {
-            const r = await fetch(`/api/attachments/${encodeURIComponent(projectId)}`, { headers: { 'Accept': 'application/json' } });
+            const r = await this.spFetch(`/api/attachments/${encodeURIComponent(projectId)}`, { headers: { 'Accept': 'application/json' } });
             if (!r.ok) return [];
             const data = await r.json();
             return Array.isArray(data) ? data : [];
@@ -2306,7 +2344,7 @@ class ClientDataService {
     async deleteAttachment(projectId: string, fileName: string): Promise<boolean> {
         const url = `/api/attachments/${encodeURIComponent(projectId)}?name=${encodeURIComponent(fileName)}`;
         try {
-            const r = await fetch(url, { method: 'DELETE' });
+            const r = await this.spFetch(url, { method: 'DELETE' });
             return r.ok;
         } catch {
             return false;
