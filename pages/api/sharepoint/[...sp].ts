@@ -11,6 +11,20 @@ const { Agent: UndiciAgent } = require('undici');
 // @ts-ignore child_process without node types in some build envs
 const { execFile } = require('child_process');
 
+function runCurl(args: string[], options: { timeout?: number; input?: Buffer | string; maxBuffer?: number } = {}): Promise<{ stdout: string; stderr: string }> {
+  const { timeout = 20000, input, maxBuffer = 50 * 1024 * 1024 } = options;
+  return new Promise((resolve, reject) => {
+    const child = execFile('curl', args, { timeout, maxBuffer }, (err: any, stdout: string, stderr: string) => {
+      if (err) return reject(Object.assign(err, { stderr }));
+      resolve({ stdout, stderr });
+    });
+    if (input !== undefined && input !== null && child && child.stdin) {
+      child.stdin.on('error', () => {/* ignore broken pipe */});
+      child.stdin.end(input);
+    }
+  });
+}
+
 // Simple in-memory cache for curl mode GET responses
 interface CurlCacheEntry { expires: number; payload: any }
 const curlCache: Record<string, CurlCacheEntry> = {};
@@ -103,6 +117,26 @@ async function getDigest(site: string, authHeaders: Record<string,string>): Prom
   const j = await r.json();
   digestCache = { value: j.FormDigestValue, expires: now + (j.FormDigestTimeoutSeconds * 1000) - 60000 };
   return digestCache.value;
+}
+
+const bufferToArrayBuffer = (buf: Buffer): ArrayBuffer => {
+  const copy = new Uint8Array(buf.length);
+  copy.set(buf);
+  return copy.buffer;
+};
+
+async function readRawBodyBuffer(req: NextApiRequest): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req as any as AsyncIterable<unknown>) {
+    if (typeof chunk === 'string') {
+      chunks.push(Buffer.from(chunk));
+    } else if (chunk instanceof Uint8Array) {
+      chunks.push(Buffer.from(chunk));
+    } else if (chunk) {
+      chunks.push(Buffer.from(chunk as ArrayBufferLike));
+    }
+  }
+  return Buffer.concat(chunks as unknown as readonly Uint8Array[]);
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -252,7 +286,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Honor client method overrides and headers
-        const hdrs: string[] = [];
+  const hdrs: string[] = [];
         const reqContentType = typeof req.headers['content-type'] === 'string' ? req.headers['content-type'] : 'application/json;odata=verbose';
         hdrs.push('-H', `Content-Type: ${reqContentType}`);
         if (formDigest) hdrs.push('-H', `X-RequestDigest: ${formDigest}`);
@@ -261,22 +295,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const ifMatch = req.headers['if-match'] as string | undefined;
         if (ifMatch) hdrs.push('-H', `IF-MATCH: ${ifMatch}`);
 
-        // Body
-        const bodyStr = (req.body && (typeof req.body === 'string' ? req.body : JSON.stringify(req.body))) || '';
-        if (method === 'POST' || method === 'PATCH' || method === 'MERGE' || method === 'DELETE') {
-          hdrs.push('--data', bodyStr);
+        // Body handling (support binary uploads)
+        let bodyBuffer: Buffer | null = null;
+        let bodyString: string | null = null;
+        if (req.body !== undefined && req.body !== null) {
+          if (Buffer.isBuffer(req.body)) {
+            bodyBuffer = req.body as Buffer;
+          } else if (typeof req.body === 'string') {
+            if (/application\/octet-stream/i.test(reqContentType)) {
+              bodyBuffer = Buffer.from(req.body, 'binary');
+            } else {
+              bodyString = req.body;
+            }
+          } else if (req.body instanceof ArrayBuffer) {
+            bodyBuffer = Buffer.from(req.body);
+          } else if (typeof req.body === 'object' && (req.body as { type?: string; data?: number[] }).type === 'Buffer' && Array.isArray((req.body as { data?: number[] }).data)) {
+            bodyBuffer = Buffer.from((req.body as { data: number[] }).data);
+          } else {
+            try {
+              bodyString = JSON.stringify(req.body);
+            } catch {
+              bodyString = String(req.body);
+            }
+          }
+        }
+
+        const shouldSendBody = method === 'POST' || method === 'PATCH' || method === 'MERGE' || method === 'DELETE';
+        const dataArgs: string[] = [];
+        if (shouldSendBody) {
+          if (bodyBuffer) {
+            dataArgs.push('--data-binary', '@-');
+          } else {
+            dataArgs.push('--data', bodyString ?? '');
+          }
         }
 
   if (process.env.SP_ALLOW_SELF_SIGNED === 'true') curlArgs.unshift('-k');
   else if (caPath) curlArgs.unshift('--cacert', caPath);
-  const writeArgs = [...curlArgs, ...hdrs, targetUrl];
+  const writeArgs = [...curlArgs, ...hdrs, ...dataArgs, targetUrl];
         try {
-          const output: { stdout: string; stderr: string } = await new Promise((resolveExec, rejectExec) => {
-            execFile('curl', writeArgs, { timeout: 20000 }, (err: any, stdout: string, stderr: string) => {
-              if (err) return rejectExec(Object.assign(err, { stderr }));
-              resolveExec({ stdout, stderr });
-            });
-          });
+          const output = await runCurl(writeArgs, { timeout: 20000, input: bodyBuffer ?? undefined });
           let parsed: any = output.stdout;
           try { parsed = JSON.parse(output.stdout); } catch { /* ignore */ }
           res.setHeader('x-sp-proxy-mode','curl');
@@ -290,13 +348,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ntlmCurlArgs.unshift('-k');
               else if (caPath) ntlmCurlArgs.unshift('--cacert', caPath);
               if (process.env.SP_CURL_VERBOSE === 'true') ntlmCurlArgs.unshift('-v');
-              const ntlmWriteArgs = [...ntlmCurlArgs, ...hdrs, targetUrl];
-              const out2: { stdout: string } = await new Promise((resolveExec, rejectExec) => {
-                execFile('curl', ntlmWriteArgs, { timeout: 20000 }, (err: any, stdout: string) => {
-                  if (err) return rejectExec(err);
-                  resolveExec({ stdout });
-                });
-              });
+              const ntlmWriteArgs = [...ntlmCurlArgs, ...hdrs, ...dataArgs, targetUrl];
+              const out2 = await runCurl(ntlmWriteArgs, { timeout: 20000, input: bodyBuffer ?? undefined });
               let parsed2: any = out2.stdout; try { parsed2 = JSON.parse(out2.stdout); } catch {}
               res.setHeader('x-sp-proxy-mode','curl'); res.setHeader('x-sp-proxy-fallback','ntlm');
               invalidateCurlCache();
@@ -422,13 +475,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const method = req.method || 'GET';
     const isWrite = ['POST','PATCH','MERGE','PUT','DELETE'].includes(method);
-    const prepareRequestBody = (): BodyInit | undefined => {
+    let rawBodyBuffer: Buffer | null = null;
+    if (isWrite && typeof req.body === 'undefined') {
+      rawBodyBuffer = await readRawBodyBuffer(req);
+    }
+    const prepareRequestBody = (rawBuffer?: Buffer | null): BodyInit | undefined => {
       if (!isWrite) return undefined;
+      if (rawBuffer && rawBuffer.length) return bufferToArrayBuffer(rawBuffer);
       const incoming = req.body as unknown;
       if (incoming == null) return undefined;
       if (typeof incoming === 'string') return incoming;
-  if (incoming instanceof Uint8Array) return incoming as unknown as BodyInit;
-  if (incoming instanceof ArrayBuffer) return incoming as unknown as BodyInit;
+      if (Buffer.isBuffer(incoming)) return bufferToArrayBuffer(incoming);
+      if (incoming instanceof Uint8Array) return incoming as unknown as BodyInit;
+      if (incoming instanceof ArrayBuffer) return incoming as unknown as BodyInit;
+      if (typeof incoming === 'object' && (incoming as { type?: string; data?: number[] }).type === 'Buffer' && Array.isArray((incoming as { data?: number[] }).data)) {
+        return bufferToArrayBuffer(Buffer.from((incoming as { data: number[] }).data));
+      }
       try {
         return JSON.stringify(incoming);
       } catch (err) {
@@ -436,7 +498,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return undefined;
       }
     };
-    const preparedBody = prepareRequestBody();
+    const preparedBody = prepareRequestBody(rawBodyBuffer);
     // Forward client's Accept when possible to preserve expected payload shape (nometadata vs verbose)
     const clientAccept = req.headers['accept'];
     const wantsBinary = apiPath.startsWith('/_layouts/15/userphoto.aspx');
@@ -501,20 +563,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    const raw = await spResp.text();
     const ct = spResp.headers.get('content-type') || '';
+    const buffer = Buffer.from(await spResp.arrayBuffer());
+    const isJson = /application\/json|text\/json/i.test(ct);
+    const isXml = /application\/atom\+xml|text\/xml|application\/xml/i.test(ct);
+    const isText = /^text\//i.test(ct) && !isXml && !isJson;
+
+    if (!isJson && !isXml && !isText) {
+      const disposition = spResp.headers.get('content-disposition');
+      const length = spResp.headers.get('content-length');
+      if (ct) res.setHeader('Content-Type', ct);
+      if (disposition) res.setHeader('Content-Disposition', disposition);
+      if (length) res.setHeader('Content-Length', length);
+      return res.status(spResp.status).send(buffer);
+    }
+
+    const raw = buffer.toString('utf8');
+    if (isText && !isJson && !isXml) {
+      if (ct) res.setHeader('Content-Type', ct);
+      return res.status(spResp.status).send(raw);
+    }
+
     let payload: any = raw;
-    if (ct.includes('application/json')) {
+    if (isJson) {
       try { payload = JSON.parse(raw); } catch { /* swallow */ }
-    } else if (/application\/atom\+xml|text\/xml/i.test(ct)) {
-      // Very lightweight Atom -> JSON normalization (ids + title)
+    } else if (isXml) {
       try {
         const ids: any[] = [];
         const matches = raw.match(/<m:properties>[\s\S]*?<\/m:properties>/g) || [];
         for (const block of matches) {
           const idMatch = block.match(/<d:Id[^>]*>(\d+)<\/d:Id>/i) || block.match(/<d:ID[^>]*>(\d+)<\/d:ID>/i);
           const titleMatch = block.match(/<d:Title>([\s\S]*?)<\/d:Title>/i);
-            ids.push({ Id: idMatch ? idMatch[1] : undefined, Title: titleMatch ? titleMatch[1] : '' });
+          ids.push({ Id: idMatch ? idMatch[1] : undefined, Title: titleMatch ? titleMatch[1] : '' });
         }
         payload = { d: { results: ids } };
       } catch { /* ignore */ }

@@ -7,7 +7,13 @@ Purpose: Enable immediate productive contributions to this SharePoint‑backed N
   * `utils/clientDataService.ts`: Resilient fetch-based proxy through Next API route `/api/sharepoint` (handles legacy farms, multiple OData modes, Atom XML fallback, dynamic field probing, alternate list title resolution, runtime field capability detection, category field heuristics, and multi-step fallbacks). Prefer this for API routes that must run both server and (potentially) during SSR.
   * `utils/dataService.ts`: PnP JS (`@pnp/sp`) server-side wrapper (simpler, assumes modern REST behavior). Avoid adding complex fallback logic here; keep parity only for operations already implemented.
 * API layer (under `pages/api/**`) mostly calls `clientDataService` now (e.g. `pages/api/projects/index.ts` GET). When adding endpoints, follow that pattern unless a PnP bulk operation is clearly simpler.
-* Lists: canonical names sometimes contain spaces (PnP side, see `spConfig.ts` `SP_LISTS`), while client fetch layer uses condensed variants without spaces (e.g. `RoadmapProjects`). Always verify or resolve via `clientDataService.resolveListTitle` if uncertain.
+* **Lists**: Active lists are:
+  * `RoadmapProjects` / `Roadmap Projects`
+  * `RoadmapCategories` / `Roadmap Categories`
+  * `RoadmapSettings` / `Roadmap Settings`
+  * `RoadmapTeamMembers` / `Roadmap Team Members`
+  * `RoadmapProjectLinks` / `Roadmap Project Links`
+* List title resolution: Canonical names sometimes contain spaces (PnP side, see `spConfig.ts` `SP_LISTS`), while client fetch layer uses condensed variants without spaces (e.g. `RoadmapProjects`). Always verify or resolve via `clientDataService.resolveListTitle` if uncertain.
 * Project enrichment: After base project fetch, links (`RoadmapProjectLinks`) and team members (`RoadmapTeamMembers`) are joined client-side (see aggregation near end of `getAllProjects`). Maintain this pattern; avoid N+1 roundtrips.
 
 ### Resilience & Fallback Patterns
@@ -17,8 +23,12 @@ Purpose: Enable immediate productive contributions to this SharePoint‑backed N
 * Alternate category field detection: If all Category values empty, fetch field metadata and look for internal names / titles matching `/kategor|categor/i` and backfill `Category` (see probe block). Reuse that utility flow if creating similar heuristics for other fields.
 
 ### Auth & Security
-* Authentication against SharePoint Users list; token is custom HMAC (NOT JWT) (`utils/auth.ts`). If expanding auth, keep backward compatibility with `generateTokenLegacy` and `validateTokenLegacy` until explicitly removed.
-* Admin checks: Use `clientDataService.isCurrentUserAdmin()` (see API POST project creation). Do not duplicate role logic.
+* Authentication via SharePoint's built-in authentication (Kerberos/NTLM/FBA). Legacy custom HMAC token system kept for backward compatibility but deprecated.
+* **Admin checks**: Use `clientDataService.isCurrentUserAdmin()` which checks:
+  1. SharePoint Site Collection Admin status (`IsSiteAdmin` property)
+  2. Membership in the site's Associated Owners Group
+  3. Fallback: Heuristic check for groups with "Owner" or "Besitzer" in the title
+* Do not duplicate role logic—always use the centralized `isCurrentUserAdmin()` method.
 * Kerberos vs NTLM: Mode controlled via env (`SP_STRATEGY`, `NEXT_PUBLIC_SP_AUTH_MODE`). In Kerberos mode, server does NOT inject `Authorization` headers; rely on browser negotiation (see README Kerberos section). Any new proxy code must respect `x-sp-auth-mode` header patterns.
 
 ### Environment & Config

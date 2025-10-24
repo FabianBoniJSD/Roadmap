@@ -100,6 +100,32 @@ const AdminLogin: React.FC = () => {
           <p className="mt-2 text-center text-sm text-gray-400">
             {error}
           </p>
+          
+          {/* Cross-origin admin access hint */}
+          {typeof window !== 'undefined' && window.location.origin !== new URL(resolveSharePointSiteUrl()).origin && (
+            <div className="mt-4 p-4 bg-yellow-900 border border-yellow-700 rounded-md">
+              <h3 className="text-sm font-semibold text-yellow-200 mb-2">
+                🔒 Admin-Zugriff nur über SharePoint App Part
+              </h3>
+              <p className="text-xs text-yellow-100 mb-2">
+                Admin-Funktionen sind aus Sicherheitsgründen nur verfügbar, wenn die App als SharePoint App Part geöffnet wird.
+              </p>
+              <p className="text-xs text-yellow-100 mb-3">
+                Bitte öffnen Sie die Roadmap-Anwendung direkt in SharePoint:
+              </p>
+              <a
+                href={resolveSharePointSiteUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-3 py-2 border border-yellow-600 text-xs font-medium rounded text-yellow-100 bg-yellow-800 hover:bg-yellow-700"
+              >
+                → SharePoint öffnen
+              </a>
+              <p className="text-xs text-gray-400 mt-3">
+                Grund: Cross-Origin Requests verwenden den Service Account statt Ihrer Windows-Credentials.
+              </p>
+            </div>
+          )}
         </div>
         {dbg() && (
           <div className="mt-4 text-xs text-gray-200 bg-gray-700 rounded p-3 overflow-auto max-h-96">

@@ -9,7 +9,7 @@ async function setupSharePointLists() {
   await import("@pnp/sp/lists");
   await import("@pnp/sp/fields");
 
-  const siteUrl = process.env.SHAREPOINT_SITE_URL || "https://spi-u.intranet.bs.ch/JSD/QMServices/Roadmap/roadmap-app";
+  const siteUrl = process.env.SHAREPOINT_SITE_URL || "https://spi.intranet.bs.ch/JSD/Digital/roadmap-app";
   const sp = spfi(siteUrl);
   
   try {

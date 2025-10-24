@@ -103,12 +103,17 @@ const ProjectDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [attachments, setAttachments] = useState<Array<{ FileName: string; ServerRelativeUrl: string }>>([]);
-  const [uploading, setUploading] = useState(false);
-  const spSite = resolveSharePointSiteUrl().replace(/\/$/, '');
-  const [uploadPct, setUploadPct] = useState<number>(0);
-  const [uploadError, setUploadError] = useState<string>('');
-  const [currentFileName, setCurrentFileName] = useState<string>('');
-  const [abortCtrl, setAbortCtrl] = useState<AbortController | null>(null);
+  const sharePointBaseUrl = resolveSharePointSiteUrl().replace(/\/$/, '');
+
+  const buildSharePointAttachmentUrl = (serverRelativeUrl: string) => {
+    if (!serverRelativeUrl) return '#';
+    try {
+      return new URL(serverRelativeUrl, `${sharePointBaseUrl}/`).toString();
+    } catch {
+      const normalized = serverRelativeUrl.startsWith('/') ? serverRelativeUrl : `/${serverRelativeUrl}`;
+      return `${sharePointBaseUrl}${encodeURI(normalized)}`;
+    }
+  };
   const [leadImageBroken, setLeadImageBroken] = useState(false);
   const [memberImageErrors, setMemberImageErrors] = useState<Record<number, boolean>>({});
 
@@ -357,86 +362,18 @@ const ProjectDetailPage: React.FC = () => {
             <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 shadow-md">
               <h2 className="text-xl font-bold mb-4 pb-3 border-b border-gray-700 text-white">Anhänge</h2>
               <div className="space-y-3">
-                {isAdmin && (
-                  <div>
-                    <input
-                      id="file-input"
-                      type="file"
-                      multiple
-                      className="block w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600"
-                      onChange={async (e) => {
-                        const files: File[] = e.target.files ? Array.from(e.target.files) : [];
-                        if (files.length === 0 || !project) return;
-                        setUploadError('');
-                        setUploadPct(0);
-                        setUploading(true);
-                        for (const file of files) {
-                          setCurrentFileName(file.name);
-                          const controller = new AbortController();
-                          setAbortCtrl(controller);
-                          const res = await clientDataService.uploadAttachment(project.id, file, { onProgress: (p) => setUploadPct(p), signal: controller.signal });
-                          if (res.ok) {
-                            const list = await clientDataService.listAttachments(project.id);
-                            setAttachments(list);
-                          } else if (res.aborted) {
-                            setUploadError('Upload abgebrochen');
-                            break;
-                          } else {
-                            setUploadError(res.error || 'Upload fehlgeschlagen');
-                            // continue to next file
-                          }
-                        }
-                        setAbortCtrl(null);
-                        setCurrentFileName('');
-                        setUploading(false);
-                        e.currentTarget.value = '';
-                      }}
-                      disabled={uploading}
-                    />
-                    {uploading && (
-                      <div className="h-2 bg-gray-700 rounded mt-2 overflow-hidden">
-                        <div className="h-full bg-blue-600" style={{ width: `${uploadPct}%` }} />
-                      </div>
-                    )}
-                    {currentFileName && (
-                      <div className="flex items-center justify-between mt-2 text-sm text-gray-300">
-                        <span className="truncate mr-2">{currentFileName}</span>
-                        {abortCtrl && (
-                          <button
-                            className="ml-2 px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 border border-gray-600"
-                            onClick={() => {
-                              abortCtrl.abort();
-                            }}
-                          >
-                            Abbrechen
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    {uploadError && <div className="text-red-400 text-sm mt-2">{uploadError}</div>}
-                  </div>
-                )}
                 <ul className="space-y-2">
                   {attachments.length === 0 && <li className="text-gray-400 text-sm">Keine Anhänge</li>}
-                  {attachments.map(a => (
-                    <li key={a.ServerRelativeUrl} className="flex items-center justify-between bg-gray-700 rounded p-2">
-                      <a href={`${spSite}${a.ServerRelativeUrl}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate pr-4">{a.FileName}</a>
-                      {isAdmin && (
-                        <button
-                          className="text-red-400 hover:text-red-300 text-sm"
-                          onClick={async () => {
-                            if (!project) return;
-                            const ok = await clientDataService.deleteAttachment(project.id, a.FileName);
-                            if (ok) {
-                              setAttachments(prev => prev.filter(x => x.FileName !== a.FileName));
-                            } else {
-                              alert('Löschen fehlgeschlagen');
-                            }
-                          }}
-                        >
-                          Löschen
-                        </button>
-                      )}
+                  {attachments.map((attachment) => (
+                    <li key={attachment.ServerRelativeUrl} className="bg-gray-700 rounded p-2">
+                      <a
+                        href={buildSharePointAttachmentUrl(attachment.ServerRelativeUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:underline truncate block"
+                      >
+                        {attachment.FileName}
+                      </a>
                     </li>
                   ))}
                 </ul>

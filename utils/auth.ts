@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import { clientDataService } from './clientDataService';
 import { resolveSharePointSiteUrl } from './sharepointEnv';
+import { checkCurrentUserIsAdmin } from './adminCheck';
 
 // Interface for user data
 export interface User {
@@ -232,41 +233,18 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function hasAdminAccess(): Promise<boolean> {
   try {
     log('hasAdminAccess: start');
-    // If running in the browser, first try a direct call to SharePoint when same-origin.
-    // This enables seamless Kerberos/SSO when the app is hosted within a SharePoint page (same-origin),
-    // where the browser can negotiate auth. If that fails (outside webpart/CORS), fall back to proxy.
+    
+    // Use the client-side admin check which uses browser's NTLM/Kerberos credentials
+    // This checks the actual logged-in user, not the service account
     if (typeof window !== 'undefined') {
-      try {
-        const spSite = resolveSharePointSiteUrl();
-        const spOrigin = new URL(spSite).origin;
-        const appOrigin = window.location.origin;
-        if (spOrigin !== appOrigin) {
-          log('hasAdminAccess: skipping direct SP fetch due to cross-origin', { spOrigin, appOrigin });
-          throw new Error('cross-origin-skip');
-        }
-        const url = spSite.replace(/\/$/, '') + '/_api/web/currentuser';
-        log('hasAdminAccess: direct SP fetch', url);
-        const r = await fetch(url, {
-          method: 'GET',
-          headers: { 'Accept': 'application/json;odata=nometadata' },
-          credentials: 'include'
-        } as RequestInit);
-        log('hasAdminAccess: direct response', { ok: r.ok, status: r.status });
-        if (r.ok) {
-          const j: any = await r.json();
-          const isSiteAdmin = j?.IsSiteAdmin === true || j?.d?.IsSiteAdmin === true;
-          log('hasAdminAccess: direct json parsed', { IsSiteAdmin: isSiteAdmin, rawKeys: Object.keys(j || {}) });
-          if (isSiteAdmin === true) return true;
-          // If explicitly false or missing, do not return false here; allow proxy fallback to check Owners group.
-        }
-      } catch (_) {
-        // Ignore and try proxy fallback below
-        log('hasAdminAccess: direct fetch failed, will use proxy');
-      }
+      log('hasAdminAccess: using client-side checkCurrentUserIsAdmin()');
+      const isAdmin = await checkCurrentUserIsAdmin();
+      log('hasAdminAccess: client-side result', isAdmin);
+      return isAdmin;
     }
-
-    // Fallback: go through our proxy (works for Online/NTLM/FBA; requires server auth config)
-    log('hasAdminAccess: proxy fallback via clientDataService.isCurrentUserAdmin');
+    
+    // Server-side fallback (uses service account)
+    log('hasAdminAccess: server-side fallback via clientDataService.isCurrentUserAdmin');
     const viaProxy = await clientDataService.isCurrentUserAdmin();
     log('hasAdminAccess: proxy result', viaProxy);
     return viaProxy;

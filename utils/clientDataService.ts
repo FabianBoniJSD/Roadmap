@@ -63,7 +63,7 @@ class ClientDataService {
         // Route all SharePoint REST calls through Next.js API proxy to avoid CORS
         // On the server, Node's fetch requires an absolute URL
         if (typeof window === 'undefined') {
-            const base = (process.env.INTERNAL_API_BASE_URL || 'http://localhost:3000').replace(/\/$/,'');
+            const base = (process.env.INTERNAL_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
             return base + '/api/sharepoint';
         }
         return '/api/sharepoint';
@@ -79,7 +79,7 @@ class ClientDataService {
                 const url = `${webUrl}/_api/web/lists/getByTitle('${name}')?$select=Title&$top=1`;
                 const r = await this.spFetch(url, { headers: { 'Accept': 'application/json;odata=nometadata' } });
                 if (r.ok) { this.listTitleCache[preferred] = name; return name; }
-            } catch {/* ignore and try next */}
+            } catch {/* ignore and try next */ }
         }
         // Fallback to preferred even if not confirmed
         this.listTitleCache[preferred] = preferred;
@@ -126,14 +126,14 @@ class ClientDataService {
                 if (!resp.ok) throw new Error('Failed to read field types');
                 const dataV = await resp.json();
                 const arr: any[] = dataV?.d?.results || [];
-                const map: Record<string,string> = {};
+                const map: Record<string, string> = {};
                 for (const f of arr) if (f.InternalName) map[String(f.InternalName)] = String(f.TypeAsString || '');
                 this.listFieldTypeCache[listName] = map;
                 return map;
             }
             const data = await resp.json();
             const values: any[] = data?.value || [];
-            const map: Record<string,string> = {};
+            const map: Record<string, string> = {};
             for (const f of values) if (f.InternalName) map[String(f.InternalName)] = String(f.TypeAsString || '');
             this.listFieldTypeCache[listName] = map;
             return map;
@@ -342,7 +342,7 @@ class ClientDataService {
     // PROJECT OPERATIONS
     async getAllProjects(): Promise<Project[]> {
         const candidateFields = [
-            'Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields','Projektphase','NaechsterMeilenstein'
+            'Title', 'Category', 'StartQuarter', 'EndQuarter', 'Description', 'Status', 'Projektleitung', 'Bisher', 'Zukunft', 'Fortschritt', 'GeplantUmsetzung', 'Budget', 'StartDate', 'EndDate', 'ProjectFields', 'Projektphase', 'NaechsterMeilenstein'
         ];
         // Cache of validated fields (in-memory for runtime)
         // @ts-ignore attach dynamic cache property
@@ -352,8 +352,8 @@ class ClientDataService {
             const unique = Array.from(new Set(['Id', ...fields]));
             return unique.join(',');
         };
-    const categoryFieldCandidates = ['Category'];
-    const categorySelectFields = Array.from(new Set(['Id', ...categoryFieldCandidates]));
+        const categoryFieldCandidates = ['Category'];
+        const categorySelectFields = Array.from(new Set(['Id', ...categoryFieldCandidates]));
         const pickCategoryValue = (source: any): any => {
             if (!source || typeof source !== 'object') return undefined;
             for (const key of categoryFieldCandidates) {
@@ -387,7 +387,7 @@ class ClientDataService {
                         if (normalized) return normalized;
                     }
                 }
-                const possibleKeys = ['Id','ID','Value','LookupId','lookupId','LookupValue','lookupValue','Title','Name'];
+                const possibleKeys = ['Id', 'ID', 'Value', 'LookupId', 'lookupId', 'LookupValue', 'lookupValue', 'Title', 'Name'];
                 for (const key of possibleKeys) {
                     if (obj[key] !== undefined && obj[key] !== null) {
                         const normalized = normalizeCategoryValue(obj[key]);
@@ -402,9 +402,9 @@ class ClientDataService {
             if (primary) return primary;
             return normalizeCategoryValue(entity?.category);
         };
-    const webUrl = this.getWebUrl();
-    const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
-    const baseItemsUrl = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items`;
+        const webUrl = this.getWebUrl();
+        const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
+        const baseItemsUrl = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items`;
 
         const fetchItems = async (selectFields: string[]): Promise<any[] | { error: string; body?: string; status?: number; }> => {
             const sel = buildSelect(selectFields);
@@ -500,7 +500,7 @@ class ClientDataService {
         let items = initialResult;
 
         // Phase 1 minimal category fetch (avoid problematic fields like CategoryId that trigger SP exceptions on this farm)
-        let earlyCategoryMap: Record<string,string> = {};
+        let earlyCategoryMap: Record<string, string> = {};
         try {
             const catMinimal = await this.fetchFromSharePoint(
                 resolvedProjects,
@@ -527,7 +527,7 @@ class ClientDataService {
                     'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein'
                 );
                 if (Array.isArray(alt) && alt.length > 0) items = alt;
-            } catch {/* ignore */}
+            } catch {/* ignore */ }
         }
 
         // Final ultra-minimal fallback: Id,Title only
@@ -557,7 +557,7 @@ class ClientDataService {
                         ProjectFields: []
                     }));
                 }
-            } catch {/* ignore */}
+            } catch {/* ignore */ }
         }
 
         // Category recovery fetch: if after all fallbacks every item still lacks ANY category signal, do one extremely tolerant fetch
@@ -582,7 +582,7 @@ class ClientDataService {
                     categorySelectFields.join(',')
                 );
                 if (Array.isArray(catOnly) && catOnly.length > 0) {
-                    const catMap: Record<string,string> = {};
+                    const catMap: Record<string, string> = {};
                     for (const c of catOnly) {
                         const idStr = (c.Id ?? c.ID ?? '').toString();
                         const normalized = normalizeCategoryValue(pickCategoryValue(c));
@@ -659,7 +659,7 @@ class ClientDataService {
 
         const projects = items.map(item => {
             if ((process as any)?.env?.NEXT_PUBLIC_DEBUG_EXPOSE === '1' && typeof window !== 'undefined') {
-                try { console.debug('[getAllProjects] raw item keys:', Object.keys(item)); } catch {}
+                try { console.debug('[getAllProjects] raw item keys:', Object.keys(item)); } catch { }
             }
             let projectFields: string[] = [];
             const raw = item.ProjectFields;
@@ -678,8 +678,8 @@ class ClientDataService {
                 id: item.Id?.toString?.() || String(item.Id),
                 title: item.Title,
                 category: normalizedCategory,
-                startQuarter: (item.StartQuarter !== undefined && item.StartQuarter !== null) ? String(item.StartQuarter).replace(/(Q[1-4])\s+20\d{2}/,'$1') : '',
-                endQuarter: (item.EndQuarter !== undefined && item.EndQuarter !== null) ? String(item.EndQuarter).replace(/(Q[1-4])\s+20\d{2}/,'$1') : '',
+                startQuarter: (item.StartQuarter !== undefined && item.StartQuarter !== null) ? String(item.StartQuarter).replace(/(Q[1-4])\s+20\d{2}/, '$1') : '',
+                endQuarter: (item.EndQuarter !== undefined && item.EndQuarter !== null) ? String(item.EndQuarter).replace(/(Q[1-4])\s+20\d{2}/, '$1') : '',
                 description: item.Description || '',
                 status: (String(item.Status || 'planned').toLowerCase() as any),
                 ProjectFields: projectFields,
@@ -699,11 +699,11 @@ class ClientDataService {
             const derive = (q: string, end = false): string => {
                 const year = new Date().getFullYear();
                 switch (q) {
-                    case 'Q1': return end ? new Date(Date.UTC(year,2,31,23,59,59)).toISOString() : new Date(Date.UTC(year,0,1)).toISOString();
-                    case 'Q2': return end ? new Date(Date.UTC(year,5,30,23,59,59)).toISOString() : new Date(Date.UTC(year,3,1)).toISOString();
-                    case 'Q3': return end ? new Date(Date.UTC(year,8,30,23,59,59)).toISOString() : new Date(Date.UTC(year,6,1)).toISOString();
-                    case 'Q4': return end ? new Date(Date.UTC(year,11,31,23,59,59)).toISOString() : new Date(Date.UTC(year,9,1)).toISOString();
-                    default: return new Date(Date.UTC(year,0,1)).toISOString();
+                    case 'Q1': return end ? new Date(Date.UTC(year, 2, 31, 23, 59, 59)).toISOString() : new Date(Date.UTC(year, 0, 1)).toISOString();
+                    case 'Q2': return end ? new Date(Date.UTC(year, 5, 30, 23, 59, 59)).toISOString() : new Date(Date.UTC(year, 3, 1)).toISOString();
+                    case 'Q3': return end ? new Date(Date.UTC(year, 8, 30, 23, 59, 59)).toISOString() : new Date(Date.UTC(year, 6, 1)).toISOString();
+                    case 'Q4': return end ? new Date(Date.UTC(year, 11, 31, 23, 59, 59)).toISOString() : new Date(Date.UTC(year, 9, 1)).toISOString();
+                    default: return new Date(Date.UTC(year, 0, 1)).toISOString();
                 }
             };
             if (!project.startDate) project.startDate = derive(project.startQuarter || 'Q1');
@@ -731,7 +731,7 @@ class ClientDataService {
             console.warn('[clientDataService] Aggregation failed', aggErr);
         }
         if ((process as any)?.env?.NEXT_PUBLIC_DEBUG_EXPOSE === '1' && typeof window !== 'undefined') {
-            console.debug('[getAllProjects] mapped sample:', projects.slice(0,5).map(p => ({ id: p.id, cat: p.category })));
+            console.debug('[getAllProjects] mapped sample:', projects.slice(0, 5).map(p => ({ id: p.id, cat: p.category })));
         }
 
         // Forced final category hydration: if every project still has empty category, perform a minimal refetch (Id,Category)
@@ -742,7 +742,7 @@ class ClientDataService {
                     categorySelectFields.join(',')
                 );
                 if (Array.isArray(catHydrate) && catHydrate.length) {
-                    const cMap: Record<string,string> = {};
+                    const cMap: Record<string, string> = {};
                     for (const row of catHydrate) {
                         const pid = (row.Id ?? row.ID ?? '').toString();
                         const normalized = normalizeCategoryValue(pickCategoryValue(row));
@@ -765,12 +765,12 @@ class ClientDataService {
         }
         return projects;
     }
-    
+
     async getProjectById(id: string): Promise<Project | null> {
         try {
             const webUrl = this.getWebUrl();
             const selectFields = [
-                'Id','Title','Category','StartQuarter','EndQuarter','Description','Status','Projektleitung','Bisher','Zukunft','Fortschritt','GeplantUmsetzung','Budget','StartDate','EndDate','ProjectFields','Projektphase','NaechsterMeilenstein'
+                'Id', 'Title', 'Category', 'StartQuarter', 'EndQuarter', 'Description', 'Status', 'Projektleitung', 'Bisher', 'Zukunft', 'Fortschritt', 'GeplantUmsetzung', 'Budget', 'StartDate', 'EndDate', 'ProjectFields', 'Projektphase', 'NaechsterMeilenstein'
             ].join(',');
             const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
             const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})?$select=${selectFields}`;
@@ -833,7 +833,7 @@ class ClientDataService {
                         if (!built.projektphase && fromList.projektphase) built.projektphase = fromList.projektphase;
                         if (!built.naechster_meilenstein && fromList.naechster_meilenstein) built.naechster_meilenstein = fromList.naechster_meilenstein;
                     }
-                } catch {/* ignore */}
+                } catch {/* ignore */ }
             }
             return built;
         } catch (error) {
@@ -885,11 +885,11 @@ class ClientDataService {
         const derive = (q: string, end = false): string => {
             const year = new Date().getFullYear();
             switch (q) {
-                case 'Q1': return end ? new Date(Date.UTC(year,2,31,23,59,59)).toISOString() : new Date(Date.UTC(year,0,1)).toISOString();
-                case 'Q2': return end ? new Date(Date.UTC(year,5,30,23,59,59)).toISOString() : new Date(Date.UTC(year,3,1)).toISOString();
-                case 'Q3': return end ? new Date(Date.UTC(year,8,30,23,59,59)).toISOString() : new Date(Date.UTC(year,6,1)).toISOString();
-                case 'Q4': return end ? new Date(Date.UTC(year,11,31,23,59,59)).toISOString() : new Date(Date.UTC(year,9,1)).toISOString();
-                default: return new Date(Date.UTC(year,0,1)).toISOString();
+                case 'Q1': return end ? new Date(Date.UTC(year, 2, 31, 23, 59, 59)).toISOString() : new Date(Date.UTC(year, 0, 1)).toISOString();
+                case 'Q2': return end ? new Date(Date.UTC(year, 5, 30, 23, 59, 59)).toISOString() : new Date(Date.UTC(year, 3, 1)).toISOString();
+                case 'Q3': return end ? new Date(Date.UTC(year, 8, 30, 23, 59, 59)).toISOString() : new Date(Date.UTC(year, 6, 1)).toISOString();
+                case 'Q4': return end ? new Date(Date.UTC(year, 11, 31, 23, 59, 59)).toISOString() : new Date(Date.UTC(year, 9, 1)).toISOString();
+                default: return new Date(Date.UTC(year, 0, 1)).toISOString();
             }
         };
         if (!project.startDate) project.startDate = derive(project.startQuarter || 'Q1');
@@ -900,7 +900,7 @@ class ClientDataService {
             const parts = project.projektleitung.split(' ').filter(Boolean);
             if (parts.length >= 2) {
                 const mail = `${parts[0].toLowerCase()}.${parts[1].toLowerCase()}@jsd.bs.ch`;
-                try { project.projektleitungImageUrl = await this.getUserProfilePictureUrl(mail); } catch {}
+                try { project.projektleitungImageUrl = await this.getUserProfilePictureUrl(mail); } catch { }
             }
         }
         return project;
@@ -914,10 +914,10 @@ class ClientDataService {
             // Get request digest for write operations
             const requestDigest = await this.getRequestDigest();
 
-    const response = await this.spFetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
-            'Accept': 'application/json;odata=verbose',
+                    'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-HTTP-Method': 'DELETE',
                     'IF-MATCH': '*',
@@ -1030,7 +1030,7 @@ class ClientDataService {
                             delete body['Category'];
                             choseLookup = true;
                         }
-                    } catch {}
+                    } catch { }
                     if (choseLookup) {
                         console.log('[updateProject] Using CategoryId (lookup) for category value', num);
                     } else {
@@ -1040,15 +1040,15 @@ class ClientDataService {
                         console.log('[updateProject] Using Category (', catType || 'text', ') for category value', body['Category']);
                     }
                 }
-            } catch {}
+            } catch { }
 
             console.log('Data being sent to SharePoint:', JSON.stringify(body));
 
             // Send the update request to SharePoint
-    const response = await this.spFetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
-            'Accept': 'application/json;odata=verbose',
+                    'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-HTTP-Method': 'MERGE',
                     'IF-MATCH': '*',
@@ -1091,7 +1091,7 @@ class ClientDataService {
                 const verifyEndpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})?$select=Id,Category`;
                 let v = await this.spFetch(verifyEndpoint, { headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
                 if (!v.ok) {
-                    const txt = await v.text().catch(()=>'');
+                    const txt = await v.text().catch(() => '');
                     console.warn('[updateProject] read-back failed', { status: v.status, body: txt });
                 } else {
                     const j = await v.json();
@@ -1142,10 +1142,10 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.CATEGORIES);
 
-    const response = await this.spFetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
-            'Accept': 'application/json;odata=verbose',
+                    'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-RequestDigest': requestDigest
                 },
@@ -1192,10 +1192,10 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.CATEGORIES);
 
-    const response = await this.spFetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
-            'Accept': 'application/json;odata=verbose',
+                    'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-HTTP-Method': 'MERGE',
                     'IF-MATCH': '*',
@@ -1435,10 +1435,10 @@ class ClientDataService {
 
             console.log('Creating project link with data:', JSON.stringify(requestBody));
 
-    const response = await this.spFetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
-            'Accept': 'application/json;odata=verbose',
+                    'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-RequestDigest': requestDigest
                 },
@@ -1491,7 +1491,7 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.PROJECT_LINKS);
 
-        const response = await this.spFetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json;odata=nometadata',
@@ -1531,7 +1531,7 @@ class ClientDataService {
             const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
-            'Accept': 'application/json;odata=verbose',
+                    'Accept': 'application/json;odata=verbose',
                     'X-HTTP-Method': 'DELETE',
                     'IF-MATCH': '*',
                     'X-RequestDigest': requestDigest
@@ -1674,7 +1674,7 @@ class ClientDataService {
                             delete body['Category'];
                             choseLookup = true;
                         }
-                    } catch {}
+                    } catch { }
                     if (choseLookup) {
                         console.log('[saveProject] Using CategoryId (lookup) for category value', num);
                     } else {
@@ -1683,7 +1683,7 @@ class ClientDataService {
                         console.log('[saveProject] Using Category (', catType || 'text', ') for category value', body['Category']);
                     }
                 }
-            } catch {}
+            } catch { }
 
             console.log('[saveProject] Body payload:', body);
 
@@ -1709,7 +1709,7 @@ class ClientDataService {
             // Get the saved project data
             let savedProject: Project;
 
-        if (isNewProject) {
+            if (isNewProject) {
                 const newItem = await response.json();
                 const d = newItem?.d || newItem;
                 const newId = (d?.Id ?? d?.ID ?? d?.id);
@@ -1717,18 +1717,18 @@ class ClientDataService {
                     ...projectData,
                     id: String(newId),
                     links: [],
-            teamMembers: [],
-            projektphase: (body as any).Projektphase || (projectData as any).projektphase,
-            naechster_meilenstein: (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein
+                    teamMembers: [],
+                    projektphase: (body as any).Projektphase || (projectData as any).projektphase,
+                    naechster_meilenstein: (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein
                 };
             } else {
                 savedProject = {
                     ...projectData,
                     id: project.id,
                     links: [],
-            teamMembers: [],
-            projektphase: (body as any).Projektphase || (projectData as any).projektphase,
-            naechster_meilenstein: (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein
+                    teamMembers: [],
+                    projektphase: (body as any).Projektphase || (projectData as any).projektphase,
+                    naechster_meilenstein: (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein
                 };
             }
 
@@ -1750,7 +1750,7 @@ class ClientDataService {
                 const verifyEndpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${savedProject.id})?$select=Id,Category`;
                 let v = await this.spFetch(verifyEndpoint, { headers: { 'Accept': 'application/json;odata=nometadata' }, credentials: 'same-origin' });
                 if (!v.ok) {
-                    const txt = await v.text().catch(()=>'');
+                    const txt = await v.text().catch(() => '');
                     console.warn('[saveProject] read-back failed', { status: v.status, body: txt });
                 } else {
                     const j = await v.json();
@@ -1902,10 +1902,10 @@ class ClientDataService {
             // Get the correct metadata type
             const itemType = await this.getListMetadata(SP_LISTS.TEAM_MEMBERS);
 
-    const response = await this.spFetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
-            'Accept': 'application/json;odata=verbose',
+                    'Accept': 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
                     'X-RequestDigest': requestDigest
                 },
@@ -1944,10 +1944,10 @@ class ClientDataService {
             // Get request digest for write operations
             const requestDigest = await this.getRequestDigest();
 
-    const response = await this.spFetch(endpoint, {
+            const response = await this.spFetch(endpoint, {
                 method: 'POST',
                 headers: {
-            'Accept': 'application/json;odata=verbose',
+                    'Accept': 'application/json;odata=verbose',
                     'X-HTTP-Method': 'DELETE',
                     'IF-MATCH': '*',
                     'X-RequestDigest': requestDigest
@@ -2151,59 +2151,75 @@ class ClientDataService {
     async isCurrentUserAdmin(): Promise<boolean> {
         try {
             const webUrl = this.getWebUrl();
-            // Strict: only Site Collection Administrators are considered admins
+            
+            // Check if user is a Site Collection Administrator
             const userEndpoint = `${webUrl}/_api/web/currentuser`;
             const userResponse = await this.spFetch(userEndpoint, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json;odata=nometadata' },
                 credentials: 'same-origin'
             });
+            
             if (!userResponse.ok) {
                 throw new Error(`Failed to get current user: ${userResponse.statusText}`);
             }
+            
             const userData = await userResponse.json();
-            if (userData.IsSiteAdmin === true || userData?.d?.IsSiteAdmin === true) return true;
+            if (userData.IsSiteAdmin === true || userData?.d?.IsSiteAdmin === true) {
+                return true;
+            }
 
-            // Fallback: treat membership in the site's Owners group as admin.
-            // 1) Read the site's associated owners group
+            // Fallback: Check membership in the site's Associated Owners group
             const ownerGroupResp = await this.spFetch(`${webUrl}/_api/web/AssociatedOwnerGroup?$select=Id,Title`, {
                 headers: { 'Accept': 'application/json;odata=nometadata' },
                 credentials: 'same-origin'
             });
+            
             if (!ownerGroupResp.ok) {
-                // If this fails, try a heuristic on group titles
+                // Heuristic fallback: check group titles for "owner", "besitzer", or "roadadmin"
                 const groupsHeuristic = await this.spFetch(`${webUrl}/_api/web/currentuser/Groups?$select=Id,Title`, {
                     headers: { 'Accept': 'application/json;odata=nometadata' },
                     credentials: 'same-origin'
                 });
+                
                 if (groupsHeuristic.ok) {
                     const gj = await groupsHeuristic.json();
-                    const titles: string[] = (gj?.value || gj?.d?.results || []).map((g: any) => String(g.Title || '')).filter(Boolean);
-                    const matchOwner = titles.some(t => /\b(owner|besitzer)\b/i.test(t));
+                    const titles: string[] = ((gj?.value) || (gj?.d?.results) || [])
+                        .map((g: any) => String(g.Title || ''))
+                        .filter(Boolean);
+                    const matchOwner = titles.some(t => /\b(owner|besitzer|roadadmin)\b/i.test(t));
                     if (matchOwner) return true;
                 }
                 return false;
             }
+            
             const ownerGroup = await ownerGroupResp.json();
-            const ownerId: number | undefined = ownerGroup?.Id ?? ownerGroup?.d?.Id;
-            const ownerTitle: string | undefined = ownerGroup?.Title ?? ownerGroup?.d?.Title;
+            const ownerId: number | undefined = (ownerGroup?.Id) ?? (ownerGroup?.d?.Id);
+            const ownerTitle: string | undefined = (ownerGroup?.Title) ?? (ownerGroup?.d?.Title);
+            
             if (!ownerId && !ownerTitle) return false;
 
-            // 2) Fetch current user's groups and check membership against owners group
+            // Fetch current user's groups and check membership against owners group
             const groupsResp = await this.spFetch(`${webUrl}/_api/web/currentuser/Groups?$select=Id,Title`, {
                 headers: { 'Accept': 'application/json;odata=nometadata' },
                 credentials: 'same-origin'
             });
+            
             if (!groupsResp.ok) return false;
+            
             const groups = await groupsResp.json();
-            const entries: any[] = (groups?.value || groups?.d?.results || []) as any[];
-            return entries.some(g => (ownerId && g.Id === ownerId) || (ownerTitle && String(g.Title) === String(ownerTitle)));
+            const entries: any[] = ((groups?.value) || (groups?.d?.results) || []) as any[];
+            
+            return entries.some(g => 
+                (ownerId && g.Id === ownerId) || 
+                (ownerTitle && String(g.Title) === String(ownerTitle))
+            );
         } catch (error) {
             console.error('Error checking admin status:', error);
             return false;
         }
     }
-
+    
     // Add this method to the ClientDataService class
 
     async searchUsers(query: string): Promise<TeamMember[]> {
@@ -2315,7 +2331,7 @@ class ClientDataService {
                 let aborted = false;
                 const onAbort = () => {
                     aborted = true;
-                    try { xhr.abort(); } catch {}
+                    try { xhr.abort(); } catch { }
                 };
                 if (opts?.signal) {
                     if (opts.signal.aborted) onAbort();

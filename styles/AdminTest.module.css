@@ -1,0 +1,209 @@
+.container {
+    min-height: 100vh;
+    padding: 2rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    padding: 3rem;
+    max-width: 800px;
+    width: 100%;
+}
+
+.card h1 {
+    margin: 0 0 1rem 0;
+    color: #333;
+    font-size: 2rem;
+}
+
+.description {
+    color: #666;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.loading {
+    text-align: center;
+    padding: 3rem 0;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error {
+    background: #fee;
+    border: 2px solid #fcc;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+}
+
+.error h3 {
+    margin: 0 0 0.5rem 0;
+    color: #c33;
+}
+
+.error p {
+    margin: 0;
+    color: #c33;
+}
+
+.section {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: #f9f9f9;
+    border-radius: 8px;
+}
+
+.section h2 {
+    margin: 0 0 1rem 0;
+    color: #333;
+    font-size: 1.5rem;
+}
+
+.userInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.field {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.field:last-child {
+    border-bottom: none;
+}
+
+.field strong {
+    min-width: 120px;
+    color: #555;
+}
+
+.yes {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.no {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.adminYes,
+.adminNo {
+    padding: 2rem;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.adminYes {
+    background: #d4edda;
+    border: 2px solid #28a745;
+}
+
+.adminNo {
+    background: #f8d7da;
+    border: 2px solid #dc3545;
+}
+
+.icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.adminYes .icon {
+    color: #28a745;
+}
+
+.adminNo .icon {
+    color: #dc3545;
+}
+
+.adminYes h3,
+.adminNo h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+}
+
+.adminYes h3 {
+    color: #155724;
+}
+
+.adminNo h3 {
+    color: #721c24;
+}
+
+.adminYes p,
+.adminNo p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.adminYes p {
+    color: #155724;
+}
+
+.adminNo p {
+    color: #721c24;
+}
+
+.actions {
+    margin: 2rem 0;
+    text-align: center;
+}
+
+.button {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.button:hover {
+    background: #5568d3;
+}
+
+.button:active {
+    transform: translateY(1px);
+}
+
+.note {
+    margin-top: 2rem;
+    padding: 1rem;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 6px;
+    color: #856404;
+    font-size: 0.9rem;
+}
+
+.note strong {
+    color: #856404;
+}

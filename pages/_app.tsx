@@ -26,7 +26,7 @@ function MyApp({ Component, pageProps }: AppProps): JSX.Element {
       }
 
       // Temporary fetch monkey patch to reroute any lingering absolute SharePoint REST calls via proxy (CORS bypass)
-      const SP_HOST = 'https://spi-u.intranet.bs.ch';
+      const SP_HOST = 'https://spi.intranet.bs.ch';
       if (!customWindow.__spFetchPatched) {
         const originalFetch = window.fetch.bind(window);
         customWindow.__spFetchPatched = true;
