@@ -12,7 +12,7 @@ concurrency:
 jobs:
   deploy:
     name: Build and deploy on self-hosted
-    runs-on: [self-hosted, roadmap]
+    runs-on: [self-hosted, windows]
     env:
       NEXT_TELEMETRY_DISABLED: '1'
 
