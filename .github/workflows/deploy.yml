@@ -1,0 +1,102 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy on self-hosted
+    runs-on: [self-hosted, roadmap]
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Show disk space (before)
+        run: |
+          Write-Output "Disk space before:"
+          Get-PSDrive C | Select-Object Used,Free
+
+      - name: Free up disk space (caches, logs, artifacts)
+        run: |
+          # Clean NPM cache
+          npm cache clean --force
+          # Remove PM2 logs if present
+          if (Test-Path "$env:USERPROFILE\.pm2\logs") {
+            Remove-Item -Path "$env:USERPROFILE\.pm2\logs\*" -Force -ErrorAction SilentlyContinue
+          }
+          # Remove previous local artifacts if present
+          if (Test-Path "node_modules") { Remove-Item -Path "node_modules" -Recurse -Force -ErrorAction SilentlyContinue }
+          if (Test-Path ".next") { Remove-Item -Path ".next" -Recurse -Force -ErrorAction SilentlyContinue }
+          Write-Output "Freed space."
+      
+      - name: Show disk space (after cleanup)
+        run: |
+          Write-Output "Disk space after cleanup:"
+          Get-PSDrive C | Select-Object Used,Free
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Verify Next.js build output exists
+        run: |
+          if (-not (Test-Path ".next")) {
+            Write-Error "Error: .next build directory not found. Build likely failed."
+            exit 1
+          }
+          Write-Output "Found .next directory."
+
+      - name: Install PM2 (process manager)
+        run: npm install -g pm2
+
+      - name: Stop existing instance (if any)
+        run: pm2 delete roadmap-app
+        continue-on-error: true
+
+      - name: Start app on port 3000 with PM2
+        env:
+          NODE_ENV: production
+        run: |
+          # Start Next directly via its CLI
+          pm2 start node_modules/next/dist/bin/next --name roadmap-app -- start -p 3000 -H 0.0.0.0 --hostname 0.0.0.0 --port 3000
+
+      - name: Save PM2 process list
+        run: pm2 save
+
+      - name: Show PM2 status and recent logs
+        run: |
+          pm2 status
+          pm2 describe roadmap-app
+          pm2 logs roadmap-app --lines 200 --nostream
+          Start-Sleep -Seconds 2
+          Write-Output "Checking port 3000..."
+          netstat -ano | Select-String ":3000"
+
+      - name: Ensure app is online
+        run: |
+          $status = pm2 jlist | ConvertFrom-Json | Where-Object { $_.name -eq "roadmap-app" } | Select-Object -First 1
+          if ($status.pm2_env.status -eq "online") {
+            Write-Output "App is online under PM2."
+          } else {
+            Write-Error "App not online. Failing the job for visibility."
+            pm2 logs roadmap-app --lines 200 --nostream
+            exit 1
+          }
