@@ -196,7 +196,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const isContextInfo = /_api\/contextinfo/i.test(fullPath);
         const method = req.method.toUpperCase();
         if (method === 'HEAD') {
-          const headArgs: string[] = ['-sS', '--ntlm', '--user', cred, '-I', '-H', `Accept: ${clientAccept}`, targetUrl];
+          const headArgs: string[] = ['-sS', '--ntlm', '--user', cred, '--noproxy', '*', '-I', '-H', `Accept: ${clientAccept}`, targetUrl];
           if (process.env.SP_ALLOW_SELF_SIGNED === 'true') headArgs.unshift('-k');
           else if (caPath) headArgs.unshift('--cacert', caPath);
           if (process.env.SP_CURL_VERBOSE === 'true') headArgs.unshift('-v');
@@ -213,7 +213,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           } catch (e:any) {
             if (isKerb && allowNtlmFallback) {
               try {
-                const ntlmHeadArgs: string[] = ['-sS','--ntlm','--user', cred, '-I', '-H', `Accept: ${clientAccept}`, targetUrl];
+                const ntlmHeadArgs: string[] = ['-sS','--ntlm','--user', cred, '--noproxy', '*', '-I', '-H', `Accept: ${clientAccept}`, targetUrl];
                 if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ntlmHeadArgs.unshift('-k');
                 else if (caPath) ntlmHeadArgs.unshift('--cacert', caPath);
                 if (process.env.SP_CURL_VERBOSE === 'true') ntlmHeadArgs.unshift('-v');
@@ -235,8 +235,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         // Prepare common args
         const curlArgs: string[] = isKerb
-          ? ['-sS', '--negotiate', '-u', ':', '-X', method, '-H', `Accept: ${clientAccept}`]
-          : ['-sS', '--ntlm', '--user', cred, '-X', method, '-H', `Accept: ${clientAccept}`];
+          ? ['-sS', '--negotiate', '--user', cred, '--noproxy', '*', '-X', method, '-H', `Accept: ${clientAccept}`]
+          : ['-sS', '--ntlm', '--user', cred, '--noproxy', '*', '-X', method, '-H', `Accept: ${clientAccept}`];
         if (process.env.SP_ALLOW_SELF_SIGNED === 'true') curlArgs.unshift('-k');
         if (process.env.SP_CURL_VERBOSE === 'true') curlArgs.unshift('-v');
 
@@ -244,8 +244,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         let formDigest: string | null = null;
         if (!isContextInfo) {
           const ciArgs = isKerb
-            ? ['-sS', '--negotiate', '-u', ':', '-X', 'POST']
-            : ['-sS', '--ntlm', '--user', cred, '-X', 'POST'];
+            ? ['-sS', '--negotiate', '--user', cred, '--noproxy', '*', '-X', 'POST']
+            : ['-sS', '--ntlm', '--user', cred, '--noproxy', '*', '-X', 'POST'];
           if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ciArgs.unshift('-k');
           else if (caPath) ciArgs.unshift('--cacert', caPath);
           if (process.env.SP_CURL_VERBOSE === 'true') ciArgs.unshift('-v');
@@ -264,7 +264,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           } catch {
             if (isKerb && allowNtlmFallback) {
               try {
-                const ciNArgs = ['-sS', '--ntlm', '--user', cred, '-X', 'POST'];
+                const ciNArgs = ['-sS', '--ntlm', '--user', cred, '--noproxy', '*', '-X', 'POST'];
                 if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ciNArgs.unshift('-k');
                 else if (caPath) ciNArgs.unshift('--cacert', caPath);
                 if (process.env.SP_CURL_VERBOSE === 'true') ciNArgs.unshift('-v');
@@ -344,7 +344,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         } catch (e: any) {
           if (isKerb && allowNtlmFallback) {
             try {
-              const ntlmCurlArgs: string[] = ['-sS','--ntlm','--user', cred, '-X', method, '-H', `Accept: ${clientAccept}`];
+              const ntlmCurlArgs: string[] = ['-sS','--ntlm','--user', cred, '--noproxy', '*', '-X', method, '-H', `Accept: ${clientAccept}`];
               if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ntlmCurlArgs.unshift('-k');
               else if (caPath) ntlmCurlArgs.unshift('--cacert', caPath);
               if (process.env.SP_CURL_VERBOSE === 'true') ntlmCurlArgs.unshift('-v');
@@ -363,12 +363,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       // Sanitize allowed path already checked earlier; still ensure no shell injection (use execFile arg array)
       const curlArgs = isKerb ?
-        ['-sS', '--negotiate', '-u', ':',
+        ['-sS', '--negotiate', '--user', cred, '--noproxy', '*',
         '--connect-timeout', '5', '--retry', '1',
         '-H', `Accept: ${clientAccept}`,
         targetUrl
       ] : [
-        '-sS', '--ntlm', '--user', cred,
+        '-sS', '--ntlm', '--user', cred, '--noproxy', '*',
         '--connect-timeout', '5', '--retry', '1',
         '-H', `Accept: ${clientAccept}`,
         targetUrl
@@ -391,7 +391,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (isKerb && allowNtlmFallback && looksUnauthorized) {
         try {
           const ntlmArgs = [
-            '-sS','--ntlm','--user', cred,
+            '-sS','--ntlm','--user', cred, '--noproxy', '*',
             '--connect-timeout','5','--retry','1',
             '-H', `Accept: ${clientAccept}`,
             targetUrl

@@ -66,7 +66,17 @@ export async function getSharePointAuthHeaders(): Promise<Record<string,string>>
   const permutations: any[] = [];
   const ws = workstationEnv || os.hostname().split('.')[0];
 
-  if (strategy === 'kerberos') {
+  if (strategy === 'basic') {
+    // Basic Authentication: simple username:password base64 encoding
+    const auth = Buffer.from(`${usernameEnv}:${passwordEnv}`).toString('base64');
+    const headers: Record<string,string> = { 
+      'Accept': 'application/json;odata=nometadata',
+      'Authorization': `Basic ${auth}`
+    };
+    cachedAuth = { headers, expires: Date.now() + 60 * 60 * 1000 }; // 1 hour cache
+    debugLog('basic auth headers prepared');
+    return headers;
+  } else if (strategy === 'kerberos') {
     // Kerberos: rely on browser/OS negotiation; server-side calls typically run under a domain account or are avoided.
     // We purposefully do NOT inject Authorization header; SharePoint/IIS will issue 401 with WWW-Authenticate: Negotiate and browser will respond.
     // For server initiated calls (Node) you would need a separate Kerberos client lib; out-of-scope here.

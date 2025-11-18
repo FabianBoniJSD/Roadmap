@@ -57,24 +57,17 @@ const AdminPage: React.FC = () => {
   useEffect(() => {
     const checkAdminAccess = async () => {
       try {
-        // First check localStorage for quick access
-        const isAdmin = localStorage.getItem('isAdmin');
-
-        if (!isAdmin) {
-          router.push('/admin/login');
-          return;
-        }
-
-        // Double-check with the server for security
+        // Check admin access with the server
         const hasAccess = await hasAdminAccess();
 
         if (!hasAccess) {
-          localStorage.removeItem('isAdmin');
-          router.push('/admin/login');
+          setError('Sie haben keine Admin-Berechtigung. Bitte kontaktieren Sie Ihren Administrator.');
+          setLoading(false);
         }
       } catch (error) {
         console.error('Error checking admin access:', error);
-        router.push('/admin/login');
+        setError('Fehler beim Überprüfen der Admin-Berechtigung');
+        setLoading(false);
       }
     };
 
@@ -247,11 +240,26 @@ const AdminPage: React.FC = () => {
     );
   }
 
+  const handleLogout = () => {
+    if (confirm('Möchten Sie sich wirklich abmelden?')) {
+      sessionStorage.removeItem('adminToken');
+      sessionStorage.removeItem('adminUsername');
+      router.push('/');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <div>
+            <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+            {sessionStorage.getItem('adminUsername') && (
+              <p className="text-sm text-gray-400 mt-1">
+                Angemeldet als: {sessionStorage.getItem('adminUsername')}
+              </p>
+            )}
+          </div>
           <div className="flex space-x-4">
             <Link href="/help/admin">
               <button className="bg-blue-700 hover:bg-blue-600 text-white py-2 px-4 rounded">
@@ -263,6 +271,12 @@ const AdminPage: React.FC = () => {
                 Zurück zu Roadmap
               </button>
             </Link>
+            <button
+              onClick={handleLogout}
+              className="bg-red-700 hover:bg-red-600 text-white py-2 px-4 rounded"
+            >
+              Abmelden
+            </button>
           </div>
         </div>
 

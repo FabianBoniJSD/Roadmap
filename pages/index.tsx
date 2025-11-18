@@ -18,7 +18,8 @@ const HomePage: React.FC = () => {
           setProjects([]);
         } else {
           const data: Project[] = await resp.json();
-          setProjects(Array.isArray(data) ? data : []);
+          const projectArray = Array.isArray(data) ? data : [];
+          setProjects(projectArray);
         }
       } catch (error) {
         console.error('Error fetching projects:', error);

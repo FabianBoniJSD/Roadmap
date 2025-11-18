@@ -2176,7 +2176,7 @@ class ClientDataService {
             });
             
             if (!ownerGroupResp.ok) {
-                // Heuristic fallback: check group titles for "owner", "besitzer", or "roadadmin"
+                // Heuristic fallback: check group titles for "owner", "besitzer", or "Roadmapadmin"
                 const groupsHeuristic = await this.spFetch(`${webUrl}/_api/web/currentuser/Groups?$select=Id,Title`, {
                     headers: { 'Accept': 'application/json;odata=nometadata' },
                     credentials: 'same-origin'
@@ -2187,7 +2187,7 @@ class ClientDataService {
                     const titles: string[] = ((gj?.value) || (gj?.d?.results) || [])
                         .map((g: any) => String(g.Title || ''))
                         .filter(Boolean);
-                    const matchOwner = titles.some(t => /\b(owner|besitzer|roadadmin)\b/i.test(t));
+                    const matchOwner = titles.some(t => /\b(owner|besitzer|roadmapadmin)\b/i.test(t));
                     if (matchOwner) return true;
                 }
                 return false;

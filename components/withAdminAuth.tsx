@@ -15,31 +15,22 @@ export default function withAdminAuth<P extends object>(
     useEffect(() => {
       const checkAuth = async () => {
         try {
-          // Quick check with localStorage
-          const isAdmin = localStorage.getItem('isAdmin');
-          if (dbg()) console.log('[withAdminAuth] localStorage isAdmin =', isAdmin);
-          
-          if (!isAdmin) {
-            if (dbg()) console.log('[withAdminAuth] no local isAdmin flag -> redirect login');
-            router.push('/admin/login');
-            return;
-          }
-          
-          // Verify with server
+          // Verify with server using stored credentials
           const hasAccess = await hasAdminAccess();
           if (dbg()) console.log('[withAdminAuth] verified hasAdminAccess =', hasAccess);
           
           if (!hasAccess) {
-            localStorage.removeItem('isAdmin');
-            if (dbg()) console.log('[withAdminAuth] server denied -> redirect login');
-            router.push('/admin/login');
+            if (dbg()) console.log('[withAdminAuth] no admin access, redirecting to login');
+            // Redirect to login page, store return URL
+            const returnUrl = encodeURIComponent(router.asPath);
+            router.push(`/admin/login?returnUrl=${returnUrl}`);
             return;
           }
           
           setIsLoading(false);
         } catch (error) {
           console.error('Auth check error:', error);
-          if (dbg()) console.log('[withAdminAuth] exception -> redirect login');
+          if (dbg()) console.log('[withAdminAuth] exception during auth check');
           router.push('/admin/login');
         }
       };

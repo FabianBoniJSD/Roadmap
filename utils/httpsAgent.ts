@@ -2,6 +2,7 @@ import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import { Agent as UndiciAgent, Dispatcher } from 'undici';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 // Optional HTTPS agent to allow custom CA or self-signed certs for on-prem SharePoint
 // Environment variables:
@@ -18,11 +19,19 @@ function resolvePathMaybe(p: string | undefined) {
 }
 
 try {
+  const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
   const caPath = resolvePathMaybe(process.env.SP_TRUSTED_CA_PATH);
-  if (caPath && fs.existsSync(caPath)) {
+  
+  if (proxyUrl) {
+    // Use proxy agent (handles Windows auth via CNTLM/Px proxy)
+    agent = new HttpsProxyAgent(proxyUrl) as any;
+    dispatcher = new UndiciAgent({ connect: { rejectUnauthorized: process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0' } });
+    // eslint-disable-next-line no-console
+    console.log('[httpsAgent] Using proxy:', proxyUrl);
+  } else if (caPath && fs.existsSync(caPath)) {
     const ca = fs.readFileSync(caPath, 'utf8');
-  agent = new https.Agent({ ca });
-  dispatcher = new UndiciAgent({ connect: { ca } });
+    agent = new https.Agent({ ca });
+    dispatcher = new UndiciAgent({ connect: { ca } });
     // Set NODE_EXTRA_CA_CERTS early so any other libraries relying on OpenSSL store see it
     if (!process.env.NODE_EXTRA_CA_CERTS) {
       process.env.NODE_EXTRA_CA_CERTS = caPath;
@@ -30,8 +39,8 @@ try {
     // eslint-disable-next-line no-console
     console.log('[httpsAgent] Using custom CA from', caPath);
   } else if (process.env.SP_ALLOW_SELF_SIGNED === 'true') {
-  agent = new https.Agent({ rejectUnauthorized: false });
-  dispatcher = new UndiciAgent({ connect: { rejectUnauthorized: false } });
+    agent = new https.Agent({ rejectUnauthorized: false });
+    dispatcher = new UndiciAgent({ connect: { rejectUnauthorized: false } });
     // eslint-disable-next-line no-console
     console.warn('[httpsAgent] SP_ALLOW_SELF_SIGNED=true -> TLS certificate verification DISABLED. Do not use in production.');
   } else {

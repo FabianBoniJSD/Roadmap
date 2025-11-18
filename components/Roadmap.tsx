@@ -147,7 +147,8 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       end: monthRange.end,
       running: onlyRunning,
       // Omit cats from URL when selection equals default (all named +/- uncategorized)
-      cats: (isDefaultCats || isAllNamedOnly || activeCategories.length === 0) ? [] : [...activeCategories],
+      // Also omit if only uncategorized is selected (likely means no real categories exist yet)
+      cats: (isDefaultCats || isAllNamedOnly || activeCategories.length === 0 || (activeCategories.length === 1 && activeCategories[0] === UNCATEGORIZED_ID)) ? [] : [...activeCategories],
       view: viewMode,
     };
 
