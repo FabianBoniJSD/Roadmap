@@ -7,7 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "ntlm:diag": "node scripts/checkNtlm.mjs"
+    "lint:fix": "next lint --fix",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md,mjs}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md,mjs}\"",
+    "security:audit": "npm audit --audit-level=moderate",
+    "ntlm:diag": "node scripts/checkNtlm.mjs",
+    "pre-commit": "lint-staged"
   },
   "dependencies": {
     "@fluentui/react": "^8.121.2",
@@ -35,8 +40,21 @@
     "autoprefixer": "10.4.19",
     "eslint": "8.57.1",
     "eslint-config-next": "15.5.4",
+    "eslint-config-prettier": "^9.1.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
     "postcss": "8.4.38",
+    "prettier": "^3.4.2",
     "tailwindcss": "3.4.9",
     "typescript": "5.9.2"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
   }
 }

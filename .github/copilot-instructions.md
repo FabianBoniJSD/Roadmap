@@ -1,69 +1,290 @@
-## AI Assistant Project Guide
+# GitHub Copilot Instructions
 
-Purpose: Enable immediate productive contributions to this SharePoint‑backed Next.js 14 (pages router) roadmap application. Focus on real patterns present in the code; do not invent abstractions.
+**Project**: SharePoint-backed Next.js 14 (pages router) roadmap application  
+**Goal**: Enable immediate, productive contributions without inventing abstractions
 
-### Architecture & Data Flow
-* SharePoint is the system of record. Two parallel access layers exist:
-  * `utils/clientDataService.ts`: Resilient fetch-based proxy through Next API route `/api/sharepoint` (handles legacy farms, multiple OData modes, Atom XML fallback, dynamic field probing, alternate list title resolution, runtime field capability detection, category field heuristics, and multi-step fallbacks). Prefer this for API routes that must run both server and (potentially) during SSR.
-  * `utils/dataService.ts`: PnP JS (`@pnp/sp`) server-side wrapper (simpler, assumes modern REST behavior). Avoid adding complex fallback logic here; keep parity only for operations already implemented.
-* API layer (under `pages/api/**`) mostly calls `clientDataService` now (e.g. `pages/api/projects/index.ts` GET). When adding endpoints, follow that pattern unless a PnP bulk operation is clearly simpler.
-* **Lists**: Active lists are:
-  * `RoadmapProjects` / `Roadmap Projects`
-  * `RoadmapCategories` / `Roadmap Categories`
-  * `RoadmapSettings` / `Roadmap Settings`
-  * `RoadmapTeamMembers` / `Roadmap Team Members`
-  * `RoadmapProjectLinks` / `Roadmap Project Links`
-* List title resolution: Canonical names sometimes contain spaces (PnP side, see `spConfig.ts` `SP_LISTS`), while client fetch layer uses condensed variants without spaces (e.g. `RoadmapProjects`). Always verify or resolve via `clientDataService.resolveListTitle` if uncertain.
-* Project enrichment: After base project fetch, links (`RoadmapProjectLinks`) and team members (`RoadmapTeamMembers`) are joined client-side (see aggregation near end of `getAllProjects`). Maintain this pattern; avoid N+1 roundtrips.
+## Architecture Overview
 
-### Resilience & Fallback Patterns
-* Always request `Accept: application/json;odata=nometadata` first; on 400 / InvalidClientQuery retry with `odata=verbose`; finally, if still failing for list item collections, try `application/atom+xml` and parse (see `fetchFromSharePoint`).
-* Dynamic field probing (projects): On select failure, probe each field individually, cache valid set (`_validProjectFields`) and reuse; keep new fields appended to `candidateFields` list only.
-* Category normalization: Treat numeric-like strings with decimals ("7.0") as integers; trim whitespace (`pages/api/projects/index.ts` + within `clientDataService`). Preserve this logic for any new derived fields.
-* Alternate category field detection: If all Category values empty, fetch field metadata and look for internal names / titles matching `/kategor|categor/i` and backfill `Category` (see probe block). Reuse that utility flow if creating similar heuristics for other fields.
+### Data Layer Strategy
 
-### Auth & Security
-* Authentication via SharePoint's built-in authentication (Kerberos/NTLM/FBA). Legacy custom HMAC token system kept for backward compatibility but deprecated.
-* **Admin checks**: Use `clientDataService.isCurrentUserAdmin()` which checks:
-  1. SharePoint Site Collection Admin status (`IsSiteAdmin` property)
-  2. Membership in the site's Associated Owners Group
-  3. Fallback: Heuristic check for groups with "Owner" or "Besitzer" in the title
-* Do not duplicate role logic—always use the centralized `isCurrentUserAdmin()` method.
-* Kerberos vs NTLM: Mode controlled via env (`SP_STRATEGY`, `NEXT_PUBLIC_SP_AUTH_MODE`). In Kerberos mode, server does NOT inject `Authorization` headers; rely on browser negotiation (see README Kerberos section). Any new proxy code must respect `x-sp-auth-mode` header patterns.
+Two parallel SharePoint access layers with distinct purposes:
 
-### Environment & Config
-* Scripts: `npm run dev`, `build`, `start`, `lint`, plus `ntlm:diag` (diagnostic script for NTLM). Reference these directly in automation examples.
-* SharePoint site selection via `NEXT_PUBLIC_DEPLOYMENT_ENV` and site URL env vars in `spConfig.ts`. Never hardcode full SharePoint URLs—use helpers (`resolveSharePointSiteUrl`, `getSP`, or `clientDataService.getWebUrl()` mechanics).
-* Internal API base for server contexts: `INTERNAL_API_BASE_URL` used in API fallbacks to craft absolute URLs when no host headers (see projects endpoint fallback block). Preserve trailing slash removal and proto inference logic.
+1. **`utils/clientDataService.ts`** (Primary for new features)
 
-### Conventions & Data Normalization
-* Project quarter to date derivation: Always derive ISO dates if missing via the standard Q1–Q4 map (copy existing `derive` function—do not introduce new variations).
-* Multi-valued textual custom fields (`ProjectFields`): Accept string, array, newline, semicolon, or comma separated; normalize to string array (see both services). Maintain identical parsing rules.
-* Status normalization: Convert to lower-case canonical set (planned, in-progress, completed, paused, cancelled) using substring checks (see `dataService.statusMap`). Reuse function; do not re-implement ad hoc.
-* Do not assume presence of modern fields—legacy farms may omit newer columns; keep optional chaining and defensive defaulting (empty string, 0, or arrays) consistent.
+   - Resilient fetch-based proxy via `/api/sharepoint` route
+   - Handles legacy SharePoint farms: multiple OData modes, Atom XML fallback
+   - Dynamic field probing, alternate list title resolution, field capability detection
+   - **Use for**: All API routes, SSR contexts, anything that needs cross-version compatibility
 
-### Adding / Modifying API Routes
-* Pattern: Validate method, wrap logic in try/catch, add diagnostic headers where helpful (e.g., counts in `projects` GET). Keep responses pure JSON; never leak internal errors beyond generic message.
-* For writes: Use `clientDataService` methods where they already exist; otherwise extend it with OData POST logic including request digest retrieval (`getRequestDigest`). Avoid mixing PnP and raw fetch for the same entity in one endpoint.
+2. **`utils/dataService.ts`** (Legacy PnP JS)
+   - Server-side `@pnp/sp` wrapper assuming modern REST
+   - **Use for**: Simple CRUD where PnP already works; avoid adding new fallback logic
 
-### Performance & Caching
-* In-memory runtime caches only (list title, metadata type, request digest with expiration, field name sets). Do not introduce persistent layer unless requirement changes.
-* Batch additional related lookups only if they reduce extra sequential network calls; maintain parallel `Promise.all` patterns already used.
+**Default pattern**: API routes (`pages/api/**`) → `clientDataService` (see `pages/api/projects/index.ts`)
 
-### When to Touch Which Layer
-* Add resilience / cross-version compatibility logic -> `clientDataService`.
-* Simple CRUD where PnP already robust -> `dataService`.
-* UI-specific formatting or grouping -> React components (`components/**`) not data layer.
+### SharePoint Lists
 
-### Examples
-* Fetch projects (server/API): `const projects = await clientDataService.getAllProjects();`
-* Resolve list title variant: `await clientDataService['resolveListTitle']('RoadmapProjects',['Roadmap Projects']);`
-* Add new selectable field: append to `candidateFields` array; rely on probing to validate.
+Active lists (note dual naming - spaces vs no-spaces):
 
-### PR / Change Guidance for AI
-* Keep patches minimal; do not reformat large files.
-* Reuse existing helper functions; avoid code duplication.
-* Preserve fallbacks and header behaviors; never remove an existing retry path unless replacing with equivalent logic.
-* Include environment variable references instead of literals for host/site values.
+- `RoadmapProjects` / `Roadmap Projects` - Core project data
+- `RoadmapCategories` / `Roadmap Categories` - Project categories
+- `RoadmapSettings` / `Roadmap Settings` - App configuration
+- `RoadmapTeamMembers` / `Roadmap Team Members` - Joined to projects
+- `RoadmapProjectLinks` / `Roadmap Project Links` - Joined to projects
 
-Request clarification from maintainers if a needed pattern (tests, logging standard, error taxonomy) is absent—do not invent one silently.
+**Resolution**: Use `clientDataService.resolveListTitle(preferred, [variants])` to handle naming inconsistencies
+
+### Data Flow Pattern
+
+Projects are enriched client-side after base fetch:
+
+```typescript
+// 1. Fetch base projects
+// 2. Fetch related lists in parallel (links, team members)
+// 3. Join via ProjectId lookup (see getAllProjects implementation)
+```
+
+**Keep this pattern**—avoid N+1 queries
+
+## Critical Resilience Patterns
+
+### OData Fallback Cascade
+
+All SharePoint requests follow this sequence (in `clientDataService.fetchFromSharePoint`):
+
+1. Try `Accept: application/json;odata=nometadata`
+2. On 400/InvalidClientQuery → retry with `odata=verbose`
+3. On failure for item collections → try `application/atom+xml` and parse XML
+4. Cache valid approach per request pattern
+
+### Field Probing
+
+When $select fails, individually probe each field, cache valid set (`_validProjectFields`), reuse cached set. Add new fields to `candidateFields` array only—probing validates automatically.
+
+### Category Normalization
+
+```typescript
+// Trim whitespace, collapse numeric decimals ("7.0" → "7")
+const normalized = /^\d+\.0$/.test(trimmed) ? String(parseInt(trimmed, 10)) : trimmed;
+```
+
+Present in both `pages/api/projects/index.ts` and `clientDataService`. Preserve for all derived fields.
+
+## Authentication & Authorization
+
+### Auth Modes
+
+Controlled via `SP_STRATEGY` / `NEXT_PUBLIC_SP_AUTH_MODE` env vars:
+
+- **`kerberos`**: Browser SPNEGO negotiation (no server-side auth headers)
+- **`onprem`**: NTLM (server constructs auth headers)
+- **`fba`**: Forms-based auth
+
+**Kerberos specifics**: Server does NOT inject `Authorization` headers. Proxy route (`pages/api/sharepoint/[...sp].ts`) sets `x-sp-auth-mode: kerberos` diagnostic header. Browser performs ticket negotiation.
+
+### Admin Access (Post-Migration)
+
+**Never create custom admin logic**—use centralized check:
+
+```typescript
+const isAdmin = await clientDataService.isCurrentUserAdmin();
+```
+
+Checks in order:
+
+1. Site Collection Admin (`IsSiteAdmin` property)
+2. Associated Owners Group membership
+3. Heuristic: Groups with "Owner"/"Besitzer" in title
+
+**Deprecated**: `RoadmapUsers` list, `authenticateUser()`, `authenticateWithSharePoint()` (see `docs/ADMIN_AUTH_CHANGES.md`)
+
+## Environment & Configuration
+
+### Key Scripts
+
+- `npm run dev` - Development server
+- `npm run build` - Production build
+- `npm run start` - Production server
+- `npm run lint` - ESLint
+- `npm run ntlm:diag` - NTLM diagnostic script
+
+### Environment Variables
+
+- `NEXT_PUBLIC_DEPLOYMENT_ENV` - Controls site selection (dev/production)
+- `NEXT_PUBLIC_SHAREPOINT_SITE_URL_DEV/PROD` - Site URLs (in `spConfig.ts`)
+- `INTERNAL_API_BASE_URL` - Server-side API base for absolute URL construction
+- `SP_STRATEGY` / `NEXT_PUBLIC_SP_AUTH_MODE` - Authentication mode
+
+**Never hardcode SharePoint URLs**—use `resolveSharePointSiteUrl()`, `getSP()`, or `clientDataService.getWebUrl()`
+
+### Deployment
+
+- **Platform**: Self-hosted Windows runner (GitHub Actions `.github/workflows/deploy.yml`)
+- **Process Manager**: PM2 (`ecosystem.config.js`)
+- **Port**: 3000
+- **Build**: `next build` produces `.next` directory
+- **basePath**: Controlled by `NEXT_PUBLIC_BASE_PATH_PROD/DEV` in `next.config.mjs`
+
+## Data Conventions
+
+### Quarter to Date Derivation
+
+When `startDate`/`endDate` missing, derive from quarters using **this exact logic** (do not invent variations):
+
+```typescript
+const derive = (q: string, end = false): string => {
+  const year = new Date().getFullYear();
+  switch (q) {
+    case 'Q1':
+      return end
+        ? new Date(Date.UTC(year, 2, 31, 23, 59, 59)).toISOString()
+        : new Date(Date.UTC(year, 0, 1)).toISOString();
+    case 'Q2':
+      return end
+        ? new Date(Date.UTC(year, 5, 30, 23, 59, 59)).toISOString()
+        : new Date(Date.UTC(year, 3, 1)).toISOString();
+    case 'Q3':
+      return end
+        ? new Date(Date.UTC(year, 8, 30, 23, 59, 59)).toISOString()
+        : new Date(Date.UTC(year, 6, 1)).toISOString();
+    case 'Q4':
+      return end
+        ? new Date(Date.UTC(year, 11, 31, 23, 59, 59)).toISOString()
+        : new Date(Date.UTC(year, 9, 1)).toISOString();
+    default:
+      return new Date(Date.UTC(year, 0, 1)).toISOString();
+  }
+};
+```
+
+Present in both `dataService.ts` and should be in `clientDataService.ts`
+
+### Multi-Valued Fields (`ProjectFields`)
+
+Accept: string, array, newline-separated, semicolon-separated, comma-separated  
+Normalize to: `string[]`
+
+```typescript
+// Keep parsing logic identical across both services
+if (typeof rawPF === 'string') {
+  if (rawPF.includes('\n'))
+    fields = rawPF
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  else if (rawPF.includes(';') || rawPF.includes(','))
+    fields = rawPF
+      .split(/[;,]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  else fields = [rawPF.trim()];
+}
+```
+
+### Status Normalization
+
+Convert to lowercase canonical set using substring checks (see `dataService.ts` `statusMap`):
+
+- `planned`, `in-progress`, `completed`, `paused`, `cancelled`
+- **Reuse existing function**—do not re-implement
+
+### Legacy Field Tolerance
+
+Legacy SharePoint farms may lack modern columns. Always:
+
+- Use optional chaining: `item.Field?.NestedField`
+- Provide defensive defaults: `|| ''`, `|| 0`, `|| []`
+- Never assume field presence
+
+## API Route Patterns
+
+### Standard Structure
+
+```typescript
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  disableCache(); // Always disable cache for dynamic data
+  if (req.method === 'GET') {
+    try {
+      const data = await clientDataService.someMethod();
+      res.setHeader('x-diagnostic-count', String(data.length)); // Helpful diagnostics
+      res.status(200).json(data);
+    } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'Generic message' }); // Never leak internals
+    }
+  }
+  // POST/PUT/DELETE follow same pattern with admin check
+  else if (req.method === 'POST') {
+    if (!(await clientDataService.isCurrentUserAdmin())) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    // ... write logic
+  } else {
+    res.setHeader('Allow', ['GET', 'POST']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
+  }
+}
+```
+
+### Caching Strategy
+
+- **In-memory only**: List titles, field metadata, request digest (with expiration)
+- **No persistent layer** unless requirements change
+- Use `Promise.all` for parallel fetches to reduce latency
+
+## Component Patterns
+
+### Admin HOC
+
+Wrap admin pages with `withAdminAuth` HOC (`components/withAdminAuth.tsx`):
+
+```typescript
+export default withAdminAuth(AdminComponent);
+```
+
+Handles redirect to `/admin/login` if unauthorized
+
+### UI Conventions
+
+- React components in `components/**` - no data layer logic here
+- Types in `types/index.ts` - keep synchronized with both data services
+- Styling: Tailwind CSS classes
+
+## Change Guidelines
+
+### When Modifying Code
+
+- **Minimal patches**: Do not reformat large files
+- **Reuse helpers**: Avoid duplication (especially auth, normalization, derive functions)
+- **Preserve fallbacks**: Never remove retry paths unless replacing with equivalent
+- **Use env vars**: No hardcoded URLs/credentials
+- **Parallel operations**: Batch independent operations with `Promise.all`
+
+### When Adding Features
+
+- API routes → `clientDataService` (unless simple PnP bulk op)
+- New fields → append to `candidateFields`, rely on probing
+- New SharePoint lists → add to both `clientDataService.SP_LISTS` and `pages/api/sharepoint/[...sp].ts` ALLOWED_LISTS
+
+### What NOT to Do
+
+- Invent new quarter derivation logic
+- Duplicate admin check logic
+- Mix PnP and fetch for same entity in one endpoint
+- Add UI logic to data services
+- Remove existing fallback/retry mechanisms
+- Create new persistent caching without discussion
+
+## Quick Reference
+
+| Task                | File/Pattern                                         |
+| ------------------- | ---------------------------------------------------- |
+| Fetch projects      | `clientDataService.getAllProjects()`                 |
+| Admin check         | `clientDataService.isCurrentUserAdmin()`             |
+| Add new field       | Append to `candidateFields` array                    |
+| Normalize category  | Trim + collapse "X.0" → "X"                          |
+| Auth mode           | Check `getAuthMode()` in `utils/authMode.ts`         |
+| Derive quarter date | Copy `derive()` from `dataService.ts`                |
+| Resolve list title  | `clientDataService.resolveListTitle(name, variants)` |
+
+**Missing pattern?** Request clarification from maintainers—do not invent silently.

@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run lint-staged (blocking) - handles ESLint auto-fix, unused imports cleanup, and Prettier formatting
+echo "🧹 Running lint-staged (ESLint fix + Prettier)..."
+npx lint-staged
+
+# Run security audit (non-blocking warning)
+echo "🔒 Running security audit..."
+npm audit --audit-level=moderate || echo "⚠️  Security vulnerabilities found - please review with 'npm audit'."
