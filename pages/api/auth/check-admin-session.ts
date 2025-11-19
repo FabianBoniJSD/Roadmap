@@ -6,42 +6,45 @@ const JWT_SECRET = process.env.JWT_SECRET || 'roadmap-secret-change-in-productio
 /**
  * Check if the current session has a valid JWT token
  */
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ isAdmin: false, error: 'No token provided' });
     }
 
     const token = authHeader.substring(7);
-    
+
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
-      
-      return res.status(200).json({ 
+      const decoded = jwt.verify(token, JWT_SECRET) as {
+        isAdmin?: boolean;
+        displayName?: string;
+        username?: string;
+      };
+
+      return res.status(200).json({
         isAdmin: decoded.isAdmin || false,
-        username: decoded.displayName || decoded.username
+        username: decoded.displayName || decoded.username,
       });
-    } catch (jwtError: any) {
-      console.error('[check-admin-session] JWT verification failed:', jwtError.message);
-      return res.status(401).json({ 
-        isAdmin: false, 
-        error: 'Invalid or expired token' 
+    } catch (jwtError) {
+      const errorMessage = jwtError instanceof Error ? jwtError.message : 'Unknown error';
+      console.error('[check-admin-session] JWT verification failed:', errorMessage);
+      return res.status(401).json({
+        isAdmin: false,
+        error: 'Invalid or expired token',
       });
     }
-  } catch (error: any) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     console.error('[check-admin-session] Error:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       isAdmin: false,
-      error: error.message || 'Internal server error' 
+      error: errorMessage,
     });
   }
 }
