@@ -105,8 +105,22 @@ Checks in order:
 - `npm run dev` - Development server
 - `npm run build` - Production build
 - `npm run start` - Production server
-- `npm run lint` - ESLint
+- `npm run lint` - ESLint check
+- `npm run lint:fix` - ESLint auto-fix
+- `npm run format` - Format all files with Prettier
+- `npm run format:check` - Check formatting without changes
+- `npm run security:audit` - Run npm security audit
 - `npm run ntlm:diag` - NTLM diagnostic script
+- `npm run pre-commit` - Run lint-staged (executed automatically via Husky)
+
+### Pre-Commit Hooks
+
+Git hooks via Husky in `.husky/pre-commit`:
+
+1. **lint-staged** - Auto-fixes ESLint, removes unused imports, formats with Prettier
+2. **Security audit** - Non-blocking vulnerability warnings
+
+Configured via `lint-staged` in `package.json`, formatting rules in `.prettierrc`.
 
 ### Environment Variables
 
@@ -254,11 +268,12 @@ Handles redirect to `/admin/login` if unauthorized
 
 ### When Modifying Code
 
-- **Minimal patches**: Do not reformat large files
+- **Minimal patches**: Do not reformat large files (pre-commit hooks handle formatting)
 - **Reuse helpers**: Avoid duplication (especially auth, normalization, derive functions)
 - **Preserve fallbacks**: Never remove retry paths unless replacing with equivalent
 - **Use env vars**: No hardcoded URLs/credentials
 - **Parallel operations**: Batch independent operations with `Promise.all`
+- **Security**: Use `@xmldom/xmldom` (not deprecated `xmldom`), keep dependencies updated
 
 ### When Adding Features
 
