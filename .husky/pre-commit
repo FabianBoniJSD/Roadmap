@@ -3,7 +3,9 @@
 
 # Run lint-staged (blocking) - handles ESLint auto-fix, unused imports cleanup, and Prettier formatting
 echo "🧹 Running lint-staged (ESLint fix + Prettier)..."
-npx lint-staged
+
+# Windows compatibility: Use npm run instead of npx
+npm run pre-commit
 
 # Run security audit (non-blocking warning)
 echo "🔒 Running security audit..."
