@@ -4,76 +4,40 @@ import { useRouter } from 'next/router';
 const AdminLogin: React.FC = () => {
   const router = useRouter();
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [authWindow, setAuthWindow] = useState<Window | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('Überprüfe Admin-Berechtigung...');
   const returnUrl = router.query.returnUrl as string || '/admin';
 
-  // Check if already authenticated
+  // Check service account admin access directly
   useEffect(() => {
-    const storedToken = sessionStorage.getItem('adminToken');
-    if (storedToken) {
-      router.push(returnUrl);
-    }
+    checkAdminAccess();
   }, [router, returnUrl]);
 
-  // Listen for auth success from popup
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+  async function checkAdminAccess() {
+    try {
+      setStatus('Prüfe Service Account Berechtigung...');
       
-      if (event.data.type === 'AUTH_SUCCESS' && event.data.token) {
-        console.log('Auth success received from popup');
-        sessionStorage.setItem('adminToken', event.data.token);
-        sessionStorage.setItem('adminUsername', event.data.username);
-        setLoading(false);
-        router.push(returnUrl);
-      } else if (event.data.type === 'AUTH_ERROR') {
-        console.error('Auth error from popup:', event.data.error);
-        setError(event.data.error || 'Authentifizierung fehlgeschlagen');
+      const response = await fetch('/api/auth/check-admin');
+      const data = await response.json();
+      
+      if (data.isAdmin) {
+        setStatus('✓ Admin-Zugriff gewährt');
+        // Small delay to show success message
+        setTimeout(() => {
+          router.push(returnUrl);
+        }, 500);
+      } else {
+        setError('Service Account hat keine Admin-Berechtigung. Bitte prüfen Sie die SharePoint-Berechtigungen.');
         setLoading(false);
       }
-    };
+    } catch (err) {
+      console.error('Admin check failed:', err);
+      setError('Fehler bei der Admin-Prüfung. Bitte überprüfen Sie die SharePoint-Verbindung.');
+      setLoading(false);
+    }
+  }
 
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [router, returnUrl]);
 
-  // Check if popup was closed without completing auth
-  useEffect(() => {
-    if (!authWindow) return;
-    
-    const checkClosed = setInterval(() => {
-      if (authWindow.closed) {
-        console.log('Auth window was closed');
-        setLoading(false);
-        setAuthWindow(null);
-        if (!sessionStorage.getItem('adminToken')) {
-          setError('Anmeldung wurde abgebrochen');
-        }
-      }
-    }, 500);
-
-    return () => clearInterval(checkClosed);
-  }, [authWindow]);
-
-  const handleLogin = () => {
-    setError('');
-    setLoading(true);
-
-    // Open popup to SharePoint auth endpoint
-    const width = 600;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    
-    const popup = window.open(
-      '/api/auth/login-popup',
-      'SharePointAuth',
-      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
-    );
-    
-    setAuthWindow(popup);
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4">
@@ -96,34 +60,43 @@ const AdminLogin: React.FC = () => {
             )}
 
             <div className="text-center">
-              <p className="text-gray-700 mb-6">
-                Melden Sie sich mit Ihren Windows-Zugangsdaten an.
-              </p>
-              
               {loading ? (
-                <div className="flex flex-col items-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-                  <p className="text-gray-600">Warte auf Authentifizierung...</p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Bitte schließen Sie das Popup-Fenster nicht.
+                <div className="space-y-4">
+                  <div className="flex justify-center">
+                    <svg className="animate-spin h-12 w-12 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                  <p className="text-gray-700 text-lg font-medium">{status}</p>
+                  <p className="text-gray-500 text-sm">
+                    Service Account wird geprüft...
                   </p>
                 </div>
               ) : (
-                <button
-                  onClick={handleLogin}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition"
-                >
-                  Mit Windows anmelden
-                </button>
+                <div className="space-y-4">
+                  <p className="text-gray-700">
+                    Der Service Account hat keine Admin-Berechtigung.
+                  </p>
+                  <button
+                    onClick={() => checkAdminAccess()}
+                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition font-medium"
+                  >
+                    🔄 Erneut prüfen
+                  </button>
+                </div>
               )}
             </div>
 
             <div className="mt-6 text-center border-t pt-6">
               <p className="text-sm text-gray-600 mb-2">
-                Sie müssen Mitglied der SharePoint-Gruppe <strong>Roadmapadmin</strong> oder <strong>roadadmin</strong> sein.
+                <strong>Service Account Authentifizierung</strong>
               </p>
               <p className="text-xs text-gray-500">
-                Die Anmeldung erfolgt über Ihre Windows-Domain-Zugangsdaten (BS\benutzername).
+                Der Service Account muss <strong>Site Collection Admin</strong> oder Mitglied der <strong>Owners Group</strong> sein.
+              </p>
+              <p className="text-xs text-gray-400 mt-2">
+                Zugangsdaten werden über Environment Variables (SP_USERNAME, SP_PASSWORD) verwaltet.
               </p>
             </div>
           </div>

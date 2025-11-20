@@ -15,15 +15,16 @@ export default function withAdminAuth<P extends object>(
     useEffect(() => {
       const checkAuth = async () => {
         try {
-          // Verify with server using stored credentials
+          // Check service account admin access directly
           const hasAccess = await hasAdminAccess();
-          if (dbg()) console.log('[withAdminAuth] verified hasAdminAccess =', hasAccess);
+          if (dbg()) console.log('[withAdminAuth] Service account admin check =', hasAccess);
           
           if (!hasAccess) {
-            if (dbg()) console.log('[withAdminAuth] no admin access, redirecting to login');
-            // Redirect to login page, store return URL
-            const returnUrl = encodeURIComponent(router.asPath);
-            router.push(`/admin/login?returnUrl=${returnUrl}`);
+            if (dbg()) console.log('[withAdminAuth] Service account has no admin access');
+            // Show error page instead of redirect (no user login possible)
+            setIsLoading(false);
+            // Could redirect to an error page or show inline error
+            router.push('/admin/login?returnUrl=' + encodeURIComponent(router.asPath));
             return;
           }
           
@@ -31,7 +32,7 @@ export default function withAdminAuth<P extends object>(
         } catch (error) {
           console.error('Auth check error:', error);
           if (dbg()) console.log('[withAdminAuth] exception during auth check');
-          router.push('/admin/login');
+          setIsLoading(false);
         }
       };
       

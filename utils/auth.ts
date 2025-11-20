@@ -23,44 +23,31 @@ function log(...args: any[]) {
   }
 }
 
-// Check if the user has admin access
+// Check if the service account has admin access
 export async function hasAdminAccess(): Promise<boolean> {
   try {
-    log('hasAdminAccess: start');
+    log('hasAdminAccess: Checking service account admin rights');
     
     if (typeof window === 'undefined') {
       log('hasAdminAccess: server-side, returning false');
       return false;
     }
     
-    // Check if user has a valid JWT token
-    const storedToken = sessionStorage.getItem('adminToken');
-    if (storedToken) {
-      log('hasAdminAccess: User has stored token, verifying session...');
-      try {
-        const response = await fetch('/api/auth/check-admin-session', {
-          headers: {
-            'Authorization': `Bearer ${storedToken}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          log(`hasAdminAccess: Token valid, isAdmin = ${data.isAdmin}`);
-          return data.isAdmin;
-        } else {
-          // Token expired or invalid, clear it
-          log('hasAdminAccess: Token invalid, clearing session');
-          sessionStorage.removeItem('adminToken');
-          sessionStorage.removeItem('adminUsername');
-        }
-      } catch (error) {
-        log('hasAdminAccess: Error checking session:', error);
+    // Direct check via service account (no user session needed)
+    try {
+      const response = await fetch('/api/auth/check-admin');
+      if (response.ok) {
+        const data = await response.json();
+        log(`hasAdminAccess: Service account isAdmin = ${data.isAdmin}`);
+        return data.isAdmin;
+      } else {
+        log('hasAdminAccess: Admin check failed with status', response.status);
+        return false;
       }
+    } catch (error) {
+      log('hasAdminAccess: Error checking admin status:', error);
+      return false;
     }
-    
-    // No valid session, user needs to log in
-    log('hasAdminAccess: No valid session found');
-    return false;
   } catch (error) {
     console.error('Admin check failed:', error);
     return false;
@@ -68,22 +55,21 @@ export async function hasAdminAccess(): Promise<boolean> {
 }
 
 /**
- * Logout and clear admin session
+ * Logout (no-op for service account based auth)
+ * Kept for backwards compatibility
  */
 export function logout(): void {
+  log('logout: Service account auth - no session to clear');
+  // Redirect to home page
   if (typeof window !== 'undefined') {
-    sessionStorage.removeItem('adminToken');
-    sessionStorage.removeItem('adminUsername');
-    log('logout: Session cleared');
+    window.location.href = '/';
   }
 }
 
 /**
- * Get current admin username from session
+ * Get current admin username (returns service account info)
  */
 export function getAdminUsername(): string | null {
-  if (typeof window !== 'undefined') {
-    return sessionStorage.getItem('adminUsername');
-  }
-  return null;
+  // Return service account identifier
+  return 'Service Account';
 }

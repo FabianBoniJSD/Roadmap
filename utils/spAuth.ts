@@ -10,6 +10,7 @@ const net = require('net');
 import { fbaLogin } from './fbaAuth';
 import os from 'os';
 import { resolveSharePointSiteUrl } from './sharepointEnv';
+import { getPrimaryCredentials } from './userCredentials';
 import { sharePointHttpsAgent } from './httpsAgent';
 import fs from 'fs';
 import path from 'path';
@@ -54,11 +55,13 @@ export async function getSharePointAuthHeaders(): Promise<Record<string,string>>
     return cachedAuth.headers;
   }
 
-  const usernameEnv = process.env.SP_USERNAME || '';
-  const passwordEnv = process.env.SP_PASSWORD || '';
-  if (!usernameEnv || !passwordEnv) {
-    throw new Error('SP_USERNAME / SP_PASSWORD not set');
+  // Get credentials from GitHub Secrets (USER_*) or fallback to SP_USERNAME/SP_PASSWORD
+  const credentials = getPrimaryCredentials();
+  if (!credentials) {
+    throw new Error('No credentials found. Set USER_* GitHub Secrets or SP_USERNAME/SP_PASSWORD');
   }
+  const usernameEnv = credentials.username;
+  const passwordEnv = credentials.password;
   const domainEnv = process.env.SP_ONPREM_DOMAIN || '';
   const workstationEnv = process.env.SP_ONPREM_WORKSTATION || undefined;
 

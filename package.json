@@ -12,7 +12,11 @@
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md,mjs}\"",
     "security:audit": "npm audit --audit-level=moderate",
     "ntlm:diag": "node scripts/checkNtlm.mjs",
-    "pre-commit": "lint-staged"
+    "pre-commit": "lint-staged",
+    "secrets:generate-key": "node scripts/encrypt-secrets.mjs generate-key",
+    "secrets:encrypt": "node scripts/encrypt-secrets.mjs encrypt",
+    "secrets:decrypt": "node scripts/encrypt-secrets.mjs decrypt",
+    "secrets:verify": "node scripts/encrypt-secrets.mjs verify"
   },
   "dependencies": {
     "@fluentui/react": "^8.121.2",

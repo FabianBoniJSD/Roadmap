@@ -1,17 +1,41 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+## 🚀 Quick Start
 
-First, run the development server:
+### 1. Configure Credentials (Required!)
+
+**First time setup?** Follow the [Quick Start Guide for Secrets](./QUICKSTART_SECRETS.md) to securely configure your SharePoint credentials.
+
+**TL;DR**:
+```bash
+# Development: Copy and fill in your credentials
+cp .env.example .env.local
+
+# Production: Encrypt your secrets
+npm run secrets:generate-key  # Generate master key (save it!)
+# Set SECRETS_MASTER_KEY environment variable
+npm run secrets:encrypt       # Encrypt .env.local → .env.vault.json
+```
+
+📖 **Detailed guides**:
+- [Quick Start (5 minutes)](./QUICKSTART_SECRETS.md)
+- [Complete Security Guide](./README_SECRETS.md)
+- [All Environment Variables](./.env.example)
+
+⚠️ **Admin Authentication**: This application uses **Service Account authentication** (no user login). 
+
+**🆕 Multi-User Support via GitHub Secrets**:
+- Configure multiple users via `USER_<name>` secrets (e.g., `USER_FABIAN`, `USER_STEFAN`)
+- All configured users automatically have admin rights
+- See [Multi-User GitHub Secrets Guide](./docs/MULTI_USER_GITHUB_SECRETS.md) for setup
+
+**Fallback**: Single service account via `SP_USERNAME`/`SP_PASSWORD` - See [Service Account Auth Docs](./docs/AUTH_MODE_SERVICE_ACCOUNT.md)
+
+### 2. Install Dependencies & Run
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.

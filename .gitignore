@@ -30,8 +30,15 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Environment files - NEVER commit sensitive credentials!
+.env
+.env*.local
+.env.production
+.env.development
+# Allow committing example and encrypted vault files
+!.env.example
+!.env.vault
+!.env.vault.json
 
 # vercel
 .vercel

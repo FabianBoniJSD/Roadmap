@@ -59,7 +59,7 @@ All SharePoint requests follow this sequence (in `clientDataService.fetchFromSha
 
 ### Field Probing
 
-When $select fails, individually probe each field, cache valid set (`_validProjectFields`), reuse cached set. Add new fields to `candidateFields` array only—probing validates automatically.
+When $select fails, individually probe each field, cache valid set (`_validProjectFields` instance variable), reuse cached set. Add new fields to `candidateFields` array (line ~344 in `clientDataService.ts`) only—probing validates automatically. Never manually update the cache.
 
 ### Category Normalization
 
@@ -216,7 +216,16 @@ Legacy SharePoint farms may lack modern columns. Always:
 
 ```typescript
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  disableCache(); // Always disable cache for dynamic data
+  // Cache disabling helper (define inline or reuse from other routes)
+  const disableCache = () => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+    const maybeRemovable = res as NextApiResponse & { removeHeader?: (name: string) => void };
+    if (typeof maybeRemovable.removeHeader === 'function') maybeRemovable.removeHeader('etag');
+  };
+  
   if (req.method === 'GET') {
     try {
       const data = await clientDataService.someMethod();
@@ -229,6 +238,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   // POST/PUT/DELETE follow same pattern with admin check
   else if (req.method === 'POST') {
+    disableCache();
     if (!(await clientDataService.isCurrentUserAdmin())) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
