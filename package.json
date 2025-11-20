@@ -16,7 +16,11 @@
     "secrets:generate-key": "node scripts/encrypt-secrets.mjs generate-key",
     "secrets:encrypt": "node scripts/encrypt-secrets.mjs encrypt",
     "secrets:decrypt": "node scripts/encrypt-secrets.mjs decrypt",
-    "secrets:verify": "node scripts/encrypt-secrets.mjs verify"
+    "secrets:verify": "node scripts/encrypt-secrets.mjs verify",
+    "pm2:restart": "powershell -ExecutionPolicy Bypass -File scripts/restart-pm2.ps1",
+    "pm2:stop": "pm2 delete roadmap-app",
+    "pm2:logs": "pm2 logs roadmap-app",
+    "pm2:status": "pm2 status"
   },
   "dependencies": {
     "@fluentui/react": "^8.121.2",

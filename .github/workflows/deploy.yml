@@ -80,7 +80,18 @@ jobs:
         run: npm install -g pm2
 
       - name: Stop existing instance (if any)
-        run: pm2 delete roadmap-app
+        run: |
+          pm2 delete roadmap-app 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "No existing roadmap-app process found (this is fine)"
+          }
+          # Kill any process on port 3000 just in case
+          $process = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
+          if ($process) {
+            Write-Output "Killing process $process on port 3000"
+            Stop-Process -Id $process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+          }
         continue-on-error: true
 
       - name: Start app on port 3000 with PM2
@@ -109,8 +120,8 @@ jobs:
 
       - name: Ensure app is online
         run: |
-          $status = pm2 jlist | ConvertFrom-Json | Where-Object { $_.name -eq "roadmap-app" } | Select-Object -First 1
-          if ($status.pm2_env.status -eq "online") {
+          $status = pm2 list | Select-String "roadmap-app" | Select-String "online"
+          if ($status) {
             Write-Output "App is online under PM2."
           } else {
             Write-Error "App not online. Failing the job for visibility."
