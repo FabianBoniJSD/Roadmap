@@ -34,7 +34,7 @@ export function loadEncryptedSecrets(vaultPath?: string): boolean {
     // Decrypt
     const decipher = crypto.createDecipheriv(
       algorithm,
-      Buffer.from(masterKey, 'hex'),
+      Buffer.from(masterKey, 'hex') as any,
       Buffer.from(encryptedData.iv, 'hex')
     );
 

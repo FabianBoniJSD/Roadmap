@@ -8,13 +8,10 @@ const AdminLogin: React.FC = () => {
   const [status, setStatus] = useState('Überprüfe Admin-Berechtigung...');
   const returnUrl = router.query.returnUrl as string || '/admin';
 
-  // Check service account admin access directly
-  useEffect(() => {
-    checkAdminAccess();
-  }, [router, returnUrl]);
-
-  async function checkAdminAccess() {
+  const checkAdminAccess = async () => {
     try {
+      setLoading(true);
+      setError('');
       setStatus('Prüfe Service Account Berechtigung...');
       
       const response = await fetch('/api/auth/check-admin');
@@ -35,7 +32,13 @@ const AdminLogin: React.FC = () => {
       setError('Fehler bei der Admin-Prüfung. Bitte überprüfen Sie die SharePoint-Verbindung.');
       setLoading(false);
     }
-  }
+  };
+
+  // Check service account admin access directly on mount
+  useEffect(() => {
+    checkAdminAccess();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
 
 
