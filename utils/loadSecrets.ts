@@ -35,10 +35,10 @@ export function loadEncryptedSecrets(vaultPath?: string): boolean {
     const decipher = crypto.createDecipheriv(
       algorithm,
       Buffer.from(masterKey, 'hex') as any,
-      Buffer.from(encryptedData.iv, 'hex')
+      Buffer.from(encryptedData.iv, 'hex') as any
     );
 
-    decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex'));
+    decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex') as any);
 
     let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
