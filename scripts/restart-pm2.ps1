@@ -3,21 +3,34 @@
 
 Write-Host "=== Stopping Roadmap App ===" -ForegroundColor Yellow
 
-# Stop PM2 process
+# Stop PM2 process gracefully first
+Write-Host "Stopping PM2 process..." -ForegroundColor Cyan
+pm2 stop roadmap-app 2>$null
+Start-Sleep -Seconds 2
 pm2 delete roadmap-app 2>$null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "No existing PM2 process found" -ForegroundColor Gray
-}
 
 # Kill any process on port 3000
 Write-Host "Checking for processes on port 3000..." -ForegroundColor Cyan
-$process = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
-if ($process) {
-    Write-Host "Killing process $process on port 3000" -ForegroundColor Red
-    Stop-Process -Id $process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
+$connections = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
+if ($connections) {
+    $processes = $connections | Select-Object -ExpandProperty OwningProcess -Unique
+    foreach ($pid in $processes) {
+        Write-Host "Force killing process $pid on port 3000" -ForegroundColor Red
+        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 3
 } else {
     Write-Host "Port 3000 is free" -ForegroundColor Green
+}
+
+# Verify port is actually free
+$check = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
+if ($check) {
+    Write-Host "ERROR: Port 3000 is still in use!" -ForegroundColor Red
+    netstat -ano | Select-String ":3000"
+    exit 1
+} else {
+    Write-Host "Confirmed: Port 3000 is available" -ForegroundColor Green
 }
 
 Write-Host "`n=== Starting Roadmap App ===" -ForegroundColor Yellow

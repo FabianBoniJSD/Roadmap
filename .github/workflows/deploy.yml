@@ -81,18 +81,33 @@ jobs:
 
       - name: Stop existing instance (if any)
         run: |
+          # First try to stop PM2 process gracefully
+          Write-Output "Attempting to stop PM2 process..."
+          pm2 stop roadmap-app 2>$null
+          Start-Sleep -Seconds 2
           pm2 delete roadmap-app 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            Write-Output "No existing roadmap-app process found (this is fine)"
+          
+          # Force kill any remaining process on port 3000
+          Write-Output "Checking for processes on port 3000..."
+          $connections = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
+          if ($connections) {
+            $processes = $connections | Select-Object -ExpandProperty OwningProcess -Unique
+            foreach ($pid in $processes) {
+              Write-Output "Force killing process $pid on port 3000"
+              Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+            }
+            Start-Sleep -Seconds 3
+          } else {
+            Write-Output "Port 3000 is free"
           }
-          # Kill any process on port 3000 just in case
-          $process = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
-          if ($process) {
-            Write-Output "Killing process $process on port 3000"
-            Stop-Process -Id $process -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 2
+          
+          # Verify port is actually free
+          $check = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
+          if ($check) {
+            Write-Error "Port 3000 is still in use after cleanup!"
+            exit 1
           }
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Start app on port 3000 with PM2
         env:
@@ -103,8 +118,10 @@ jobs:
           USER_STEFAN: ${{ secrets.USER_STEFAN }}
           USER_ADMIN: ${{ secrets.USER_ADMIN }}
         run: |
-          # Start using ecosystem config which has all settings
+          Write-Output "Starting roadmap-app with PM2..."
           pm2 start ecosystem.config.js
+          Start-Sleep -Seconds 5
+          Write-Output "Waiting for app to initialize..."
 
       - name: Save PM2 process list
         run: pm2 save
@@ -113,18 +130,42 @@ jobs:
         run: |
           pm2 status
           pm2 describe roadmap-app
-          pm2 logs roadmap-app --lines 200 --nostream
-          Start-Sleep -Seconds 2
-          Write-Output "Checking port 3000..."
+          Write-Output "`nRecent logs:"
+          pm2 logs roadmap-app --lines 100 --nostream
+          Write-Output "`nChecking port 3000..."
           netstat -ano | Select-String ":3000"
 
       - name: Ensure app is online
         run: |
-          $status = pm2 list | Select-String "roadmap-app" | Select-String "online"
-          if ($status) {
-            Write-Output "App is online under PM2."
-          } else {
-            Write-Error "App not online. Failing the job for visibility."
+          Write-Output "Checking if app is online..."
+          
+          # Wait up to 30 seconds for app to be online
+          $maxAttempts = 6
+          $attempt = 0
+          $isOnline = $false
+          
+          while ($attempt -lt $maxAttempts -and -not $isOnline) {
+            $attempt++
+            Write-Output "Health check attempt $attempt/$maxAttempts..."
+            
+            $pmStatus = pm2 list | Out-String
+            if ($pmStatus -match "roadmap-app.*online") {
+              $isOnline = $true
+              Write-Output "✓ App is online under PM2!"
+              break
+            }
+            
+            if ($attempt -lt $maxAttempts) {
+              Write-Output "App not online yet, waiting 5 seconds..."
+              Start-Sleep -Seconds 5
+            }
+          }
+          
+          if (-not $isOnline) {
+            Write-Error "✗ App failed to come online after $maxAttempts attempts"
+            Write-Output "`nFinal PM2 status:"
+            pm2 status
+            Write-Output "`nRecent logs:"
             pm2 logs roadmap-app --lines 200 --nostream
             exit 1
           }
