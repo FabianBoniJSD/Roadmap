@@ -71,6 +71,11 @@ jobs:
           }
           Write-Output "Found .next directory."
 
+      - name: Set PM2 HOME
+        run: |
+          $env:PM2_HOME = "$env:USERPROFILE\.pm2"
+          echo "PM2_HOME=$env:PM2_HOME" >> $env:GITHUB_ENV
+
       - name: Install PM2 (process manager)
         run: npm install -g pm2
 
@@ -81,13 +86,14 @@ jobs:
       - name: Start app on port 3000 with PM2
         env:
           NODE_ENV: production
+          PORT: 3000
           # GitHub Secrets for multi-user authentication
           USER_FABIAN: ${{ secrets.USER_FABIAN }}
           USER_STEFAN: ${{ secrets.USER_STEFAN }}
           USER_ADMIN: ${{ secrets.USER_ADMIN }}
         run: |
-          # Start Next directly via its CLI
-          pm2 start node_modules/next/dist/bin/next --name roadmap-app -- start -p 3000 -H 0.0.0.0 --hostname 0.0.0.0 --port 3000
+          # Start using ecosystem config which has all settings
+          pm2 start ecosystem.config.js
 
       - name: Save PM2 process list
         run: pm2 save
