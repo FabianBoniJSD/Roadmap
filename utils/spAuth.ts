@@ -44,6 +44,34 @@ function debugLog(...args: any[]) {
 }
 
 export async function getSharePointAuthHeaders(): Promise<Record<string,string>> {
+  // node-sp-auth v3.x uses 'got' library which has issues with proxy agents
+  // Temporarily disable proxy env vars for node-sp-auth calls only
+  // The proxy at 127.0.0.1:3128 is local, so direct connections should work
+  const originalHttpProxy = process.env.HTTP_PROXY;
+  const originalHttpsProxy = process.env.HTTPS_PROXY;
+  const originalHttpProxyLower = process.env.http_proxy;
+  const originalHttpsProxyLower = process.env.https_proxy;
+  
+  // Disable proxy temporarily unless SP_AUTH_USE_PROXY is explicitly set
+  if (process.env.SP_AUTH_USE_PROXY !== 'true') {
+    delete process.env.HTTP_PROXY;
+    delete process.env.HTTPS_PROXY;
+    delete process.env.http_proxy;
+    delete process.env.https_proxy;
+  }
+  
+  try {
+    return await getSharePointAuthHeadersInternal();
+  } finally {
+    // Restore proxy settings
+    if (originalHttpProxy !== undefined) process.env.HTTP_PROXY = originalHttpProxy;
+    if (originalHttpsProxy !== undefined) process.env.HTTPS_PROXY = originalHttpsProxy;
+    if (originalHttpProxyLower !== undefined) process.env.http_proxy = originalHttpProxyLower;
+    if (originalHttpsProxyLower !== undefined) process.env.https_proxy = originalHttpsProxyLower;
+  }
+}
+
+async function getSharePointAuthHeadersInternal(): Promise<Record<string,string>> {
   const siteUrl = resolveSharePointSiteUrl();
   const strategy = process.env.SP_STRATEGY || 'online';
   const extraModes = (process.env.SP_AUTH_EXTRA || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
