@@ -1,4 +1,3 @@
-import { getAuth } from 'node-sp-auth';
 // @ts-ignore builtin without types
 const https = require('https');
 // @ts-ignore builtin without types
@@ -20,6 +19,15 @@ declare const require: any;
 declare const Buffer: any;
 // Optional dynamic NTLM helpers (only loaded in diagnostic mode to avoid extra overhead otherwise)
 let ntlmHelpers: any = null;
+let nodeSpAuthModule: Promise<{ getAuth: typeof import('node-sp-auth')['getAuth'] }> | null = null;
+
+async function loadNodeSpAuth() {
+  if (!nodeSpAuthModule) {
+    nodeSpAuthModule = import('node-sp-auth');
+  }
+  const mod = await nodeSpAuthModule;
+  return mod.getAuth;
+}
 
 function loadNtlmHelpers() {
   if (ntlmHelpers) return ntlmHelpers;
@@ -277,7 +285,8 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string,string>
       } else {
         debugLog('node-sp-auth: keeping proxy enabled (SP_NODE_SP_AUTH_NEEDS_PROXY=true)');
       }
-      
+
+      const getAuth = await loadNodeSpAuth();
       for (let i = 0; i < permutations.length; i++) {
         const attemptCreds = permutations[i];
         try {
