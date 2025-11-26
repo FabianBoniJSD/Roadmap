@@ -22,12 +22,20 @@ try {
   const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
   const caPath = resolvePathMaybe(process.env.SP_TRUSTED_CA_PATH);
   
-  if (proxyUrl) {
+  // IMPORTANT: Do NOT create HttpsProxyAgent here - it causes compatibility issues with node-sp-auth
+  // node-sp-auth uses 'got' v9.x internally which expects agents in a different format
+  // Instead, let each library (fetch, got, etc.) handle HTTP_PROXY/HTTPS_PROXY env vars themselves
+  // If you need a custom proxy agent, use SP_CUSTOM_PROXY_AGENT=true to enable
+  if (proxyUrl && process.env.SP_CUSTOM_PROXY_AGENT === 'true') {
     // Use proxy agent (handles Windows auth via CNTLM/Px proxy)
     agent = new HttpsProxyAgent(proxyUrl) as any;
     dispatcher = new UndiciAgent({ connect: { rejectUnauthorized: process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0' } });
     // eslint-disable-next-line no-console
-    console.log('[httpsAgent] Using proxy:', proxyUrl);
+    console.log('[httpsAgent] Using custom proxy agent:', proxyUrl);
+  } else if (proxyUrl) {
+    // Proxy configured but not creating custom agent - let libraries handle it via env vars
+    // eslint-disable-next-line no-console
+    console.log('[httpsAgent] Proxy detected but not creating custom agent (libraries will use HTTP_PROXY env var):', proxyUrl);
   } else if (caPath && fs.existsSync(caPath)) {
     const ca = fs.readFileSync(caPath, 'utf8');
     agent = new https.Agent({ ca });
