@@ -71,71 +71,150 @@ jobs:
           }
           Write-Output "Found .next directory."
 
-      - name: Set PM2 HOME
+      - name: Set PM2 HOME and environment
         run: |
-          $env:PM2_HOME = "$env:USERPROFILE\.pm2"
-          echo "PM2_HOME=$env:PM2_HOME" >> $env:GITHUB_ENV
+          # Use workspace directory for PM2 home to avoid permission issues
+          $pm2Home = "${{ github.workspace }}\.pm2"
+          Write-Output "Setting PM2_HOME to: $pm2Home"
+          
+          # Create directory if it doesn't exist
+          if (-not (Test-Path $pm2Home)) {
+            New-Item -ItemType Directory -Path $pm2Home -Force | Out-Null
+          }
+          
+          # Set for current session and persist to GitHub env
+          $env:PM2_HOME = $pm2Home
+          echo "PM2_HOME=$pm2Home" >> $env:GITHUB_ENV
+          
+          # Also set HOME if not set (PM2 fallback)
+          if (-not $env:HOME) {
+            $env:HOME = $env:USERPROFILE
+            echo "HOME=$env:USERPROFILE" >> $env:GITHUB_ENV
+          }
 
       - name: Install PM2 (process manager)
         run: npm install -g pm2
 
-      - name: Stop existing instance (if any)
+      - name: Stop existing instance and free port 3000
         run: |
-          # First try to stop PM2 process gracefully
-          Write-Output "Attempting to stop PM2 process..."
-          pm2 stop roadmap-app 2>$null
-          Start-Sleep -Seconds 2
-          pm2 delete roadmap-app 2>$null
-          Start-Sleep -Seconds 2
+          Write-Output "=== STOPPING ALL PROCESSES ==="
           
-          # Force kill any remaining process on port 3000 (try multiple times if needed)
-          Write-Output "Checking for processes on port 3000..."
-          $maxKillAttempts = 3
-          for ($i = 1; $i -le $maxKillAttempts; $i++) {
+          # Stop PM2 completely
+          Write-Output "Killing PM2 daemon..."
+          pm2 kill 2>$null
+          Start-Sleep -Seconds 3
+          
+          # Aggressive port cleanup
+          Write-Output "Forcefully freeing port 3000..."
+          $maxAttempts = 5
+          $portFreed = $false
+          
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Output "Port cleanup attempt $attempt/$maxAttempts..."
+            
+            # Get all processes on port 3000
             $connections = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
+            
             if (-not $connections) {
-              Write-Output "Port 3000 is free"
+              Write-Output "✓ Port 3000 is free!"
+              $portFreed = $true
               break
             }
             
-            Write-Output "Kill attempt $i/$maxKillAttempts..."
+            # Kill each process using multiple methods
             $processes = $connections | Select-Object -ExpandProperty OwningProcess -Unique
             foreach ($processId in $processes) {
-              Write-Output "  Force killing process $processId"
+              Write-Output "  Attempting to kill process $processId..."
+              
+              # Get process info
+              try {
+                $proc = Get-Process -Id $processId -ErrorAction SilentlyContinue
+                if ($proc) {
+                  Write-Output "    Process: $($proc.ProcessName) (User: $($proc.UserName))"
+                }
+              } catch {
+                Write-Output "    Could not get process details"
+              }
+              
+              # Method 1: taskkill with force and tree
+              Write-Output "    Try 1: taskkill /F /T"
+              $result = taskkill /F /T /PID $processId 2>&1
+              if ($LASTEXITCODE -eq 0) {
+                Write-Output "    ✓ Killed with taskkill"
+                Start-Sleep -Milliseconds 500
+                continue
+              }
+              
+              # Method 2: PowerShell Stop-Process
+              Write-Output "    Try 2: Stop-Process"
               try {
                 Stop-Process -Id $processId -Force -ErrorAction Stop
+                Write-Output "    ✓ Killed with Stop-Process"
+                Start-Sleep -Milliseconds 500
+                continue
               } catch {
-                Write-Output "  Warning: Failed to kill process $processId - $_"
+                Write-Output "    ✗ Stop-Process failed: $_"
+              }
+              
+              # Method 3: wmic (runs with system privileges)
+              Write-Output "    Try 3: wmic"
+              $wmicResult = wmic process where "ProcessId=$processId" delete 2>&1
+              if ($LASTEXITCODE -eq 0) {
+                Write-Output "    ✓ Killed with wmic"
+                Start-Sleep -Milliseconds 500
+                continue
+              }
+              
+              Write-Output "    ⚠ All kill methods failed for process $processId"
+            }
+            
+            Start-Sleep -Seconds 2
+            
+            # Verify
+            $stillThere = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
+            if (-not $stillThere) {
+              Write-Output "✓ Port 3000 is now free!"
+              $portFreed = $true
+              break
+            }
+          }
+          
+          if (-not $portFreed) {
+            Write-Output "⚠ WARNING: Could not free port 3000"
+            Write-Output "Current port status:"
+            netstat -ano | Select-String ":3000"
+            
+            Write-Output "`nProcess details:"
+            $connections = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
+            if ($connections) {
+              $pids = $connections | Select-Object -ExpandProperty OwningProcess -Unique
+              foreach ($p in $pids) {
+                $proc = Get-Process -Id $p -ErrorAction SilentlyContinue
+                if ($proc) {
+                  Write-Output "  PID $p - $($proc.ProcessName) - Started: $($proc.StartTime)"
+                }
               }
             }
             
-            if ($i -lt $maxKillAttempts) {
-              Start-Sleep -Seconds 5
-            }
+            Write-Output "`nCurrent user: $env:USERNAME"
+            Write-Output "Attempting to start anyway - PM2 might handle it..."
           }
           
-          # Final verification - if still in use, try taskkill
-          $finalCheck = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
-          if ($finalCheck) {
-            Write-Output "Port still in use, trying taskkill..."
-            $processes = $finalCheck | Select-Object -ExpandProperty OwningProcess -Unique
-            foreach ($processId in $processes) {
-              Write-Output "  Using taskkill on process $processId"
-              taskkill /F /PID $processId 2>$null
-            }
-            Start-Sleep -Seconds 3
-          }
-          
-          # Final check
-          $check = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
-          if ($check) {
-            Write-Output "WARNING: Port 3000 is still in use after all attempts"
-            netstat -ano | Select-String ":3000"
-            Write-Output "Continuing anyway - PM2 may be able to restart using a different approach"
-          } else {
-            Write-Output "SUCCESS: Port 3000 is now free"
-          }
+          Write-Output "=== CLEANUP COMPLETE ==="
         continue-on-error: true
+
+      - name: Verify PM2 environment
+        run: |
+          Write-Output "PM2_HOME: $env:PM2_HOME"
+          Write-Output "HOME: $env:HOME"
+          Write-Output "Checking PM2 home directory..."
+          if (Test-Path $env:PM2_HOME) {
+            Write-Output "✓ PM2_HOME exists: $env:PM2_HOME"
+            Get-ChildItem $env:PM2_HOME -ErrorAction SilentlyContinue | Select-Object Name, Length, LastWriteTime
+          } else {
+            Write-Output "Creating PM2_HOME: $env:PM2_HOME"
+            New-Item -ItemType Directory -Path $env:PM2_HOME -Force | Out-Null
+          }
 
       - name: Start app on port 3000 with PM2
         env:
@@ -146,20 +225,17 @@ jobs:
           USER_STEFAN: ${{ secrets.USER_STEFAN }}
           USER_ADMIN: ${{ secrets.USER_ADMIN }}
         run: |
-          Write-Output "Starting roadmap-app with PM2..."
+          Write-Output "=== STARTING APPLICATION ==="
+          Write-Output "PM2_HOME: $env:PM2_HOME"
           
-          # Check if app already exists in PM2
-          $pmList = pm2 list | Out-String
-          if ($pmList -match "roadmap-app") {
-            Write-Output "App exists in PM2, using reload..."
-            pm2 reload ecosystem.config.js --update-env
-          } else {
-            Write-Output "App doesn't exist in PM2, starting fresh..."
-            pm2 start ecosystem.config.js
-          }
+          # Always do fresh start after pm2 kill
+          Write-Output "Starting fresh PM2 instance..."
+          pm2 start ecosystem.config.js
           
-          Start-Sleep -Seconds 5
-          Write-Output "Waiting for app to initialize..."
+          Write-Output "Waiting 10 seconds for app to initialize..."
+          Start-Sleep -Seconds 10
+          
+          Write-Output "=== START COMPLETE ==="
 
       - name: Save PM2 process list
         run: pm2 save
