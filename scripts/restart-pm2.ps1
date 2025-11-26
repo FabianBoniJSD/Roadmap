@@ -14,9 +14,9 @@ Write-Host "Checking for processes on port 3000..." -ForegroundColor Cyan
 $connections = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
 if ($connections) {
     $processes = $connections | Select-Object -ExpandProperty OwningProcess -Unique
-    foreach ($pid in $processes) {
-        Write-Host "Force killing process $pid on port 3000" -ForegroundColor Red
-        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    foreach ($processId in $processes) {
+        Write-Host "Force killing process $processId on port 3000" -ForegroundColor Red
+        Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
     }
     Start-Sleep -Seconds 3
 } else {
