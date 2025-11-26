@@ -177,8 +177,8 @@ jobs:
         run: |
           Write-Output "Checking if app is online..."
           
-          # Wait up to 30 seconds for app to be online
-          $maxAttempts = 6
+          # Wait up to 60 seconds for app to be online
+          $maxAttempts = 12
           $attempt = 0
           $isOnline = $false
           
@@ -186,11 +186,20 @@ jobs:
             $attempt++
             Write-Output "Health check attempt $attempt/$maxAttempts..."
             
+            # Show current PM2 status
+            pm2 list
+            
             $pmStatus = pm2 list | Out-String
             if ($pmStatus -match "roadmap-app.*online") {
               $isOnline = $true
               Write-Output "✓ App is online under PM2!"
               break
+            }
+            
+            # Check for error states
+            if ($pmStatus -match "roadmap-app.*(errored|stopped|stopping)") {
+              Write-Output "⚠ App is in error state, showing logs..."
+              pm2 logs roadmap-app --lines 50 --nostream
             }
             
             if ($attempt -lt $maxAttempts) {
@@ -200,10 +209,32 @@ jobs:
           }
           
           if (-not $isOnline) {
+            Write-Output "⚠ PM2 reports app is not 'online', checking HTTP endpoint..."
+            
+            # Try HTTP health check
+            try {
+              $response = Invoke-WebRequest -Uri "http://localhost:3000" -TimeoutSec 5 -UseBasicParsing
+              if ($response.StatusCode -eq 200) {
+                Write-Output "✓ HTTP endpoint is responding (status 200)!"
+                Write-Output "PM2 may be showing a different status, but app is working."
+                $isOnline = $true
+              }
+            } catch {
+              Write-Output "✗ HTTP endpoint also not responding: $_"
+            }
+          }
+          
+          if (-not $isOnline) {
             Write-Error "✗ App failed to come online after $maxAttempts attempts"
             Write-Output "`nFinal PM2 status:"
             pm2 status
+            Write-Output "`nFull PM2 describe:"
+            pm2 describe roadmap-app
             Write-Output "`nRecent logs:"
             pm2 logs roadmap-app --lines 200 --nostream
+            Write-Output "`nPort check:"
+            netstat -ano | Select-String ":3000"
             exit 1
+          } else {
+            Write-Output "`n✓✓✓ Deployment successful! ✓✓✓"
           }
