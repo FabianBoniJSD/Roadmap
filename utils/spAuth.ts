@@ -21,9 +21,39 @@ declare const Buffer: any;
 let ntlmHelpers: any = null;
 let nodeSpAuthModule: Promise<{ getAuth: typeof import('node-sp-auth')['getAuth'] }> | null = null;
 
-async function loadNodeSpAuth() {
+async function loadNodeSpAuth(needsProxy: boolean) {
   if (!nodeSpAuthModule) {
-    nodeSpAuthModule = import('node-sp-auth');
+    const shouldScrubProxy = !needsProxy;
+    const saves: Record<string, string | undefined> = shouldScrubProxy
+      ? {
+          HTTP_PROXY: process.env.HTTP_PROXY,
+          HTTPS_PROXY: process.env.HTTPS_PROXY,
+          http_proxy: process.env.http_proxy,
+          https_proxy: process.env.https_proxy
+        }
+      : {};
+
+    if (shouldScrubProxy) {
+      delete process.env.HTTP_PROXY;
+      delete process.env.HTTPS_PROXY;
+      delete process.env.http_proxy;
+      delete process.env.https_proxy;
+      debugLog('node-sp-auth bootstrap: proxy env vars removed before module load');
+    }
+
+    nodeSpAuthModule = (async () => {
+      try {
+        return await import('node-sp-auth');
+      } finally {
+        if (shouldScrubProxy) {
+          if (saves.HTTP_PROXY !== undefined) process.env.HTTP_PROXY = saves.HTTP_PROXY; else delete process.env.HTTP_PROXY;
+          if (saves.HTTPS_PROXY !== undefined) process.env.HTTPS_PROXY = saves.HTTPS_PROXY; else delete process.env.HTTPS_PROXY;
+          if (saves.http_proxy !== undefined) process.env.http_proxy = saves.http_proxy; else delete process.env.http_proxy;
+          if (saves.https_proxy !== undefined) process.env.https_proxy = saves.https_proxy; else delete process.env.https_proxy;
+          debugLog('node-sp-auth bootstrap: proxy env vars restored after module load');
+        }
+      }
+    })();
   }
   const mod = await nodeSpAuthModule;
   return mod.getAuth;
@@ -286,7 +316,7 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string,string>
         debugLog('node-sp-auth: keeping proxy enabled (SP_NODE_SP_AUTH_NEEDS_PROXY=true)');
       }
 
-      const getAuth = await loadNodeSpAuth();
+      const getAuth = await loadNodeSpAuth(needsProxy);
       for (let i = 0; i < permutations.length; i++) {
         const attemptCreds = permutations[i];
         try {
