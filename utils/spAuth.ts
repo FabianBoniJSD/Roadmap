@@ -11,7 +11,6 @@ import { fbaLogin } from './fbaAuth';
 import os from 'os';
 import { resolveSharePointSiteUrl } from './sharepointEnv';
 import { getPrimaryCredentials } from './userCredentials';
-import { sharePointHttpsAgent } from './httpsAgent';
 import fs from 'fs';
 import path from 'path';
 // Minimal ambient declarations when @types/node not fully available (build environments without node types)
@@ -227,21 +226,53 @@ export async function getSharePointAuthHeaders(): Promise<Record<string,string>>
       lastErr = e;
     }
   } else {
-    for (let i = 0; i < permutations.length; i++) {
-      const attemptCreds = permutations[i];
-      try {
-        debugLog('auth attempt', { idx: i, total: permutations.length, creds: { ...attemptCreds, password: '***' } });
-        const auth = await getAuth(siteUrl, attemptCreds);
-        const headers = auth.headers as Record<string,string>;
-        const ttlMs = 30 * 60 * 1000;
-        cachedAuth = { headers, expires: Date.now() + ttlMs };
-        debugLog('auth success', { idx: i, cachedUntil: new Date(cachedAuth.expires).toISOString() });
-        return headers;
-      } catch (e: any) {
-        lastErr = e;
-        debugLog('auth attempt failed', { idx: i, message: e.message, name: e.name, stackFirst: (e.stack || '').split('\n').slice(0,2).join(' | ') });
-        if (!/invalid argument/i.test(e.message || '')) break;
+    // WORKAROUND: node-sp-auth v3.x uses 'got' library internally which has agent compatibility issues
+    // The 'got' library expects agents in format { http: agent, https: agent } but node-sp-auth doesn't
+    // expose a way to pass custom agents. When HTTP_PROXY/HTTPS_PROXY are set, 'got' tries to create
+    // its own proxy agent but fails with: "Expected 'options.agent' properties to be 'http', 'https', got '_events'"
+    // Solution: Temporarily remove proxy env vars for node-sp-auth calls
+    // If SharePoint requires proxy access, set SP_NODE_SP_AUTH_NEEDS_PROXY=true to skip this workaround
+    const needsProxy = process.env.SP_NODE_SP_AUTH_NEEDS_PROXY === 'true';
+    const savedHttpProxy = process.env.HTTP_PROXY;
+    const savedHttpsProxy = process.env.HTTPS_PROXY;
+    const savedHttpProxyLower = process.env.http_proxy;
+    const savedHttpsProxyLower = process.env.https_proxy;
+    
+    try {
+      // Temporarily disable proxy for node-sp-auth calls (unless explicitly needed)
+      if (!needsProxy) {
+        delete process.env.HTTP_PROXY;
+        delete process.env.HTTPS_PROXY;
+        delete process.env.http_proxy;
+        delete process.env.https_proxy;
+        debugLog('node-sp-auth proxy workaround: temporarily disabled HTTP(S)_PROXY env vars');
+      } else {
+        debugLog('node-sp-auth: keeping proxy enabled (SP_NODE_SP_AUTH_NEEDS_PROXY=true)');
       }
+      
+      for (let i = 0; i < permutations.length; i++) {
+        const attemptCreds = permutations[i];
+        try {
+          debugLog('auth attempt', { idx: i, total: permutations.length, creds: { ...attemptCreds, password: '***' } });
+          const auth = await getAuth(siteUrl, attemptCreds);
+          const headers = auth.headers as Record<string,string>;
+          const ttlMs = 30 * 60 * 1000;
+          cachedAuth = { headers, expires: Date.now() + ttlMs };
+          debugLog('auth success', { idx: i, cachedUntil: new Date(cachedAuth.expires).toISOString() });
+          return headers;
+        } catch (e: any) {
+          lastErr = e;
+          debugLog('auth attempt failed', { idx: i, message: e.message, name: e.name, stackFirst: (e.stack || '').split('\n').slice(0,2).join(' | ') });
+          if (!/invalid argument/i.test(e.message || '')) break;
+        }
+      }
+    } finally {
+      // Restore proxy env vars
+      if (savedHttpProxy !== undefined) process.env.HTTP_PROXY = savedHttpProxy;
+      if (savedHttpsProxy !== undefined) process.env.HTTPS_PROXY = savedHttpsProxy;
+      if (savedHttpProxyLower !== undefined) process.env.http_proxy = savedHttpProxyLower;
+      if (savedHttpsProxyLower !== undefined) process.env.https_proxy = savedHttpsProxyLower;
+      debugLog('node-sp-auth proxy workaround: restored HTTP(S)_PROXY env vars');
     }
 
     // Manual NTLM fallback (some farms emit challenge format that node-sp-auth fails to parse)
