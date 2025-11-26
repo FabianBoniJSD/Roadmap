@@ -17,6 +17,26 @@ jobs:
       NEXT_TELEMETRY_DISABLED: '1'
 
     steps:
+      - name: Check runner permissions
+        run: |
+          Write-Output "=== RUNNER ENVIRONMENT ==="
+          Write-Output "Current user: $env:USERNAME"
+          Write-Output "User domain: $env:USERDOMAIN"
+          Write-Output "Computer name: $env:COMPUTERNAME"
+          
+          # Check if running as administrator
+          $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          Write-Output "Running as Administrator: $isAdmin"
+          
+          if (-not $isAdmin) {
+            Write-Output "⚠️ WARNING: Runner is not running with Administrator privileges!"
+            Write-Output "⚠️ Process termination may fail due to insufficient permissions."
+            Write-Output "⚠️ See docs/RUNNER_ADMIN_SETUP.md for instructions to fix this."
+          } else {
+            Write-Output "✓ Runner has Administrator privileges"
+          }
+          Write-Output "=========================="
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -192,12 +212,25 @@ jobs:
                 $proc = Get-Process -Id $p -ErrorAction SilentlyContinue
                 if ($proc) {
                   Write-Output "  PID $p - $($proc.ProcessName) - Started: $($proc.StartTime)"
+                  Write-Output "  Command: $($proc.Path)"
                 }
               }
             }
             
-            Write-Output "`nCurrent user: $env:USERNAME"
-            Write-Output "Attempting to start anyway - PM2 might handle it..."
+            Write-Output "`nChecking if existing process is healthy..."
+            try {
+              $response = Invoke-WebRequest -Uri "http://localhost:3000" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+              if ($response.StatusCode -eq 200) {
+                Write-Output "✓ Existing app on port 3000 is responding!"
+                Write-Output "✓ HTTP Status: $($response.StatusCode)"
+                Write-Output "Skipping PM2 start - will update via PM2 reload instead"
+                $env:SKIP_PM2_START = "true"
+                echo "SKIP_PM2_START=true" >> $env:GITHUB_ENV
+              }
+            } catch {
+              Write-Output "✗ Existing process not responding properly: $_"
+              Write-Output "Will attempt to start PM2 anyway (it may fail with EADDRINUSE)"
+            }
           }
           
           Write-Output "=== CLEANUP COMPLETE ==="
@@ -218,6 +251,7 @@ jobs:
 
       - name: Start app on port 3000 with PM2
         env:
+          RUNNER_TRACKING_ID: ""
           NODE_ENV: production
           PORT: 3000
           # GitHub Secrets for multi-user authentication
