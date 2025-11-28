@@ -2,6 +2,8 @@ import https from 'https';
 import { URL as NodeURL } from 'url';
 import tls from 'tls';
 import { createRequire } from 'module';
+import { fileURLToPath, URL } from 'url';
+import path from 'path';
 import { Buffer } from 'buffer';
 import { fbaLogin } from './fbaAuth';
 import './md4Fallback';
@@ -11,7 +13,9 @@ import { getPrimaryCredentials } from './userCredentials';
 import fs from 'fs';
 import path from 'path';
 
-const require = createRequire(import.meta.url);
+const moduleUrl = new URL('.', import.meta.url);
+const modulePath = fileURLToPath(moduleUrl);
+const require = createRequire(modulePath);
 
 type CredentialPermutation = {
   username?: string;
