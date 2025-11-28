@@ -1,8 +1,6 @@
 import https from 'https';
 import { URL as NodeURL } from 'url';
 import tls from 'tls';
-import { createRequire } from 'module';
-import { fileURLToPath, URL } from 'url';
 import path from 'path';
 import { Buffer } from 'buffer';
 import { fbaLogin } from './fbaAuth';
@@ -11,11 +9,6 @@ import os from 'os';
 import { resolveSharePointSiteUrl } from './sharepointEnv';
 import { getPrimaryCredentials } from './userCredentials';
 import fs from 'fs';
-import path from 'path';
-
-const moduleUrl = new URL('.', import.meta.url);
-const modulePath = fileURLToPath(moduleUrl);
-const require = createRequire(modulePath);
 
 type CredentialPermutation = {
   username?: string;
@@ -44,7 +37,7 @@ const toExtendedError = (error: unknown): ExtendedError => {
 
 const getErrorMessage = (error: unknown): string => toExtendedError(error).message ?? '';
 // Optional dynamic NTLM helpers (only loaded in diagnostic mode to avoid extra overhead otherwise)
-let ntlmHelpers: NtlmHelpers | null = null;
+let ntlmHelpersPromise: Promise<NtlmHelpers> | null = null;
 let nodeSpAuthModule: Promise<{ getAuth: (typeof import('node-sp-auth'))['getAuth'] }> | null =
   null;
 
@@ -90,16 +83,19 @@ async function loadNodeSpAuth(needsProxy: boolean) {
   return mod.getAuth;
 }
 
-function loadNtlmHelpers(): NtlmHelpers {
-  if (ntlmHelpers) return ntlmHelpers;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const lib = require('node-ntlm-client') as NtlmHelpers;
-    ntlmHelpers = lib;
-  } catch {
-    ntlmHelpers = {};
+async function loadNtlmHelpers(): Promise<NtlmHelpers> {
+  if (!ntlmHelpersPromise) {
+    ntlmHelpersPromise = (async () => {
+      try {
+        const mod = await import('node-ntlm-client');
+        const resolved = (mod as { default?: NtlmHelpers }).default ?? (mod as NtlmHelpers);
+        return resolved;
+      } catch {
+        return {};
+      }
+    })();
   }
-  return ntlmHelpers;
+  return ntlmHelpersPromise;
 }
 
 interface CachedAuth {
@@ -284,7 +280,7 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
   // NTLM deep diagnostic: capture raw Type2 challenge and try decoding manually
   if (/onprem/.test(strategy) && strategy !== 'fba' && process.env.SP_NTLM_DIAG === 'true') {
     try {
-      const helpers = loadNtlmHelpers();
+      const helpers = await loadNtlmHelpers();
       if (!helpers.createType1Message) {
         debugLog('ntlm diag skipped: node-ntlm-client not available');
       } else {
@@ -454,7 +450,7 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
       /invalid argument/i.test(lastErrMessage)
     ) {
       try {
-        const helpers = loadNtlmHelpers();
+        const helpers = await loadNtlmHelpers();
         if (!helpers.createType1Message || !helpers.createType3Message) {
           debugLog('manual ntlm fallback unavailable (node-ntlm-client missing)');
         } else {
@@ -629,12 +625,14 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
                       '',
                     ];
                     const rawResp: string = await new Promise((resolveSock, rejectSock) => {
-                      const socket = tls.connect(
-                        { host: u.hostname, port: u.port || 443, servername: u.hostname },
-                        () => {
-                          socket.write(requestLines.join('\r\n'));
-                        }
-                      );
+                      const tlsOptions: tls.ConnectionOptions = {
+                        host: u.hostname,
+                        port: u.port ? Number(u.port) : 443,
+                        servername: u.hostname,
+                      };
+                      const socket = tls.connect(tlsOptions, () => {
+                        socket.write(requestLines.join('\r\n'));
+                      });
                       let dataBuf = '';
                       socket.on('data', (chunk: Buffer) => {
                         dataBuf += chunk.toString('utf8');
@@ -735,7 +733,7 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
               os.hostname().split('.')[0] ||
               'WORKSTATION'
             ).toUpperCase();
-            const helpers = loadNtlmHelpers();
+            const helpers = await loadNtlmHelpers();
             if (!helpers.createType1Message || !helpers.createType3Message) {
               debugLog('manual ntlm: persistent socket: ntlm helpers missing');
               throw new Error('ntlm helpers unavailable');
