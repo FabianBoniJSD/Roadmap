@@ -6,7 +6,12 @@ declare const require: any;
 declare const Buffer: any;
 // Minimal local types to avoid importing 'next'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-interface NextApiRequest { method?: string; headers: Record<string, any>; query: any; body: any; }
+interface NextApiRequest {
+  method?: string;
+  headers: Record<string, any>;
+  query: any;
+  body: any;
+}
 interface NextApiResponse {
   status: (code: number) => NextApiResponse;
   json: (data: any) => void;
@@ -19,13 +24,21 @@ import os from 'os';
 const dns = require('dns');
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import { sharePointHttpsAgent, sharePointDispatcher } from '@/utils/httpsAgent';
+import '@/utils/md4Fallback';
 
 // Loose types for optional dependency
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type NtlmLib = any;
 
-interface NtlmDecodeSuccess { success: true; targetName?: string; flags?: unknown }
-interface NtlmDecodeFail { success: false; error: string }
+interface NtlmDecodeSuccess {
+  success: true;
+  targetName?: string;
+  flags?: unknown;
+}
+interface NtlmDecodeFail {
+  success: false;
+  error: string;
+}
 interface NtlmAnalysis {
   found: boolean;
   b64Length?: number;
@@ -37,7 +50,11 @@ interface NtlmAnalysis {
 let ntlmLib: NtlmLib | null = null;
 function loadNtlm(): NtlmLib | null {
   if (ntlmLib) return ntlmLib;
-  try { ntlmLib = require('node-ntlm-client'); } catch { ntlmLib = null; }
+  try {
+    ntlmLib = require('node-ntlm-client');
+  } catch {
+    ntlmLib = null;
+  }
   return ntlmLib;
 }
 
@@ -54,7 +71,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const timing: Record<string, number> = {};
     const domainRaw = process.env.SP_ONPREM_DOMAIN || '';
     const domain = domainRaw ? domainRaw.split('.')[0] : undefined;
-    const workstation = (process.env.SP_ONPREM_WORKSTATION || os.hostname().split('.')[0] || 'WORKSTATION').toUpperCase();
+    const workstation = (
+      process.env.SP_ONPREM_WORKSTATION ||
+      os.hostname().split('.')[0] ||
+      'WORKSTATION'
+    ).toUpperCase();
     if (process.env.SP_ALLOW_SELF_SIGNED === 'true') {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     }
@@ -66,9 +87,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const pre = await fetch(site, {
         method: 'GET',
         // @ts-ignore
-        dispatcher: process.env.SP_DISABLE_DISPATCHER === 'true' ? undefined : (sharePointDispatcher || undefined),
+        dispatcher:
+          process.env.SP_DISABLE_DISPATCHER === 'true'
+            ? undefined
+            : sharePointDispatcher || undefined,
         // @ts-ignore
-        agent: sharePointHttpsAgent
+        agent: sharePointHttpsAgent,
       });
       timing.preflight = Date.now() - t0;
       preflight = { status: pre.status, www: pre.headers.get('www-authenticate') };
@@ -83,7 +107,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const host = new URL(site).hostname;
       const addresses = await new Promise((resolve) => {
         dns.lookup(host, { all: true }, (err, addrs) => {
-          if (err) resolve([{ error: err.message }]); else resolve(addrs);
+          if (err) resolve([{ error: err.message }]);
+          else resolve(addrs);
         });
       });
       dnsDiag = { host, addresses };
@@ -92,16 +117,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const type1 = ntlm.createType1Message({ domain, workstation });
-    let r1: Response | undefined; let fetchErr: Error | null = null;
+    let r1: Response | undefined;
+    let fetchErr: Error | null = null;
     try {
       const t0 = Date.now();
       r1 = await fetch(site, {
         method: 'GET',
         headers: { Authorization: `NTLM ${type1}` },
         // @ts-ignore
-        dispatcher: process.env.SP_DISABLE_DISPATCHER === 'true' ? undefined : (sharePointDispatcher || undefined),
+        dispatcher:
+          process.env.SP_DISABLE_DISPATCHER === 'true'
+            ? undefined
+            : sharePointDispatcher || undefined,
         // @ts-ignore
-        agent: sharePointHttpsAgent
+        agent: sharePointHttpsAgent,
       });
       timing.type1 = Date.now() - t0;
     } catch (e) {
@@ -116,16 +145,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const plain = await fetch(site, {
           method: 'GET',
           // @ts-ignore
-          dispatcher: process.env.SP_DISABLE_DISPATCHER === 'true' ? undefined : (sharePointDispatcher || undefined),
+          dispatcher:
+            process.env.SP_DISABLE_DISPATCHER === 'true'
+              ? undefined
+              : sharePointDispatcher || undefined,
           // @ts-ignore
-          agent: sharePointHttpsAgent
+          agent: sharePointHttpsAgent,
         });
         timing.plainProbe = Date.now() - t0;
         plainProbe = { status: plain.status, www: plain.headers.get('www-authenticate') };
       } catch (e2) {
         timing.plainProbe = Date.now() - started;
         const err2 = e2 as Error & { code?: string; cause?: { message?: string } };
-        plainProbe = { error: err2.message, code: err2.code, cause: err2.cause && err2.cause.message };
+        plainProbe = {
+          error: err2.message,
+          code: err2.code,
+          cause: err2.cause && err2.cause.message,
+        };
       }
       const err = fetchErr as Error & { code?: string; cause?: { message?: string } };
       return res.status(502).json({
@@ -133,19 +169,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         version: '2',
         request: { domain, workstation },
         preflight,
-        fetchError: fetchErr ? { message: err.message, code: err.code, cause: err.cause && err.cause.message } : undefined,
+        fetchError: fetchErr
+          ? { message: err.message, code: err.code, cause: err.cause && err.cause.message }
+          : undefined,
         plainProbe,
         dns: dnsDiag,
         timing: { ...timing, total: Date.now() - started },
         env: {
           node: process.versions.node,
           allowSelfSigned: process.env.SP_ALLOW_SELF_SIGNED === 'true',
-          disableDispatcher: process.env.SP_DISABLE_DISPATCHER === 'true'
+          disableDispatcher: process.env.SP_DISABLE_DISPATCHER === 'true',
         },
         transport: {
           agentKind: sharePointHttpsAgent && (sharePointHttpsAgent as any)?.constructor?.name,
-          dispatcherKind: sharePointDispatcher && (sharePointDispatcher as any)?.constructor?.name
-        }
+          dispatcherKind: sharePointDispatcher && (sharePointDispatcher as any)?.constructor?.name,
+        },
       });
     }
 
@@ -154,16 +192,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const analysis: NtlmAnalysis = { found: false };
     if (match) {
       const b64 = match[1];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let buf: any = null;
-      try { buf = Buffer.from(b64, 'base64'); } catch { /* ignore */ }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let buf: any = null;
+      try {
+        buf = Buffer.from(b64, 'base64');
+      } catch {
+        /* ignore */
+      }
       analysis.found = true;
       analysis.b64Length = b64.length;
       analysis.byteLength = buf ? buf.length : 0;
       analysis.hexPreview = buf ? buf.slice(0, 64).toString('hex') : null;
       try {
         const decoded = ntlm.decodeType2Message(b64);
-        analysis.decode = { success: true, targetName: decoded.targetName, flags: decoded.negotiateFlags };
+        analysis.decode = {
+          success: true,
+          targetName: decoded.targetName,
+          flags: decoded.negotiateFlags,
+        };
       } catch (e) {
         analysis.decode = { success: false, error: (e as Error).message };
       }
@@ -179,13 +225,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           headers: {
             Authorization: `NTLM ${type1}`,
             'User-Agent': 'Mozilla/5.0 (NTLM Diagnostic Probe)',
-            'Accept': '*/*',
-            'Connection': 'keep-alive'
+            Accept: '*/*',
+            Connection: 'keep-alive',
           },
           // @ts-ignore
-          dispatcher: process.env.SP_DISABLE_DISPATCHER === 'true' ? undefined : (sharePointDispatcher || undefined),
+          dispatcher:
+            process.env.SP_DISABLE_DISPATCHER === 'true'
+              ? undefined
+              : sharePointDispatcher || undefined,
           // @ts-ignore
-          agent: sharePointHttpsAgent
+          agent: sharePointHttpsAgent,
         });
         timing.type1Variant = Date.now() - t0;
         const www2 = r2.headers.get('www-authenticate') || '';
@@ -200,12 +249,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (m2) {
           const b64b = m2[1];
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          let buf2: any = null; try { buf2 = Buffer.from(b64b, 'base64'); } catch { /* ignore */ }
-          secondAnalysis = { found: true, b64Length: b64b.length, byteLength: buf2 ? buf2.length : 0, hexPreview: buf2 ? buf2.slice(0,64).toString('hex') : null };
-          try { const dec2 = ntlm.decodeType2Message(b64b); secondAnalysis.decode = { success: true, targetName: dec2.targetName, flags: dec2.negotiateFlags }; } catch (e) { secondAnalysis.decode = { success: false, error: (e as Error).message }; }
+          let buf2: any = null;
+          try {
+            buf2 = Buffer.from(b64b, 'base64');
+          } catch {
+            /* ignore */
+          }
+          secondAnalysis = {
+            found: true,
+            b64Length: b64b.length,
+            byteLength: buf2 ? buf2.length : 0,
+            hexPreview: buf2 ? buf2.slice(0, 64).toString('hex') : null,
+          };
+          try {
+            const dec2 = ntlm.decodeType2Message(b64b);
+            secondAnalysis.decode = {
+              success: true,
+              targetName: dec2.targetName,
+              flags: dec2.negotiateFlags,
+            };
+          } catch (e) {
+            secondAnalysis.decode = { success: false, error: (e as Error).message };
+          }
           if (!analysis.found) Object.assign(analysis, secondAnalysis);
         }
-        attempt2 = { status: r2.status, wwwAuthenticate: www2, headers: headersDump, ntlm: secondAnalysis };
+        attempt2 = {
+          status: r2.status,
+          wwwAuthenticate: www2,
+          headers: headersDump,
+          ntlm: secondAnalysis,
+        };
       } catch (e) {
         attempt2 = { error: (e as Error).message };
       }
@@ -216,14 +289,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!analysis.found) {
       const originalDomain = domain;
       const envFull = process.env.SP_ONPREM_DOMAIN || '';
-      const variants = Array.from(new Set([
-        originalDomain,
-        originalDomain ? originalDomain.toUpperCase() : undefined,
-        envFull || undefined,
-        envFull ? envFull.toUpperCase() : undefined,
-        undefined,
-        ''
-      ].filter(v => v !== undefined)));
+      const variants = Array.from(
+        new Set(
+          [
+            originalDomain,
+            originalDomain ? originalDomain.toUpperCase() : undefined,
+            envFull || undefined,
+            envFull ? envFull.toUpperCase() : undefined,
+            undefined,
+            '',
+          ].filter((v) => v !== undefined)
+        )
+      );
       domainVariantsResult = [];
       for (const variant of variants) {
         try {
@@ -233,30 +310,56 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             method: 'GET',
             headers: { Authorization: `NTLM ${t1}` },
             // @ts-ignore
-            dispatcher: process.env.SP_DISABLE_DISPATCHER === 'true' ? undefined : (sharePointDispatcher || undefined),
+            dispatcher:
+              process.env.SP_DISABLE_DISPATCHER === 'true'
+                ? undefined
+                : sharePointDispatcher || undefined,
             // @ts-ignore
-            agent: sharePointHttpsAgent
+            agent: sharePointHttpsAgent,
           });
           const dur = Date.now() - t0;
           const wwwVar = rVar.headers.get('www-authenticate') || '';
           const mVar = wwwVar.match(/NTLM\s+([A-Za-z0-9+/=]+)/i);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const ntlmInfo: any = { found: false };
           if (mVar) {
             const b64v = mVar[1];
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let bufv: any = null; try { bufv = Buffer.from(b64v, 'base64'); } catch { /* ignore */ }
+            let bufv: any = null;
+            try {
+              bufv = Buffer.from(b64v, 'base64');
+            } catch {
+              /* ignore */
+            }
             ntlmInfo.found = true;
             ntlmInfo.b64Length = b64v.length;
             ntlmInfo.byteLength = bufv ? bufv.length : 0;
             ntlmInfo.hexPreview = bufv ? bufv.slice(0, 48).toString('hex') : null;
-            try { const decv = ntlm.decodeType2Message(b64v); ntlmInfo.decode = { success: true, targetName: decv.targetName, flags: decv.negotiateFlags }; } catch (e) { ntlmInfo.decode = { success: false, error: (e as Error).message }; }
+            try {
+              const decv = ntlm.decodeType2Message(b64v);
+              ntlmInfo.decode = {
+                success: true,
+                targetName: decv.targetName,
+                flags: decv.negotiateFlags,
+              };
+            } catch (e) {
+              ntlmInfo.decode = { success: false, error: (e as Error).message };
+            }
             if (!analysis.found) Object.assign(analysis, ntlmInfo);
           }
-          domainVariantsResult.push({ domainVariant: variant ?? null, status: rVar.status, wwwAuthenticate: wwwVar, durationMs: dur, ntlm: ntlmInfo });
+          domainVariantsResult.push({
+            domainVariant: variant ?? null,
+            status: rVar.status,
+            wwwAuthenticate: wwwVar,
+            durationMs: dur,
+            ntlm: ntlmInfo,
+          });
           if (ntlmInfo.found) break; // stop early if we got one
         } catch (e) {
-          domainVariantsResult.push({ domainVariant: variant ?? null, error: (e as Error).message });
+          domainVariantsResult.push({
+            domainVariant: variant ?? null,
+            error: (e as Error).message,
+          });
         }
       }
     }
@@ -271,19 +374,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           method: 'GET',
           headers: { Authorization: `NTLM ${t1Empty}` },
           // @ts-ignore
-          dispatcher: process.env.SP_DISABLE_DISPATCHER === 'true' ? undefined : (sharePointDispatcher || undefined),
+          dispatcher:
+            process.env.SP_DISABLE_DISPATCHER === 'true'
+              ? undefined
+              : sharePointDispatcher || undefined,
           // @ts-ignore
-          agent: sharePointHttpsAgent
+          agent: sharePointHttpsAgent,
         });
         const wwwE = rEmpty.headers.get('www-authenticate') || '';
         const mE = wwwE.match(/NTLM\s+([A-Za-z0-9+/=]+)/i);
-        emptyDW = { status: rEmpty.status, wwwAuthenticate: wwwE, durationMs: Date.now() - t0, found: !!mE };
+        emptyDW = {
+          status: rEmpty.status,
+          wwwAuthenticate: wwwE,
+          durationMs: Date.now() - t0,
+          found: !!mE,
+        };
         if (mE && !analysis.found) {
           try {
             const decoded = ntlm.decodeType2Message(mE[1]);
             analysis.found = true; // adopt it
-            analysis.decode = { success: true, targetName: decoded.targetName, flags: decoded.negotiateFlags };
-          } catch {/* ignore */}
+            analysis.decode = {
+              success: true,
+              targetName: decoded.targetName,
+              flags: decoded.negotiateFlags,
+            };
+          } catch {
+            /* ignore */
+          }
         }
       } catch (e) {
         emptyDW = { error: (e as Error).message };
@@ -304,15 +421,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             host: urlObj.hostname,
             path: urlObj.pathname + (urlObj.search || ''),
             protocol: urlObj.protocol,
-            headers: { 'Authorization': `NTLM ${type1raw}` },
-            agent: sharePointHttpsAgent
+            headers: { Authorization: `NTLM ${type1raw}` },
+            agent: sharePointHttpsAgent,
           };
           const rq = https.request(reqOpts, (resp: any) => {
-            const headersDump: Record<string, string|string[]> = {};
-            Object.entries(resp.headers).forEach(([k,v]) => { headersDump[k] = v as any; });
+            const headersDump: Record<string, string | string[]> = {};
+            Object.entries(resp.headers).forEach(([k, v]) => {
+              headersDump[k] = v as any;
+            });
             const wwwR = resp.headers['www-authenticate'] || '';
             const mR = typeof wwwR === 'string' ? wwwR.match(/NTLM\s+([A-Za-z0-9+/=]+)/i) : null;
-            resolve({ status: resp.statusCode, wwwAuthenticate: wwwR, headers: headersDump, durationMs: Date.now() - t0, found: !!mR });
+            resolve({
+              status: resp.statusCode,
+              wwwAuthenticate: wwwR,
+              headers: headersDump,
+              durationMs: Date.now() - t0,
+              found: !!mR,
+            });
           });
           rq.on('error', (err: any) => resolve({ error: err.message }));
           rq.end();
@@ -335,17 +460,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       env: {
         node: process.versions.node,
         allowSelfSigned: process.env.SP_ALLOW_SELF_SIGNED === 'true',
-        disableDispatcher: process.env.SP_DISABLE_DISPATCHER === 'true'
+        disableDispatcher: process.env.SP_DISABLE_DISPATCHER === 'true',
       },
       transport: {
         agentKind: sharePointHttpsAgent && (sharePointHttpsAgent as any)?.constructor?.name,
-        dispatcherKind: sharePointDispatcher && (sharePointDispatcher as any)?.constructor?.name
-  },
-  attempt2
-  ,
-  domainVariants: domainVariantsResult,
-  emptyDW,
-  rawAttempt
+        dispatcherKind: sharePointDispatcher && (sharePointDispatcher as any)?.constructor?.name,
+      },
+      attempt2,
+      domainVariants: domainVariantsResult,
+      emptyDW,
+      rawAttempt,
     });
   } catch (e) {
     return res.status(500).json({ error: (e as Error).message });

@@ -7,15 +7,15 @@
 
 ## 🎯 Übersicht
 
-Die Anwendung unterstützt jetzt **mehrere User über GitHub Secrets** statt einem einzelnen Service Account. Jeder konfigurierte User hat automatisch Admin-Rechte.
+Die Anwendung unterstützt jetzt **mehrere User über GitHub Secrets** statt einem einzelnen Service Account. Jeder konfigurierte User hat automatisch Admin-Rechte. Der eigentliche SharePoint Proxy verwendet jedoch weiterhin den dedizierten Service Account aus `SP_USERNAME`/`SP_PASSWORD`.
 
 ### Vorteile
 
 ✅ **Mehrere User**: Jedes Team-Mitglied kann eigene Credentials haben  
-✅ **Auto-Admin**: Alle USER_* Secrets haben automatisch Admin-Rechte  
+✅ **Auto-Admin**: Alle USER*\* Secrets haben automatisch Admin-Rechte  
 ✅ **Einfache Rotation**: Einzelne User-Credentials ändern ohne andere zu beeinflussen  
-✅ **Flexibel**: Dynamische Erkennung aller USER_* Environment Variables  
-✅ **Fallback**: Unterstützt weiterhin SP_USERNAME/SP_PASSWORD als Fallback
+✅ **Flexibel**: Dynamische Erkennung aller USER*\* Environment Variables  
+⚠️ **SharePoint Service Account bleibt Pflicht**: API-Aufrufe laufen immer über `SP_USERNAME`/`SP_PASSWORD`
 
 ---
 
@@ -28,6 +28,7 @@ USER_<NAME>
 ```
 
 Beispiele:
+
 - `USER_FABIAN`
 - `USER_STEFAN`
 - `USER_ADMIN`
@@ -40,6 +41,7 @@ Beispiele:
 ```
 
 Beispiele:
+
 - `fabian:SecurePassword123`
 - `stefan:MyPass456`
 - `admin:ServicePass789`
@@ -58,11 +60,11 @@ Beispiele:
 
 3. Füge User hinzu:
 
-   | Name | Value |
-   |------|-------|
+   | Name          | Value                |
+   | ------------- | -------------------- |
    | `USER_FABIAN` | `fabian:password123` |
-   | `USER_STEFAN` | `stefan:secure456` |
-   | `USER_ADMIN` | `admin:admin789` |
+   | `USER_STEFAN` | `stefan:secure456`   |
+   | `USER_ADMIN`  | `admin:admin789`     |
 
 4. Secrets werden automatisch beim Deployment als Environment Variables verfügbar
 
@@ -86,6 +88,7 @@ Die Secrets werden im Workflow automatisch geladen:
 Für lokales Testen:
 
 **PowerShell**:
+
 ```powershell
 $env:USER_FABIAN="fabian:password"
 $env:USER_STEFAN="stefan:secure"
@@ -93,6 +96,7 @@ npm run dev
 ```
 
 **Bash/Linux**:
+
 ```bash
 export USER_FABIAN="fabian:password"
 export USER_STEFAN="stefan:secure"
@@ -100,6 +104,7 @@ npm run dev
 ```
 
 **Oder in `.env.local`**:
+
 ```bash
 USER_FABIAN=fabian:password
 USER_STEFAN=stefan:secure
@@ -137,10 +142,10 @@ getPrimaryCredentials()
 // pages/api/auth/check-admin.ts
 if (githubUsers.length > 0) {
   // Alle USER_* haben automatisch Admin-Rechte
-  return { isAdmin: true, mode: 'github-secrets' }
+  return { isAdmin: true, mode: 'github-secrets' };
 } else {
   // Fallback: SharePoint Permission Check
-  return { isAdmin: await checkSharePointPermissions() }
+  return { isAdmin: await checkSharePointPermissions() };
 }
 ```
 
@@ -173,7 +178,7 @@ Environment Variables:
 
 ### Admin-Zugriff
 
-Alle konfigurierten USER_* haben automatisch Admin-Rechte:
+Alle konfigurierten USER\_\* haben automatisch Admin-Rechte:
 
 ```bash
 # Admin-Check
@@ -210,6 +215,7 @@ SP_PASSWORD=ServicePassword123
 ```
 
 **Einschränkungen**:
+
 - ❌ Nur ein User
 - ❌ Bei Passwort-Änderung: Gesamte Anwendung betroffen
 - ❌ Keine User-Trennung
@@ -225,6 +231,7 @@ USER_ADMIN=admin:pass3
 ```
 
 **Vorteile**:
+
 - ✅ Mehrere User
 - ✅ Individuelle Passwort-Rotation
 - ✅ Auto-Admin (kein SharePoint Check)
@@ -242,11 +249,12 @@ USER_ADMIN=admin:pass3
    - Value: `newuser:password`
 
 2. **Workflow aktualisieren** (`.github/workflows/deploy.yml`):
+
    ```yaml
    env:
      USER_FABIAN: ${{ secrets.USER_FABIAN }}
      USER_STEFAN: ${{ secrets.USER_STEFAN }}
-     USER_NEWUSER: ${{ secrets.USER_NEWUSER }}  # ← NEU
+     USER_NEWUSER: ${{ secrets.USER_NEWUSER }} # ← NEU
    ```
 
 3. **Deployment**: Beim nächsten Push ist der User aktiv
@@ -273,12 +281,13 @@ import { loadUserCredentialsFromSecrets } from '@/utils/userCredentials';
 
 const users = loadUserCredentialsFromSecrets();
 console.log('Configured users:', users.length);
-users.forEach(u => {
+users.forEach((u) => {
   console.log(`  - ${u.source}: ${u.username}`);
 });
 ```
 
 **Erwartete Ausgabe**:
+
 ```
 Configured users: 3
   - USER_FABIAN: fabian
@@ -302,12 +311,14 @@ if (creds) {
 ### Environment Variables prüfen
 
 **PowerShell**:
+
 ```powershell
 # Alle USER_* anzeigen
 Get-ChildItem env: | Where-Object { $_.Name -like "USER_*" }
 ```
 
 **Bash**:
+
 ```bash
 # Alle USER_* anzeigen
 env | grep "^USER_"
@@ -338,9 +349,10 @@ env | grep "^USER_"
 
 ### "No credentials found"
 
-**Problem**: Keine USER_* Secrets und kein SP_USERNAME/SP_PASSWORD
+**Problem**: Keine USER\_\* Secrets und kein SP_USERNAME/SP_PASSWORD
 
 **Lösung**:
+
 ```bash
 # Lokal: .env.local erstellen
 USER_ADMIN=admin:password
@@ -355,6 +367,7 @@ SP_PASSWORD=password
 **Problem**: Secret enthält nicht "username:password"
 
 **Lösung**: Secret-Format prüfen
+
 ```
 ✅ Richtig: username:password123
 ❌ Falsch:  username
@@ -363,15 +376,20 @@ SP_PASSWORD=password
 
 ### User wird nicht erkannt
 
-**Problem**: USER_* Secret existiert, wird aber nicht gefunden
+**Problem**: USER\_\* Secret existiert, wird aber nicht gefunden
 
 **Debugging**:
+
 ```typescript
 // In check-admin.ts temporär hinzufügen:
-console.log('All env vars:', Object.keys(process.env).filter(k => k.startsWith('USER_')));
+console.log(
+  'All env vars:',
+  Object.keys(process.env).filter((k) => k.startsWith('USER_'))
+);
 ```
 
 **Mögliche Ursachen**:
+
 1. Secret nicht im Workflow gemapped
 2. Typo im Secret-Namen
 3. Secret-Value ist leer
@@ -382,7 +400,7 @@ console.log('All env vars:', Object.keys(process.env).filter(k => k.startsWith('
 
 ### `loadUserCredentialsFromSecrets()`
 
-Scannt Environment Variables nach USER_* Pattern.
+Scannt Environment Variables nach USER\_\* Pattern.
 
 **Returns**: `UserCredentials[]`
 
@@ -401,8 +419,9 @@ Gibt den ersten verfügbaren User zurück.
 **Returns**: `{ username: string, password: string } | null`
 
 **Fallback-Reihenfolge**:
-1. USER_* Secrets
-2. SP_USERNAME/SP_PASSWORD
+
+1. SP_USERNAME/SP_PASSWORD (Service Account für SharePoint Proxy)
+2. USER\_\* Secrets (nur noch als Notnagel, eigentlich fürs Admin-Panel gedacht)
 3. null
 
 ### `getAllAvailableUsers()`

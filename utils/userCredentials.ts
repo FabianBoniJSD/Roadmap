@@ -31,17 +31,23 @@ export function loadUserCredentialsFromSecrets(): UserCredentials[] {
             source: key,
           });
         } else {
+          // eslint-disable-next-line no-console
           console.warn(`[Credentials] Invalid format in ${key}: missing username or password`);
         }
       } else {
+        // eslint-disable-next-line no-console
         console.warn(`[Credentials] Invalid format in ${key}: expected format "username:password"`);
       }
     }
   }
 
   if (users.length === 0) {
-    console.warn('[Credentials] No USER_* secrets found. Fallback to SP_USERNAME/SP_PASSWORD if available.');
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[Credentials] No USER_* secrets found. Admin panel logins will rely on SP_USERNAME/SP_PASSWORD.'
+    );
   } else {
+    // eslint-disable-next-line no-console
     console.log(`[Credentials] Loaded ${users.length} user credential(s) from GitHub Secrets`);
   }
 
@@ -50,27 +56,33 @@ export function loadUserCredentialsFromSecrets(): UserCredentials[] {
 
 /**
  * Get the first available user credentials
- * Priority: GitHub Secrets (USER_*) → Fallback to SP_USERNAME/SP_PASSWORD
+ * Priority: SP_USERNAME/SP_PASSWORD → Fallback to GitHub Secrets (USER_*)
  */
 export function getPrimaryCredentials(): { username: string; password: string } | null {
-  // Try GitHub Secrets first
+  const usernameEnv = (process.env.SP_USERNAME || '').trim();
+  const passwordEnv = process.env.SP_PASSWORD;
+
+  if (usernameEnv && passwordEnv) {
+    // eslint-disable-next-line no-console
+    console.log('[Credentials] Using SP_USERNAME/SP_PASSWORD for SharePoint proxy');
+    return { username: usernameEnv, password: passwordEnv };
+  }
+
+  // Fallback to USER_* only if legacy deployments rely on it (admin panel still reads USER_* directly)
   const users = loadUserCredentialsFromSecrets();
   if (users.length > 0) {
     const primary = users[0];
-    console.log(`[Credentials] Using ${primary.source}: ${primary.username}`);
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[Credentials] SP_USERNAME/SP_PASSWORD not set. Falling back to ${primary.source} for SharePoint proxy access (intended for admin panel only).`
+    );
     return { username: primary.username, password: primary.password };
   }
 
-  // Fallback to traditional environment variables
-  const username = process.env.SP_USERNAME;
-  const password = process.env.SP_PASSWORD;
-
-  if (username && password) {
-    console.log('[Credentials] Using fallback SP_USERNAME/SP_PASSWORD');
-    return { username, password };
-  }
-
-  console.error('[Credentials] No credentials found! Set USER_* secrets or SP_USERNAME/SP_PASSWORD');
+  // eslint-disable-next-line no-console
+  console.error(
+    '[Credentials] No credentials found! Set SP_USERNAME/SP_PASSWORD (preferred) or USER_* secrets.'
+  );
   return null;
 }
 
