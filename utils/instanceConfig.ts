@@ -4,6 +4,7 @@ import type { RoadmapInstance as PrismaRoadmapInstance, RoadmapInstanceHost } fr
 import prisma from '@/lib/prisma';
 import type {
   RoadmapInstanceConfig,
+  RoadmapInstanceFeatureFlags,
   RoadmapInstanceSharePointSettings,
   RoadmapInstanceSummary,
 } from '@/types/roadmapInstance';
@@ -28,6 +29,7 @@ type CachedInstance = { expires: number; config: RoadmapInstanceConfig };
 const instanceCache = new Map<string, CachedInstance>();
 
 type HeadersWithGet = { get(name: string): string | null };
+type FeatureValue = string | number | boolean | null;
 
 const isHeadersWithGet = (value: unknown): value is HeadersWithGet => {
   return (
@@ -35,6 +37,25 @@ const isHeadersWithGet = (value: unknown): value is HeadersWithGet => {
     value !== null &&
     typeof (value as Partial<HeadersWithGet>).get === 'function'
   );
+};
+
+const coerceFeatureFlags = (value: unknown): RoadmapInstanceFeatureFlags | undefined => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) return {};
+
+  const result: RoadmapInstanceFeatureFlags = {};
+  for (const [flag, raw] of entries) {
+    if (
+      typeof raw === 'string' ||
+      typeof raw === 'number' ||
+      typeof raw === 'boolean' ||
+      raw === null
+    ) {
+      result[flag] = raw as FeatureValue;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 };
 
 const normalizeSlug = (value?: string | null): string | null => {
@@ -125,10 +146,9 @@ export const mapInstanceRecord = (record: PrismaInstanceWithHosts): RoadmapInsta
     settingsObj?.theme && typeof settingsObj.theme === 'object'
       ? (settingsObj.theme as Record<string, string>)
       : undefined;
-  const features =
-    settingsObj?.features && typeof settingsObj.features === 'object'
-      ? (settingsObj.features as Record<string, unknown>)
-      : undefined;
+  const features: RoadmapInstanceFeatureFlags | undefined = coerceFeatureFlags(
+    settingsObj?.features
+  );
   const metadata =
     settingsObj?.metadata && typeof settingsObj.metadata === 'object'
       ? (settingsObj.metadata as Record<string, unknown>)
