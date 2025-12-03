@@ -44,6 +44,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'yarn'
+
+      - name: Enable Corepack (Yarn)
+        run: corepack enable
 
       - name: Show disk space (before)
         run: |
@@ -52,8 +56,8 @@ jobs:
 
       - name: Free up disk space (caches, logs, artifacts)
         run: |
-          # Clean NPM cache
-          npm cache clean --force
+          # Clean Yarn cache
+          yarn cache clean || true
           # Remove PM2 logs if present
           if (Test-Path "$env:USERPROFILE\.pm2\logs") {
             Remove-Item -Path "$env:USERPROFILE\.pm2\logs\*" -Force -ErrorAction SilentlyContinue
@@ -69,7 +73,7 @@ jobs:
           Get-PSDrive C | Select-Object Used,Free
 
       - name: Install dependencies
-        run: npm ci
+        run: yarn install --frozen-lockfile
 
       - name: Build application
         env:
@@ -81,7 +85,7 @@ jobs:
           USER_STEFAN: ${{ secrets.USER_STEFAN }}
           USER_ADMIN: ${{ secrets.USER_ADMIN }}
           # Add more USER_* secrets as needed
-        run: npm run build
+        run: yarn build
 
       - name: Verify Next.js build output exists
         run: |
@@ -113,7 +117,7 @@ jobs:
           }
 
       - name: Install PM2 (process manager)
-        run: npm install -g pm2
+        run: yarn global add pm2
 
       - name: Stop existing instance and free port 3000
         run: |
