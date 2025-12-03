@@ -46,11 +46,16 @@ jobs:
           node-version: '20'
           cache: 'yarn'
 
-      - name: Enable Corepack (Yarn)
-        run: corepack enable
-
-      - name: Activate Yarn 1.x (Classic)
-        run: corepack prepare yarn@1.22.22 --activate
+      - name: Install Yarn 1.x CLI
+        shell: powershell
+        run: |
+          npm install -g yarn@1.22.22
+          $binPath = Join-Path $env:APPDATA 'npm'
+          if (-not (Test-Path $binPath)) {
+            Write-Error "npm global bin path not found: $binPath"
+            exit 1
+          }
+          echo $binPath >> $env:GITHUB_PATH
 
       - name: Show disk space (before)
         run: |
