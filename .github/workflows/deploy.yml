@@ -45,6 +45,12 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Pin Yarn Classic (1.22.22)
+        run: |
+          corepack enable
+          corepack prepare yarn@1.22.22 --activate
+          yarn --version
+
       - name: Show disk space (before)
         run: |
           Write-Output "Disk space before:"
