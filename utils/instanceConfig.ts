@@ -27,6 +27,16 @@ type ApiRequestLike =
 type CachedInstance = { expires: number; config: RoadmapInstanceConfig };
 const instanceCache = new Map<string, CachedInstance>();
 
+type HeadersWithGet = { get(name: string): string | null };
+
+const isHeadersWithGet = (value: unknown): value is HeadersWithGet => {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Partial<HeadersWithGet>).get === 'function'
+  );
+};
+
 const normalizeSlug = (value?: string | null): string | null => {
   if (!value) return null;
   return value.trim().toLowerCase() || null;
@@ -44,7 +54,7 @@ const parseCookieHeader = (raw?: string): Record<string, string> => {
 
 const getHeaderValue = (req: ApiRequestLike, key: string): string | undefined => {
   const headers = req.headers || {};
-  if (typeof headers.get === 'function') {
+  if (isHeadersWithGet(headers)) {
     return headers.get(key) ?? undefined;
   }
   const headerValue = (headers as Record<string, string | string[] | undefined>)[key];
