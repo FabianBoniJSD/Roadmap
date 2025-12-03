@@ -42,7 +42,7 @@ const isHeadersWithGet = (value: unknown): value is HeadersWithGet => {
 const coerceFeatureFlags = (value: unknown): RoadmapInstanceFeatureFlags | undefined => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const entries = Object.entries(value as Record<string, unknown>);
-  if (entries.length === 0) return {};
+  if (entries.length === 0) return undefined;
 
   const result: RoadmapInstanceFeatureFlags = {};
   for (const [flag, raw] of entries) {
