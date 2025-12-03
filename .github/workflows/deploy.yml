@@ -46,8 +46,8 @@ jobs:
           node-version: '20'
           cache: 'yarn'
 
-      - name: Enable Corepack (Yarn)
-        run: corepack enable
+      - name: Install Yarn CLI
+        run: npm install -g yarn
 
       - name: Show disk space (before)
         run: |
