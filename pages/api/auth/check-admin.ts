@@ -2,52 +2,60 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
 import { loadUserCredentialsFromSecrets } from '@/utils/userCredentials';
 
+type CheckAdminResponse = {
+  isAdmin: boolean;
+  mode: 'github-secrets' | 'sharepoint-permissions';
+  users?: string[];
+  requiresUserSession: boolean;
+};
+
+const debugEnabled =
+  typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true';
+
+const debugLog = (...args: unknown[]) => {
+  if (!debugEnabled) return;
+  // eslint-disable-next-line no-console
+  console.log('[check-admin]', ...args);
+};
+
 /**
- * Admin check endpoint with GitHub Secrets integration.
- * 
- * Authorization logic:
- * 1. If USER_* GitHub Secrets exist → All users automatically have admin rights
- * 2. Otherwise fallback to SharePoint permission checks:
- *    - Site Collection Admin check (IsSiteAdmin)
- *    - Associated Owners Group membership
- *    - Heuristic fallback for "Owner"/"Besitzer" groups
+ * Admin capability metadata endpoint.
+ *
+ * Behaviour:
+ * 1. If USER_* GitHub Secrets exist → UI must collect credentials and create a session (requiresUserSession=true)
+ * 2. Otherwise fallback to SharePoint permission checks using the configured service account.
  */
 export default async function handler(
-    req: NextApiRequest,
-    res: NextApiResponse
+  req: NextApiRequest,
+  res: NextApiResponse<CheckAdminResponse | { error: string }>
 ) {
-    if (req.method !== 'GET') {
-        return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const githubUsers = loadUserCredentialsFromSecrets();
+
+    if (githubUsers.length > 0) {
+      debugLog(`GitHub Secrets mode detected (${githubUsers.length} user(s))`);
+      return res.status(200).json({
+        isAdmin: false,
+        mode: 'github-secrets',
+        users: githubUsers.map((u) => u.username),
+        requiresUserSession: true,
+      });
     }
 
-    try {
-        // Check if any USER_* secrets are configured
-        const githubUsers = loadUserCredentialsFromSecrets();
-        
-        if (githubUsers.length > 0) {
-            // If USER_* secrets exist, all of them automatically have admin rights
-            console.log(`[check-admin] GitHub Secrets mode: ${githubUsers.length} user(s) with auto-admin rights`);
-            return res.status(200).json({ 
-                isAdmin: true,
-                mode: 'github-secrets',
-                users: githubUsers.map(u => u.username)
-            });
-        }
-        
-        // Fallback to traditional SharePoint permission check
-        console.log('[check-admin] Using SharePoint permission check');
-        const isAdmin = await clientDataService.isCurrentUserAdmin();
-        
-        return res.status(200).json({ 
-            isAdmin,
-            mode: 'sharepoint-permissions'
-        });
-        
-    } catch (error) {
-        console.error('[check-admin] Error:', error);
-        return res.status(500).json({ 
-            isAdmin: false, 
-            error: 'Internal server error' 
-        });
-    }
+    debugLog('No USER_* secrets. Falling back to service account check.');
+    const isAdmin = await clientDataService.isCurrentUserAdmin();
+
+    return res.status(200).json({
+      isAdmin,
+      mode: 'sharepoint-permissions',
+      requiresUserSession: false,
+    });
+  } catch (error) {
+    console.error('[check-admin] Error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 }

@@ -28,6 +28,7 @@
     "@types/node": "20.11.30",
     "@xmldom/xmldom": "^0.9.5",
     "bcrypt": "^5.1.1",
+    "dotenv": "^17.2.3",
     "https-proxy-agent": "^7.0.6",
     "jsonwebtoken": "^9.0.2",
     "next": "^14.2.33",

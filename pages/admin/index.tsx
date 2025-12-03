@@ -1,13 +1,11 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { clientDataService } from '@/utils/clientDataService';
-import { hasAdminAccess } from '@/utils/auth';
+import { getAdminUsername, hasAdminAccess, logout } from '@/utils/auth';
 import withAdminAuth from '@/components/withAdminAuth';
 import { AppSettings, Category, Project } from '@/types';
 import { normalizeCategoryId, resolveCategoryName, UNCATEGORIZED_ID } from '@/utils/categoryUtils';
-
-
 
 const AdminPage: React.FC = () => {
   const router = useRouter();
@@ -17,9 +15,12 @@ const AdminPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'projects' | 'categories' | 'fieldTypes' | 'settings'>('projects');
+  const [activeTab, setActiveTab] = useState<'projects' | 'categories' | 'fieldTypes' | 'settings'>(
+    'projects'
+  );
   const [editingSetting, setEditingSetting] = useState<AppSettings | null>(null);
   const [newSettingValue, setNewSettingValue] = useState<string>('');
+  const [adminUsername, setAdminUsername] = useState<string | null>(null);
 
   // Fetch projects, categories, and field types
   useEffect(() => {
@@ -37,9 +38,9 @@ const AdminPage: React.FC = () => {
         const settingsData = await clientDataService.getAppSettings();
         setSettings(settingsData);
         const normalizedProjects = Array.isArray(projectsData)
-          ? projectsData.map(project => ({
+          ? projectsData.map((project) => ({
               ...project,
-              category: normalizeCategoryId(project.category, categoriesData)
+              category: normalizeCategoryId(project.category, categoriesData),
             }))
           : projectsData;
         setProjects(normalizedProjects);
@@ -61,7 +62,9 @@ const AdminPage: React.FC = () => {
         const hasAccess = await hasAdminAccess();
 
         if (!hasAccess) {
-          setError('Sie haben keine Admin-Berechtigung. Bitte kontaktieren Sie Ihren Administrator.');
+          setError(
+            'Sie haben keine Admin-Berechtigung. Bitte kontaktieren Sie Ihren Administrator.'
+          );
           setLoading(false);
         }
       } catch (error) {
@@ -74,13 +77,17 @@ const AdminPage: React.FC = () => {
     checkAdminAccess();
   }, [router]);
 
+  useEffect(() => {
+    setAdminUsername(getAdminUsername());
+  }, []);
+
   // Re-normalize project categories whenever the category list updates (e.g., after edits)
   useEffect(() => {
     if (!categories.length) return;
-    setProjects(prevProjects =>
-      prevProjects.map(project => ({
+    setProjects((prevProjects) =>
+      prevProjects.map((project) => ({
         ...project,
-        category: normalizeCategoryId(project.category, categories)
+        category: normalizeCategoryId(project.category, categories),
       }))
     );
   }, [categories]);
@@ -100,7 +107,7 @@ const AdminPage: React.FC = () => {
         await clientDataService.deleteProject(id);
 
         // Remove the deleted project from the state
-        setProjects(projects.filter(project => project.id !== id));
+        setProjects(projects.filter((project) => project.id !== id));
       } catch (error) {
         console.error('Error deleting project:', error);
         setError('Failed to delete project');
@@ -130,7 +137,7 @@ const AdminPage: React.FC = () => {
       await clientDataService.deleteCategory(categoryId);
 
       // Remove the category from the state
-      setCategories(categories.filter(category => category.id !== categoryId));
+      setCategories(categories.filter((category) => category.id !== categoryId));
       setDeleteConfirmation(null);
     } catch (err) {
       console.error('Error deleting category:', err);
@@ -144,7 +151,7 @@ const AdminPage: React.FC = () => {
       return 'Unkategorisiert';
     }
 
-    const byId = categories.find(cat => cat.id === normalizedId);
+    const byId = categories.find((cat) => cat.id === normalizedId);
     if (byId) {
       return byId.name;
     }
@@ -156,7 +163,7 @@ const AdminPage: React.FC = () => {
     const fallback = resolveCategoryName(categoryValue, categories, {
       emptyLabel: 'Unkategorisiert',
       unknownLabel: categoryValue,
-      preferRawFallback: true
+      preferRawFallback: true,
     });
 
     if (fallback && fallback.trim()) {
@@ -168,23 +175,35 @@ const AdminPage: React.FC = () => {
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
-      case 'completed': return 'bg-green-500';
-      case 'in-progress': return 'bg-blue-500';
-      case 'planned': return 'bg-gray-500';
-      case 'paused': return 'bg-yellow-500';
-      case 'cancelled': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      case 'completed':
+        return 'bg-green-500';
+      case 'in-progress':
+        return 'bg-blue-500';
+      case 'planned':
+        return 'bg-gray-500';
+      case 'paused':
+        return 'bg-yellow-500';
+      case 'cancelled':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
     }
   };
 
   const getStatus = (status: string) => {
     switch (status) {
-      case 'completed': return 'Abgeschlossen';
-      case 'in-progress': return 'In Bearbeitung';
-      case 'planned': return 'Geplant';
-      case 'paused': return 'Pausiert';
-      case 'cancelled': return 'Abgebrochen';
-      default: return 'Unbekannt';
+      case 'completed':
+        return 'Abgeschlossen';
+      case 'in-progress':
+        return 'In Bearbeitung';
+      case 'planned':
+        return 'Geplant';
+      case 'paused':
+        return 'Pausiert';
+      case 'cancelled':
+        return 'Abgebrochen';
+      default:
+        return 'Unbekannt';
     }
   };
 
@@ -199,13 +218,13 @@ const AdminPage: React.FC = () => {
     try {
       const updatedSetting = {
         ...editingSetting,
-        value: newSettingValue
+        value: newSettingValue,
       };
 
       const result = await clientDataService.updateSetting(updatedSetting);
 
       // Update the settings in state
-      setSettings(settings.map((s: AppSettings) => s.id === result.id ? result : s));
+      setSettings(settings.map((s: AppSettings) => (s.id === result.id ? result : s)));
       setEditingSetting(null);
       setNewSettingValue('');
     } catch (error) {
@@ -242,9 +261,7 @@ const AdminPage: React.FC = () => {
 
   const handleLogout = () => {
     if (confirm('Möchten Sie sich wirklich abmelden?')) {
-      sessionStorage.removeItem('adminToken');
-      sessionStorage.removeItem('adminUsername');
-      router.push('/');
+      logout();
     }
   };
 
@@ -254,10 +271,8 @@ const AdminPage: React.FC = () => {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-            {sessionStorage.getItem('adminUsername') && (
-              <p className="text-sm text-gray-400 mt-1">
-                Angemeldet als: {sessionStorage.getItem('adminUsername')}
-              </p>
+            {adminUsername && (
+              <p className="text-sm text-gray-400 mt-1">Angemeldet als: {adminUsername}</p>
             )}
           </div>
           <div className="flex space-x-4">
@@ -283,28 +298,31 @@ const AdminPage: React.FC = () => {
         {/* Tabs */}
         <div className="flex border-b border-gray-700 mb-6">
           <button
-            className={`py-2 px-4 font-medium ${activeTab === 'projects'
-              ? 'text-blue-400 border-b-2 border-blue-400'
-              : 'text-gray-400 hover:text-gray-300'
-              }`}
+            className={`py-2 px-4 font-medium ${
+              activeTab === 'projects'
+                ? 'text-blue-400 border-b-2 border-blue-400'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
             onClick={() => setActiveTab('projects')}
           >
             Projekte
           </button>
           <button
-            className={`py-2 px-4 font-medium ${activeTab === 'categories'
-              ? 'text-blue-400 border-b-2 border-blue-400'
-              : 'text-gray-400 hover:text-gray-300'
-              }`}
+            className={`py-2 px-4 font-medium ${
+              activeTab === 'categories'
+                ? 'text-blue-400 border-b-2 border-blue-400'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
             onClick={() => setActiveTab('categories')}
           >
             Kategorien
           </button>
           <button
-            className={`py-2 px-4 font-medium ${activeTab === 'settings'
-              ? 'text-blue-400 border-b-2 border-blue-400'
-              : 'text-gray-400 hover:text-gray-300'
-              }`}
+            className={`py-2 px-4 font-medium ${
+              activeTab === 'settings'
+                ? 'text-blue-400 border-b-2 border-blue-400'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
             onClick={() => setActiveTab('settings')}
           >
             Einstellungen
@@ -327,27 +345,45 @@ const AdminPage: React.FC = () => {
               <table className="min-w-full divide-y divide-gray-700">
                 <thead className="bg-gray-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Titel</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Kategorie</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Timeline</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Aktionen</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Titel
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Kategorie
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Timeline
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Aktionen
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-gray-800 divide-y divide-gray-700">
-                  {projects.map(project => (
+                  {projects.map((project) => (
                     <tr key={project.id} className="hover:bg-gray-750">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-white">{project.title || '(Ohne Titel)'}</div>
+                        <div className="text-sm font-medium text-white">
+                          {project.title || '(Ohne Titel)'}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-300">{getCategoryName(project.category)}</div>
+                        <div className="text-sm text-gray-300">
+                          {getCategoryName(project.category)}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-300">{project.startQuarter} - {project.endQuarter}</div>
+                        <div className="text-sm text-gray-300">
+                          {project.startQuarter} - {project.endQuarter}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(project.status)} text-white`}>
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(project.status)} text-white`}
+                        >
                           {getStatus(project.status)}
                         </span>
                       </td>
@@ -389,14 +425,22 @@ const AdminPage: React.FC = () => {
               <table className="min-w-full divide-y divide-gray-700">
                 <thead className="bg-gray-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Farbe</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Icon</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Aktionen</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Farbe
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Icon
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Aktionen
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-gray-800 divide-y divide-gray-700">
-                  {categories.map(category => (
+                  {categories.map((category) => (
                     <tr key={category.id} className="hover:bg-gray-750">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-white">{category.name}</div>
@@ -441,10 +485,18 @@ const AdminPage: React.FC = () => {
               <table className="min-w-full divide-y divide-gray-700">
                 <thead className="bg-gray-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Schlüssel</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Wert</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Beschreibung</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Aktionen</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Schlüssel
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Wert
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Beschreibung
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Aktionen
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-gray-800 divide-y divide-gray-700">
@@ -498,7 +550,8 @@ const AdminPage: React.FC = () => {
                   {settings.length === 0 && (
                     <tr>
                       <td colSpan={4} className="px-6 py-4 text-center text-gray-400">
-                        Keine Einstellungen gefunden. Erstellen Sie die Einstellung &quot;roadmapTitle&quot; für den Roadmap-Titel.
+                        Keine Einstellungen gefunden. Erstellen Sie die Einstellung
+                        &quot;roadmapTitle&quot; für den Roadmap-Titel.
                       </td>
                     </tr>
                   )}

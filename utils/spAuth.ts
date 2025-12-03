@@ -9,13 +9,41 @@ import os from 'os';
 import { resolveSharePointSiteUrl } from './sharepointEnv';
 import { getPrimaryCredentials } from './userCredentials';
 import fs from 'fs';
+import type { IAuthOptions } from 'node-sp-auth';
 
-type CredentialPermutation = {
-  username?: string;
-  password?: string;
-  domain?: string;
-  workstation?: string;
+type NodeSpAuthResponse = {
+  headers: Record<string, unknown>;
+  options?: {
+    [key: string]: unknown;
+  };
+};
+
+type CredentialPermutation = Partial<IAuthOptions> & {
   fba?: boolean;
+  rejectUnauthorized?: boolean;
+};
+type OnPremCredential = CredentialPermutation & {
+  username: string;
+  password: string;
+  workstation?: string;
+  domain?: string;
+};
+
+export interface SharePointAuthContext {
+  headers: Record<string, string>;
+  agent?: https.Agent;
+}
+
+const assertOnPremCredential = (cred?: CredentialPermutation): OnPremCredential => {
+  if (!cred || typeof cred !== 'object') {
+    throw new Error('NTLM diagnostics require at least one credential permutation.');
+  }
+  const username = (cred as { username?: unknown }).username;
+  const password = (cred as { password?: unknown }).password;
+  if (typeof username !== 'string' || typeof password !== 'string') {
+    throw new Error('NTLM diagnostics require username/password credentials.');
+  }
+  return { ...cred, username, password } as OnPremCredential;
 };
 
 type ExtendedError = Error & { code?: string; stderr?: string };
@@ -98,8 +126,7 @@ async function loadNtlmHelpers(): Promise<NtlmHelpers> {
   return ntlmHelpersPromise;
 }
 
-interface CachedAuth {
-  headers: Record<string, string>;
+interface CachedAuth extends SharePointAuthContext {
   expires: number;
 }
 let cachedAuth: CachedAuth | null = null;
@@ -111,35 +138,65 @@ function debugLog(...args: unknown[]) {
   }
 }
 
-export async function getSharePointAuthHeaders(): Promise<Record<string, string>> {
-  // node-sp-auth v3.x uses 'got' library which has issues with proxy agents
-  // Temporarily disable proxy env vars for node-sp-auth calls only
-  // The proxy at 127.0.0.1:3128 is local, so direct connections should work
-  const originalHttpProxy = process.env.HTTP_PROXY;
-  const originalHttpsProxy = process.env.HTTPS_PROXY;
-  const originalHttpProxyLower = process.env.http_proxy;
-  const originalHttpsProxyLower = process.env.https_proxy;
+type ProxyEnvKey = 'HTTP_PROXY' | 'HTTPS_PROXY' | 'http_proxy' | 'https_proxy';
+type ProxyEnvSnapshot = Record<ProxyEnvKey, string | undefined>;
 
-  // Disable proxy temporarily unless SP_AUTH_USE_PROXY is explicitly set
-  if (process.env.SP_AUTH_USE_PROXY !== 'true') {
-    delete process.env.HTTP_PROXY;
-    delete process.env.HTTPS_PROXY;
-    delete process.env.http_proxy;
-    delete process.env.https_proxy;
+const proxyEnvKeys: ProxyEnvKey[] = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy'];
+
+const captureProxyEnv = (): ProxyEnvSnapshot => ({
+  HTTP_PROXY: process.env.HTTP_PROXY,
+  HTTPS_PROXY: process.env.HTTPS_PROXY,
+  http_proxy: process.env.http_proxy,
+  https_proxy: process.env.https_proxy,
+});
+
+const applyProxyEnvSnapshot = (snapshot: ProxyEnvSnapshot) => {
+  for (const key of proxyEnvKeys) {
+    const value = snapshot[key];
+    if (value !== undefined) process.env[key] = value;
+    else delete process.env[key];
   }
+};
 
+const temporarilyDisableProxyEnv = (reason?: string): (() => void) => {
+  const snapshot = captureProxyEnv();
+  let modified = false;
+  for (const key of proxyEnvKeys) {
+    if (process.env[key]) {
+      delete process.env[key];
+      modified = true;
+    }
+  }
+  if (modified && reason) {
+    debugLog(reason);
+  }
+  return () => applyProxyEnvSnapshot(snapshot);
+};
+
+async function executeNodeSpAuthAttempt(
+  siteUrl: string,
+  creds: CredentialPermutation,
+  disableProxyEnv: boolean,
+  label: string
+): Promise<SharePointAuthContext> {
+  const restoreProxyEnv = disableProxyEnv
+    ? temporarilyDisableProxyEnv(`node-sp-auth ${label}: disabled HTTP(S)_PROXY env vars`)
+    : null;
   try {
-    return await getSharePointAuthHeadersInternal();
+    const getAuth = await loadNodeSpAuth(!disableProxyEnv);
+    const auth = (await getAuth(siteUrl, creds as IAuthOptions)) as NodeSpAuthResponse;
+    const agent = (auth.options?.agent as https.Agent | undefined) || undefined;
+    return { headers: auth.headers as Record<string, string>, agent };
   } finally {
-    // Restore proxy settings
-    if (originalHttpProxy !== undefined) process.env.HTTP_PROXY = originalHttpProxy;
-    if (originalHttpsProxy !== undefined) process.env.HTTPS_PROXY = originalHttpsProxy;
-    if (originalHttpProxyLower !== undefined) process.env.http_proxy = originalHttpProxyLower;
-    if (originalHttpsProxyLower !== undefined) process.env.https_proxy = originalHttpsProxyLower;
+    restoreProxyEnv?.();
   }
 }
 
-async function getSharePointAuthHeadersInternal(): Promise<Record<string, string>> {
+export async function getSharePointAuthHeaders(): Promise<SharePointAuthContext> {
+  return getSharePointAuthHeadersInternal();
+}
+
+async function getSharePointAuthHeadersInternal(): Promise<SharePointAuthContext> {
   const siteUrl = resolveSharePointSiteUrl();
   const strategy = process.env.SP_STRATEGY || 'online';
   const extraModes = (process.env.SP_AUTH_EXTRA || '')
@@ -147,10 +204,12 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   const forceSingle = process.env.SP_FORCE_SINGLE_CREDS === 'true';
+  const allowSelfSigned =
+    process.env.SP_ALLOW_SELF_SIGNED === 'true' || process.env.SP_TLS_FALLBACK_INSECURE === 'true';
 
   // Simple cache to avoid repeating expensive NTLM handshake for every request.
   if (cachedAuth && cachedAuth.expires > Date.now() && process.env.SP_AUTH_NO_CACHE !== 'true') {
-    return cachedAuth.headers;
+    return cachedAuth;
   }
 
   // Get credentials from SP_USERNAME/SP_PASSWORD (preferred) or fallback to USER_* secrets
@@ -176,18 +235,17 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
       Accept: 'application/json;odata=nometadata',
       Authorization: `Basic ${auth}`,
     };
-    cachedAuth = { headers, expires: Date.now() + 60 * 60 * 1000 }; // 1 hour cache
+    cachedAuth = { headers, expires: Date.now() + 60 * 60 * 1000 };
     debugLog('basic auth headers prepared');
-    return headers;
+    return cachedAuth;
   } else if (strategy === 'kerberos') {
     // Kerberos: rely on browser/OS negotiation; server-side calls typically run under a domain account or are avoided.
     // We purposefully do NOT inject Authorization header; SharePoint/IIS will issue 401 with WWW-Authenticate: Negotiate and browser will respond.
     // For server initiated calls (Node) you would need a separate Kerberos client lib; out-of-scope here.
     const headers: Record<string, string> = { Accept: 'application/json;odata=verbose' };
-    // Short TTL since no token stored, just semantic caching
     cachedAuth = { headers, expires: Date.now() + 5 * 60 * 1000 };
     debugLog('kerberos mode headers prepared (no Authorization)');
-    return headers;
+    return cachedAuth;
   } else if (strategy === 'fba') {
     // FBA will be handled separately below; permutations not needed.
     permutations.push({ fba: true });
@@ -248,6 +306,12 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
     }
   } else {
     throw new Error(`Unsupported SP_STRATEGY: ${strategy}`);
+  }
+
+  if (allowSelfSigned) {
+    for (const perm of permutations) {
+      perm.rejectUnauthorized = false;
+    }
   }
 
   // TLS adjustments
@@ -373,7 +437,7 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
       };
       cachedAuth = { headers, expires: fba.expires };
       debugLog('fba auth success', { cachedUntil: new Date(fba.expires).toISOString() });
-      return headers;
+      return cachedAuth;
     } catch (error) {
       debugLog('fba auth failed', getErrorMessage(error));
       lastErr = error;
@@ -382,64 +446,78 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
     // WORKAROUND: node-sp-auth v3.x uses 'got' library internally which has agent compatibility issues
     // The 'got' library expects agents in format { http: agent, https: agent } but node-sp-auth doesn't
     // expose a way to pass custom agents. When HTTP_PROXY/HTTPS_PROXY are set, 'got' tries to create
-    // its own proxy agent but fails with: "Expected 'options.agent' properties to be 'http', 'https', got '_events'"
-    // Solution: Temporarily remove proxy env vars for node-sp-auth calls
-    // If SharePoint requires proxy access, set SP_NODE_SP_AUTH_NEEDS_PROXY=true to skip this workaround
+    // its own proxy agent but fails with: "Expected 'options.agent' properties to be 'http', 'https' or 'http2'"
+    // Solution: Prefer direct connections, but allow env override + automatic fallback without proxies.
     const needsProxy = process.env.SP_NODE_SP_AUTH_NEEDS_PROXY === 'true';
-    const savedHttpProxy = process.env.HTTP_PROXY;
-    const savedHttpsProxy = process.env.HTTPS_PROXY;
-    const savedHttpProxyLower = process.env.http_proxy;
-    const savedHttpsProxyLower = process.env.https_proxy;
+    const proxyAgentErrorRegex =
+      /Expected the `options\.agent` properties to be `http`, `https` or `http2`/i;
+    const ttlMs = 30 * 60 * 1000;
 
-    try {
-      // Temporarily disable proxy for node-sp-auth calls (unless explicitly needed)
-      if (!needsProxy) {
-        delete process.env.HTTP_PROXY;
-        delete process.env.HTTPS_PROXY;
-        delete process.env.http_proxy;
-        delete process.env.https_proxy;
-        debugLog('node-sp-auth proxy workaround: temporarily disabled HTTP(S)_PROXY env vars');
-      } else {
-        debugLog('node-sp-auth: keeping proxy enabled (SP_NODE_SP_AUTH_NEEDS_PROXY=true)');
-      }
+    for (let i = 0; i < permutations.length; i++) {
+      const attemptCreds = permutations[i];
+      const disableProxyForPrimary = !needsProxy;
+      try {
+        debugLog('auth attempt', {
+          idx: i,
+          total: permutations.length,
+          creds: { ...attemptCreds, password: '***' },
+          mode: disableProxyForPrimary ? 'direct' : 'proxy-enabled',
+        });
+        const context = await executeNodeSpAuthAttempt(
+          siteUrl,
+          attemptCreds,
+          disableProxyForPrimary,
+          disableProxyForPrimary ? 'primary-direct' : 'primary-proxy'
+        );
+        cachedAuth = { ...context, expires: Date.now() + ttlMs };
+        debugLog('auth success', {
+          idx: i,
+          mode: disableProxyForPrimary ? 'direct' : 'proxy-enabled',
+          cachedUntil: new Date(cachedAuth.expires).toISOString(),
+        });
+        return cachedAuth;
+      } catch (error) {
+        const err = toExtendedError(error);
+        lastErr = err;
+        const message = err.message || '';
+        debugLog('auth attempt failed', {
+          idx: i,
+          message,
+          name: err.name,
+          stackFirst: (err.stack || '').split('\n').slice(0, 2).join(' | '),
+        });
 
-      const getAuth = await loadNodeSpAuth(needsProxy);
-      for (let i = 0; i < permutations.length; i++) {
-        const attemptCreds = permutations[i];
-        try {
-          debugLog('auth attempt', {
-            idx: i,
-            total: permutations.length,
-            creds: { ...attemptCreds, password: '***' },
-          });
-          const auth = await getAuth(siteUrl, attemptCreds);
-          const headers = auth.headers as Record<string, string>;
-          const ttlMs = 30 * 60 * 1000;
-          cachedAuth = { headers, expires: Date.now() + ttlMs };
-          debugLog('auth success', {
-            idx: i,
-            cachedUntil: new Date(cachedAuth.expires).toISOString(),
-          });
-          return headers;
-        } catch (error) {
-          const err = toExtendedError(error);
-          lastErr = err;
-          debugLog('auth attempt failed', {
-            idx: i,
-            message: err.message,
-            name: err.name,
-            stackFirst: (err.stack || '').split('\n').slice(0, 2).join(' | '),
-          });
-          if (!/invalid argument/i.test(err.message || '')) break;
+        const shouldRetryWithoutProxy =
+          !disableProxyForPrimary && proxyAgentErrorRegex.test(message);
+        if (shouldRetryWithoutProxy) {
+          debugLog(
+            'node-sp-auth proxy agent error detected. Retrying authentication with proxies disabled.'
+          );
+          try {
+            const context = await executeNodeSpAuthAttempt(
+              siteUrl,
+              attemptCreds,
+              true,
+              'proxy-fallback'
+            );
+            cachedAuth = { ...context, expires: Date.now() + ttlMs };
+            debugLog('auth success', {
+              idx: i,
+              mode: 'proxy-fallback',
+              cachedUntil: new Date(cachedAuth.expires).toISOString(),
+            });
+            return cachedAuth;
+          } catch (fallbackErr) {
+            debugLog('proxy fallback attempt failed', {
+              idx: i,
+              message: getErrorMessage(fallbackErr),
+            });
+            lastErr = fallbackErr;
+          }
         }
+
+        if (!/invalid argument/i.test(message)) break;
       }
-    } finally {
-      // Restore proxy env vars
-      if (savedHttpProxy !== undefined) process.env.HTTP_PROXY = savedHttpProxy;
-      if (savedHttpsProxy !== undefined) process.env.HTTPS_PROXY = savedHttpsProxy;
-      if (savedHttpProxyLower !== undefined) process.env.http_proxy = savedHttpProxyLower;
-      if (savedHttpsProxyLower !== undefined) process.env.https_proxy = savedHttpsProxyLower;
-      debugLog('node-sp-auth proxy workaround: restored HTTP(S)_PROXY env vars');
     }
 
     // Manual NTLM fallback (some farms emit challenge format that node-sp-auth fails to parse)
@@ -454,14 +532,14 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
         if (!helpers.createType1Message || !helpers.createType3Message) {
           debugLog('manual ntlm fallback unavailable (node-ntlm-client missing)');
         } else {
-          const firstCred = permutations[0];
+          const firstCred = assertOnPremCredential(permutations[0]);
           const workstation = (
             firstCred.workstation ||
             os.hostname().split('.')[0] ||
             'WORKSTATION'
           ).toUpperCase();
           // Derive domain & username pieces
-          let user = firstCred.username as string;
+          let user = firstCred.username;
           let domain = (firstCred.domain || '').split('.')[0];
           if (user.includes('\\')) {
             const parts = user.split('\\');
@@ -708,7 +786,7 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
             };
             // Short TTL because connection affinity might matter
             cachedAuth = { headers, expires: Date.now() + 5 * 60 * 1000 };
-            return headers;
+            return cachedAuth;
           } else {
             const h2 = r2.headers.get('www-authenticate');
             throw new Error('manual ntlm: final request failed status ' + r2.status + ' www=' + h2);
@@ -720,8 +798,8 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
         if (process.env.SP_NTLM_PERSISTENT_SOCKET === 'true') {
           try {
             debugLog('manual ntlm: attempting persistent socket handshake');
-            const firstCred = permutations[0];
-            let pUser = firstCred.username as string;
+            const firstCred = assertOnPremCredential(permutations[0]);
+            let pUser = firstCred.username;
             let pDomain = (firstCred.domain || '').split('.')[0];
             if (pUser.includes('\\')) {
               const parts = pUser.split('\\');
@@ -870,8 +948,8 @@ async function getSharePointAuthHeadersInternal(): Promise<Record<string, string
               // However we can cache a dummy header to keep higher layers satisfied and mark success for diagnostics.
               debugLog('manual ntlm: persistent socket handshake success');
               const headers: Record<string, string> = { 'X-NTLM-Persistent': 'true' };
-              cachedAuth = { headers, expires: Date.now() + 60 * 1000 }; // very short TTL
-              return headers;
+              cachedAuth = { headers, expires: Date.now() + 60 * 1000 };
+              return cachedAuth;
             }
           } catch (perr) {
             debugLog('manual ntlm: persistent socket failed', getErrorMessage(perr));

@@ -1,58 +1,117 @@
-import { useState, useEffect } from 'react';
+﻿import { useEffect, useState, FormEvent } from 'react';
 import { useRouter } from 'next/router';
+import { persistAdminSession } from '@/utils/auth';
+
+type AdminMode = 'github-secrets' | 'sharepoint-permissions';
 
 const AdminLogin: React.FC = () => {
   const router = useRouter();
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState('Überprüfe Admin-Berechtigung...');
-  const returnUrl = router.query.returnUrl as string || '/admin';
+  const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [status, setStatus] = useState<string>('Prüfe Admin-Konfiguration...');
+  const [mode, setMode] = useState<AdminMode | null>(null);
+  const [requiresSession, setRequiresSession] = useState<boolean>(false);
+  const [users, setUsers] = useState<string[]>([]);
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const returnUrl = (router.query.returnUrl as string) || '/admin';
 
-  const checkAdminAccess = async () => {
+  const fetchAuthMode = async () => {
     try {
       setLoading(true);
       setError('');
-      setStatus('Prüfe Service Account Berechtigung...');
-      
+      setStatus('Prüfe Service Account...');
+
       const response = await fetch('/api/auth/check-admin');
+      if (!response.ok) {
+        throw new Error('check-admin failed');
+      }
+
       const data = await response.json();
-      
+      setMode(data.mode as AdminMode);
+      setRequiresSession(Boolean(data.requiresUserSession));
+      if (Array.isArray(data.users)) {
+        setUsers(data.users);
+        if (!username && data.users.length > 0) {
+          setUsername(data.users[0]);
+        }
+      }
+
+      if (data.requiresUserSession) {
+        setStatus('');
+        setLoading(false);
+        return;
+      }
+
       if (data.isAdmin) {
-        setStatus('✓ Admin-Zugriff gewährt');
-        // Small delay to show success message
-        setTimeout(() => {
-          router.push(returnUrl);
-        }, 500);
+        setStatus('Service Account bestätigt. Weiterleitung...');
+        setTimeout(() => router.push(returnUrl), 600);
       } else {
-        setError('Service Account hat keine Admin-Berechtigung. Bitte prüfen Sie die SharePoint-Berechtigungen.');
+        setError(
+          'Service Account hat keine Admin-Berechtigung. Bitte prüfen Sie die SharePoint-Berechtigungen.'
+        );
         setLoading(false);
       }
     } catch (err) {
       console.error('Admin check failed:', err);
       setError('Fehler bei der Admin-Prüfung. Bitte überprüfen Sie die SharePoint-Verbindung.');
       setLoading(false);
+      setStatus('');
     }
   };
 
-  // Check service account admin access directly on mount
   useEffect(() => {
-    checkAdminAccess();
+    fetchAuthMode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleLogin = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!username || !password) {
+      setError('Bitte Benutzername und Passwort eingeben.');
+      return;
+    }
 
+    try {
+      setIsSubmitting(true);
+      setError('');
+      setStatus('Authentifiziere Benutzer...');
+
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Login fehlgeschlagen');
+      }
+
+      persistAdminSession(data.token, data.username);
+      setStatus('Anmeldung erfolgreich. Weiterleitung...');
+      setTimeout(() => router.push(returnUrl), 400);
+    } catch (err) {
+      console.error('Login failed:', err);
+      setError(
+        err instanceof Error ? err.message : 'Login fehlgeschlagen. Bitte erneut versuchen.'
+      );
+      setStatus('');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isSecretsMode = requiresSession && mode === 'github-secrets';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-lg shadow-2xl overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600 to-blue-800 px-8 py-6">
-            <h2 className="text-3xl font-bold text-white text-center">
-              Admin Login
-            </h2>
-            <p className="text-blue-100 text-center mt-2 text-sm">
-              Roadmap Administrator
-            </p>
+            <h2 className="text-3xl font-bold text-white text-center">Admin Login</h2>
+            <p className="text-blue-100 text-center mt-2 text-sm">Roadmap Administrator</p>
           </div>
 
           <div className="px-8 py-8 space-y-6">
@@ -62,45 +121,127 @@ const AdminLogin: React.FC = () => {
               </div>
             )}
 
-            <div className="text-center">
-              {loading ? (
-                <div className="space-y-4">
-                  <div className="flex justify-center">
-                    <svg className="animate-spin h-12 w-12 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
+            {isSecretsMode ? (
+              <form className="space-y-5" onSubmit={handleLogin}>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Benutzername
+                  </label>
+                  {users.length > 0 ? (
+                    <select
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {users.map((user) => (
+                        <option key={user} value={user}>
+                          {user}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Benutzername eingeben"
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Passwort</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Passwort eingeben"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-60"
+                >
+                  {isSubmitting ? 'Anmeldung...' : 'Anmelden'}
+                </button>
+
+                {status && <p className="text-center text-gray-500 text-sm">{status}</p>}
+              </form>
+            ) : (
+              <div className="text-center">
+                {loading ? (
+                  <div className="space-y-4">
+                    <div className="flex justify-center">
+                      <svg
+                        className="animate-spin h-12 w-12 text-blue-600"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                    </div>
+                    <p className="text-gray-700 text-lg font-medium">{status}</p>
+                    <p className="text-gray-500 text-sm">Service Account wird geprüft...</p>
                   </div>
-                  <p className="text-gray-700 text-lg font-medium">{status}</p>
-                  <p className="text-gray-500 text-sm">
-                    Service Account wird geprüft...
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <p className="text-gray-700">
-                    Der Service Account hat keine Admin-Berechtigung.
-                  </p>
-                  <button
-                    onClick={() => checkAdminAccess()}
-                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition font-medium"
-                  >
-                    🔄 Erneut prüfen
-                  </button>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-gray-700">
+                      Der Service Account hat keine Admin-Berechtigung.
+                    </p>
+                    <button
+                      onClick={() => fetchAuthMode()}
+                      className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition font-medium"
+                    >
+                      Erneut prüfen
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="mt-6 text-center border-t pt-6">
-              <p className="text-sm text-gray-600 mb-2">
-                <strong>Service Account Authentifizierung</strong>
-              </p>
-              <p className="text-xs text-gray-500">
-                Der Service Account muss <strong>Site Collection Admin</strong> oder Mitglied der <strong>Owners Group</strong> sein.
-              </p>
-              <p className="text-xs text-gray-400 mt-2">
-                Zugangsdaten werden über Environment Variables (SP_USERNAME, SP_PASSWORD) verwaltet.
-              </p>
+              {isSecretsMode ? (
+                <>
+                  <p className="text-sm text-gray-600 mb-2">
+                    <strong>GitHub Secrets Authentifizierung</strong>
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Die verfügbaren Benutzer stammen aus den konfigurierten <code>USER_*</code>{' '}
+                    Secrets. Jede Anmeldung erstellt eine lokale Admin-Session.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 mb-2">
+                    <strong>Service Account Authentifizierung</strong>
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Der Service Account muss <strong>Site Collection Admin</strong> oder Mitglied
+                    der <strong>Owners Group</strong> sein.
+                  </p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    Zugangsdaten werden über Environment Variables (SP_USERNAME, SP_PASSWORD)
+                    verwaltet.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -110,7 +251,7 @@ const AdminLogin: React.FC = () => {
             onClick={() => router.push('/')}
             className="text-blue-200 hover:text-white text-sm transition"
           >
-            ← Zurück zur Startseite
+            Zurück zur Startseite
           </button>
         </div>
       </div>

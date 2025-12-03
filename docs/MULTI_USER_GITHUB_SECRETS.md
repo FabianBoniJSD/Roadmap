@@ -37,16 +37,17 @@ Beispiele:
 ### Secret-Value-Format
 
 ```
-<username>:<password>
+<username>:<password | bcrypt-hash>
 ```
 
 Beispiele:
 
-- `fabian:SecurePassword123`
-- `stefan:MyPass456`
+- `fabian:SecurePassword123` (wird beim Start automatisch gehasht)
+- `stefan:$2b$12$T0UrUWYkF6iDo7JY7FhGoe6fpC5xHLDY7VfYRIOf5A6rI5zAuYVFe` (bereits gehasht)
 - `admin:ServicePass789`
 
-**Wichtig**: Wenn das Passwort einen Doppelpunkt (`:`) enthält, ist das kein Problem - alles nach dem ersten `:` wird als Passwort behandelt.
+**Wichtig**: Wenn das Passwort einen Doppelpunkt (`:`) enthält, ist das kein Problem – alles nach dem ersten `:` wird als Passwort behandelt.  
+**Sicherheit**: Einträgen ohne Hash wird beim Serverstart automatisch ein Bcrypt-Hash zugewiesen (log-Ausgabe zeigt den neuen Wert). Ersetzen Sie den Klartext zeitnah durch den Hash, damit keine Passwörter im Klartext in `.env` oder GitHub Secrets verbleiben.
 
 ---
 
@@ -121,7 +122,7 @@ USER_STEFAN=stefan:secure
 loadUserCredentialsFromSecrets()
   → Scannt alle Environment Variables
   → Findet USER_* Pattern
-  → Parsed "username:password"
+  → Parsed "username:<password oder bcrypt-hash>"
   → Gibt Array aller verfügbaren User zurück
 ```
 

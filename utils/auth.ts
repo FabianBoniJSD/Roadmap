@@ -3,49 +3,126 @@
  * Uses JWT tokens stored in sessionStorage after Windows authentication via SharePoint
  */
 
+const TOKEN_KEY = 'adminToken';
+const USERNAME_KEY = 'adminUsername';
+
 // Lightweight debug switch for verbose console logs around auth/admin flows
 function debugAuthEnabled(): boolean {
   try {
-    if (typeof process !== 'undefined' && process.env && (process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true')) return true;
+    if (
+      typeof process !== 'undefined' &&
+      process.env &&
+      process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true'
+    )
+      return true;
     if (typeof window !== 'undefined') {
       if (/([?&])debug=auth(?![\w-])/i.test(window.location.search)) return true;
       const ls = window.localStorage?.getItem('debugAuth');
       if (ls && ls !== '0' && ls.toLowerCase() !== 'false') return true;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return false;
 }
 
-function log(...args: any[]) {
+function log(...args: unknown[]) {
   if (debugAuthEnabled()) {
     // eslint-disable-next-line no-console
     console.log('[admin-auth]', ...args);
   }
 }
 
-// Check if the service account has admin access
+function getSessionStorage(): Storage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function getStoredToken(): string | null {
+  const storage = getSessionStorage();
+  if (!storage) return null;
+  try {
+    return storage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function clearStoredSession() {
+  const storage = getSessionStorage();
+  if (!storage) return;
+  try {
+    storage.removeItem(TOKEN_KEY);
+    storage.removeItem(USERNAME_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function setStoredSession(token: string, username: string) {
+  const storage = getSessionStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(TOKEN_KEY, token);
+    storage.setItem(USERNAME_KEY, username);
+  } catch (error) {
+    log('setStoredSession failed', error);
+  }
+}
+
+export function persistAdminSession(token: string, username: string) {
+  setStoredSession(token, username);
+}
+
+// Check if the current browser session has admin access
 export async function hasAdminAccess(): Promise<boolean> {
   try {
-    log('hasAdminAccess: Checking service account admin rights');
-    
     if (typeof window === 'undefined') {
-      log('hasAdminAccess: server-side, returning false');
       return false;
     }
-    
-    // Direct check via service account (no user session needed)
+
+    const token = getStoredToken();
+    if (token) {
+      log('hasAdminAccess: verifying stored admin session');
+      try {
+        const response = await fetch('/api/auth/check-admin-session', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.isAdmin) {
+            log('hasAdminAccess: session valid');
+            return true;
+          }
+        }
+        log('hasAdminAccess: stored session invalid, clearing');
+        clearStoredSession();
+      } catch (error) {
+        log('hasAdminAccess: error verifying token', error);
+      }
+    }
+
+    log('hasAdminAccess: falling back to service account metadata');
     try {
       const response = await fetch('/api/auth/check-admin');
       if (response.ok) {
         const data = await response.json();
-        log(`hasAdminAccess: Service account isAdmin = ${data.isAdmin}`);
-        return data.isAdmin;
+        if (data.requiresUserSession) {
+          log('hasAdminAccess: environment requires user session, no auto access');
+          return false;
+        }
+        log(`hasAdminAccess: service account fallback -> ${data.isAdmin}`);
+        return Boolean(data.isAdmin);
       } else {
-        log('hasAdminAccess: Admin check failed with status', response.status);
+        log('hasAdminAccess: fallback check failed with status', response.status);
         return false;
       }
     } catch (error) {
-      log('hasAdminAccess: Error checking admin status:', error);
+      log('hasAdminAccess: error checking fallback admin status', error);
       return false;
     }
   } catch (error) {
@@ -59,10 +136,10 @@ export async function hasAdminAccess(): Promise<boolean> {
  * Kept for backwards compatibility
  */
 export function logout(): void {
-  log('logout: Service account auth - no session to clear');
-  // Redirect to home page
   if (typeof window !== 'undefined') {
-    window.location.href = '/';
+    log('logout: clearing stored session');
+    clearStoredSession();
+    window.location.href = '/admin/login';
   }
 }
 
@@ -70,6 +147,11 @@ export function logout(): void {
  * Get current admin username (returns service account info)
  */
 export function getAdminUsername(): string | null {
-  // Return service account identifier
-  return 'Service Account';
+  const storage = getSessionStorage();
+  if (!storage) return null;
+  try {
+    return storage.getItem(USERNAME_KEY);
+  } catch {
+    return null;
+  }
 }
