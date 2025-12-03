@@ -10,6 +10,7 @@ import { resolveSharePointSiteUrl } from './sharepointEnv';
 import { getPrimaryCredentials } from './userCredentials';
 import fs from 'fs';
 import type { IAuthOptions } from 'node-sp-auth/lib/src/auth/IAuthOptions';
+import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
 type NodeSpAuthResponse = {
   headers: Record<string, unknown>;
@@ -143,6 +144,22 @@ type ProxyEnvSnapshot = Record<ProxyEnvKey, string | undefined>;
 
 const proxyEnvKeys: ProxyEnvKey[] = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy'];
 
+const getExtraModes = (instance?: RoadmapInstanceConfig | null): string[] => {
+  if (instance?.sharePoint.extraModes && instance.sharePoint.extraModes.length > 0) {
+    return instance.sharePoint.extraModes;
+  }
+  return (process.env.SP_AUTH_EXTRA || '')
+    .split(',')
+    .map((mode) => mode.trim().toLowerCase())
+    .filter(Boolean);
+};
+
+const getTrustedCaPath = (instance?: RoadmapInstanceConfig | null): string | undefined => {
+  const candidate = instance?.sharePoint.trustedCaPath || process.env.SP_TRUSTED_CA_PATH;
+  if (!candidate) return undefined;
+  return candidate.trim() || undefined;
+};
+
 const captureProxyEnv = (): ProxyEnvSnapshot => ({
   HTTP_PROXY: process.env.HTTP_PROXY,
   HTTPS_PROXY: process.env.HTTPS_PROXY,
@@ -192,28 +209,47 @@ async function executeNodeSpAuthAttempt(
   }
 }
 
-export async function getSharePointAuthHeaders(): Promise<SharePointAuthContext> {
-  return getSharePointAuthHeadersInternal();
+export async function getSharePointAuthHeaders(
+  instance?: RoadmapInstanceConfig | null
+): Promise<SharePointAuthContext> {
+  return getSharePointAuthHeadersInternal(instance || null);
 }
 
-async function getSharePointAuthHeadersInternal(): Promise<SharePointAuthContext> {
-  const siteUrl = resolveSharePointSiteUrl();
-  const strategy = process.env.SP_STRATEGY || 'online';
-  const extraModes = (process.env.SP_AUTH_EXTRA || '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  const forceSingle = process.env.SP_FORCE_SINGLE_CREDS === 'true';
+async function getSharePointAuthHeadersInternal(
+  instance: RoadmapInstanceConfig | null
+): Promise<SharePointAuthContext> {
+  const siteUrl = resolveSharePointSiteUrl(instance || undefined);
+  const strategy = instance?.sharePoint.strategy || process.env.SP_STRATEGY || 'online';
+  const extraModes = getExtraModes(instance);
+  const forceSingle =
+    (instance?.sharePoint.forceSingleCreds ?? false) ||
+    process.env.SP_FORCE_SINGLE_CREDS === 'true';
   const allowSelfSigned =
-    process.env.SP_ALLOW_SELF_SIGNED === 'true' || process.env.SP_TLS_FALLBACK_INSECURE === 'true';
+    instance?.sharePoint.allowSelfSigned === true ||
+    process.env.SP_ALLOW_SELF_SIGNED === 'true' ||
+    process.env.SP_TLS_FALLBACK_INSECURE === 'true';
+  const manualNtlmEnabled =
+    instance?.sharePoint.manualNtlmFallback === true ||
+    process.env.SP_MANUAL_NTLM_FALLBACK === 'true';
+  const ntlmPersistentEnabled =
+    instance?.sharePoint.ntlmPersistentSocket === true ||
+    process.env.SP_NTLM_PERSISTENT_SOCKET === 'true';
+  const ntlmSocketProbeEnabled =
+    instance?.sharePoint.ntlmSocketProbe === true || process.env.SP_NTLM_SOCKET_PROBE === 'true';
 
   // Simple cache to avoid repeating expensive NTLM handshake for every request.
-  if (cachedAuth && cachedAuth.expires > Date.now() && process.env.SP_AUTH_NO_CACHE !== 'true') {
+  const disableCache =
+    instance?.sharePoint.authNoCache === true || process.env.SP_AUTH_NO_CACHE === 'true';
+
+  if (cachedAuth && cachedAuth.expires > Date.now() && !disableCache) {
     return cachedAuth;
   }
 
   // Get credentials from SP_USERNAME/SP_PASSWORD (preferred) or fallback to USER_* secrets
-  const credentials = getPrimaryCredentials();
+  const credentials = getPrimaryCredentials({
+    username: instance?.sharePoint.username,
+    password: instance?.sharePoint.password,
+  });
   if (!credentials) {
     throw new Error(
       'No credentials found. Set SP_USERNAME/SP_PASSWORD (preferred) or USER_* secrets.'
@@ -221,8 +257,9 @@ async function getSharePointAuthHeadersInternal(): Promise<SharePointAuthContext
   }
   const usernameEnv = credentials.username;
   const passwordEnv = credentials.password;
-  const domainEnv = process.env.SP_ONPREM_DOMAIN || '';
-  const workstationEnv = process.env.SP_ONPREM_WORKSTATION || undefined;
+  const domainEnv = instance?.sharePoint.domain || process.env.SP_ONPREM_DOMAIN || '';
+  const workstationEnv =
+    instance?.sharePoint.workstation || process.env.SP_ONPREM_WORKSTATION || undefined;
 
   // Build list of credential permutations (especially for NTLM) because farms differ in accepted forms
   const permutations: CredentialPermutation[] = [];
@@ -315,9 +352,23 @@ async function getSharePointAuthHeadersInternal(): Promise<SharePointAuthContext
   }
 
   // TLS adjustments
-  if (process.env.SP_ALLOW_SELF_SIGNED === 'true') {
+  if (allowSelfSigned) {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-  } else if (process.env.SP_TRUSTED_CA_PATH) {
+  } else {
+    const trustedCa = getTrustedCaPath(instance);
+    if (!trustedCa) {
+      delete process.env.NODE_EXTRA_CA_CERTS;
+    } else {
+      const baseDir =
+        typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '.';
+      const caPath = path.isAbsolute(trustedCa) ? trustedCa : path.join(baseDir, trustedCa);
+      if (fs.existsSync(caPath)) {
+        process.env.NODE_EXTRA_CA_CERTS = caPath;
+      }
+    }
+  }
+
+  if (!allowSelfSigned && !getTrustedCaPath(instance) && process.env.SP_TRUSTED_CA_PATH) {
     const baseDir =
       typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '.';
     const caPath = path.isAbsolute(process.env.SP_TRUSTED_CA_PATH)
@@ -448,7 +499,9 @@ async function getSharePointAuthHeadersInternal(): Promise<SharePointAuthContext
     // expose a way to pass custom agents. When HTTP_PROXY/HTTPS_PROXY are set, 'got' tries to create
     // its own proxy agent but fails with: "Expected 'options.agent' properties to be 'http', 'https' or 'http2'"
     // Solution: Prefer direct connections, but allow env override + automatic fallback without proxies.
-    const needsProxy = process.env.SP_NODE_SP_AUTH_NEEDS_PROXY === 'true';
+    const needsProxy =
+      instance?.sharePoint.needsProxy === true ||
+      process.env.SP_NODE_SP_AUTH_NEEDS_PROXY === 'true';
     const proxyAgentErrorRegex =
       /Expected the `options\.agent` properties to be `http`, `https` or `http2`/i;
     const ttlMs = 30 * 60 * 1000;
@@ -522,11 +575,7 @@ async function getSharePointAuthHeadersInternal(): Promise<SharePointAuthContext
 
     // Manual NTLM fallback (some farms emit challenge format that node-sp-auth fails to parse)
     const lastErrMessage = getErrorMessage(lastErr);
-    if (
-      process.env.SP_MANUAL_NTLM_FALLBACK === 'true' &&
-      lastErr &&
-      /invalid argument/i.test(lastErrMessage)
-    ) {
+    if (manualNtlmEnabled && lastErr && /invalid argument/i.test(lastErrMessage)) {
       try {
         const helpers = await loadNtlmHelpers();
         if (!helpers.createType1Message || !helpers.createType3Message) {
@@ -686,7 +735,7 @@ async function getSharePointAuthHeadersInternal(): Promise<SharePointAuthContext
                   debugLog('manual ntlm: raw probe error', getErrorMessage(rawErr));
                 }
                 // Optional deep socket probe (TLS) to see unmodified multiple WWW-Authenticate lines
-                if (!m && process.env.SP_NTLM_SOCKET_PROBE === 'true') {
+                if (!m && ntlmSocketProbeEnabled) {
                   try {
                     const u = new NodeURL(candidate);
                     const pathPart = u.pathname + (u.search || '');
@@ -795,7 +844,7 @@ async function getSharePointAuthHeadersInternal(): Promise<SharePointAuthContext
       } catch (mf) {
         debugLog('manual ntlm fallback failed', getErrorMessage(mf));
         // Experimental persistent-socket NTLM handshake (some IIS setups require same TCP connection for 401->Type1->Type3)
-        if (process.env.SP_NTLM_PERSISTENT_SOCKET === 'true') {
+        if (ntlmPersistentEnabled) {
           try {
             debugLog('manual ntlm: attempting persistent socket handshake');
             const firstCred = assertOnPremCredential(permutations[0]);

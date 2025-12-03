@@ -11,6 +11,7 @@ interface NextApiRequest {
   headers: Record<string, any>;
   query: any;
   body: any;
+  cookies?: Record<string, string>;
 }
 interface NextApiResponse {
   status: (code: number) => NextApiResponse;
@@ -25,6 +26,8 @@ const dns = require('dns');
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import { sharePointHttpsAgent, sharePointDispatcher } from '@/utils/httpsAgent';
 import '@/utils/md4Fallback';
+import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
+import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
 // Loose types for optional dependency
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,20 +66,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: 'Disabled' });
   }
   const started = Date.now();
-  const site = resolveSharePointSiteUrl();
+  let instance: RoadmapInstanceConfig | null = null;
+  try {
+    instance = await getInstanceConfigFromRequest(req as any);
+  } catch (error) {
+    console.error('[ntlm-dump] failed to resolve instance', error);
+    return res.status(500).json({ error: 'Instance resolution failed' });
+  }
+  if (!instance) {
+    return res.status(404).json({ error: 'No roadmap instance configured' });
+  }
+  res.setHeader?.('X-Roadmap-Instance', instance.slug);
+  const site = resolveSharePointSiteUrl(instance);
   const ntlm = loadNtlm();
   if (!ntlm) return res.status(500).json({ error: 'node-ntlm-client not available' });
 
   try {
     const timing: Record<string, number> = {};
-    const domainRaw = process.env.SP_ONPREM_DOMAIN || '';
+    const domainRaw = instance.sharePoint.domain || process.env.SP_ONPREM_DOMAIN || '';
     const domain = domainRaw ? domainRaw.split('.')[0] : undefined;
     const workstation = (
+      instance.sharePoint.workstation ||
       process.env.SP_ONPREM_WORKSTATION ||
       os.hostname().split('.')[0] ||
       'WORKSTATION'
     ).toUpperCase();
-    if (process.env.SP_ALLOW_SELF_SIGNED === 'true') {
+    if (
+      instance.sharePoint.allowSelfSigned === true ||
+      process.env.SP_ALLOW_SELF_SIGNED === 'true'
+    ) {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     }
 

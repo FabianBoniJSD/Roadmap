@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model RoadmapInstance {
+  id                   Int       @id @default(autoincrement())
+  slug                 String    @unique
+  displayName          String
+  department           String?
+  description          String?
+  sharePointSiteUrlDev String
+  sharePointSiteUrlProd String?
+  sharePointStrategy   String    @default("onprem")
+  spUsername           String
+  spPassword           String
+  spDomain             String?
+  spWorkstation        String?
+  allowSelfSigned      Boolean   @default(false)
+  needsProxy           Boolean   @default(false)
+  forceSingleCreds     Boolean   @default(false)
+  authNoCache          Boolean   @default(false)
+  manualNtlmFallback   Boolean   @default(false)
+  ntlmPersistentSocket Boolean   @default(false)
+  ntlmSocketProbe      Boolean   @default(false)
+  extraAuthModes       String?
+  trustedCaPath        String?
+  deploymentEnv        String?
+  defaultLocale        String?
+  defaultTimeZone      String?
+  settingsJson         String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  hosts                RoadmapInstanceHost[]
+}
+
+model RoadmapInstanceHost {
+  id         Int              @id @default(autoincrement())
+  host       String           @unique
+  instance   RoadmapInstance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  instanceId Int
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+}

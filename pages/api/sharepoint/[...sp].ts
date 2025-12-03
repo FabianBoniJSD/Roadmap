@@ -3,6 +3,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import got, { type Method as GotMethod, type Response as GotResponse } from 'got';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import { getSharePointAuthHeaders, SharePointAuthContext } from '@/utils/spAuth';
+import { getInstanceConfigFromRequest, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
+import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 import { sharePointHttpsAgent, sharePointDispatcher } from '@/utils/httpsAgent';
 // Fallback constructors for insecure TLS retry when allowed
 // @ts-ignore builtin without node types in some build envs
@@ -209,13 +211,34 @@ async function readRawBodyBuffer(req: NextApiRequest): Promise<Buffer> {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const site = resolveSharePointSiteUrl();
+  let instance: RoadmapInstanceConfig | null = null;
+  try {
+    instance = await getInstanceConfigFromRequest(req);
+  } catch (error) {
+    console.error('[sharepoint proxy] failed to resolve roadmap instance', error);
+    return res.status(500).json({ error: 'Failed to resolve roadmap instance' });
+  }
+  if (!instance) {
+    return res.status(404).json({ error: 'No roadmap instance configured for this request' });
+  }
+
+  res.setHeader('X-Roadmap-Instance', instance.slug);
+
+  const site = resolveSharePointSiteUrl(instance);
   const segments = (req.query.sp as string[] | undefined) || [];
   const apiPath = '/' + segments.join('/');
   const qIndex = req.url?.indexOf('?') ?? -1;
   // Preserve raw encoded query string; earlier decoding attempts may trigger 'Invalid argument' before request
   let query = '';
-  if (qIndex >= 0) query = req.url!.substring(qIndex); // includes leading '?'
+  if (qIndex >= 0 && req.url) {
+    const rawQuery = req.url.substring(qIndex + 1);
+    const filtered = rawQuery.split('&').filter((segment) => {
+      if (!segment) return false;
+      const key = segment.split('=')[0];
+      return key !== INSTANCE_QUERY_PARAM;
+    });
+    query = filtered.length ? `?${filtered.join('&')}` : '';
+  }
   let fullPath = apiPath + query;
   // Some on-prem SharePoint builds reject /items/ (trailing slash) before query params; normalize to /items
   fullPath = fullPath.replace(/\/items\/\?/, '/items?');
@@ -240,14 +263,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Optional curl path: supports NTLM (with user/pass) and Kerberos (with system creds via kinit)
-    const strategy = process.env.SP_STRATEGY || '';
+    const strategy = instance.sharePoint.strategy || process.env.SP_STRATEGY || '';
     if (process.env.SP_USE_CURL === 'true') {
-      const username = process.env.SP_USERNAME || '';
-      const password = process.env.SP_PASSWORD || '';
+      const username = instance.sharePoint.username || process.env.SP_USERNAME || '';
+      const password = instance.sharePoint.password || process.env.SP_PASSWORD || '';
       const isKerb = strategy === 'kerberos';
       const allowNtlmFallback = process.env.SP_FALLBACK_NTLM === 'true' && !!username && !!password;
       const domain =
-        process.env.SP_ONPREM_DOMAIN || (username.includes('\\') ? username.split('\\')[0] : '');
+        instance.sharePoint.domain || (username.includes('\\') ? username.split('\\')[0] : '');
       const userPart = username.includes('\\') ? username.split('\\')[1] : username;
       const cred = domain ? `${domain}\\${userPart}:${password}` : `${userPart}:${password}`;
       const targetUrl = site.replace(/\/$/, '') + fullPath;
@@ -256,7 +279,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? req.headers['accept']
           : 'application/json;odata=nometadata';
       const cacheSeconds = parseInt(process.env.SP_CURL_CACHE_SECONDS || '60', 10);
-      const caPath = process.env.SP_TRUSTED_CA_PATH || '';
+      const caPath = instance.sharePoint.trustedCaPath || process.env.SP_TRUSTED_CA_PATH || '';
       const cacheKey = 'GET:' + targetUrl + '|' + clientAccept;
       if (req.method === 'GET' && cacheSeconds > 0) {
         const ent = curlCache[cacheKey];
@@ -327,14 +350,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 res.setHeader('x-sp-proxy-fallback', 'ntlm');
                 return res.status(200).json({ ok: true });
               } catch (ee: any) {
-                return res
-                  .status(500)
-                  .json({
-                    error: 'curl-head-failed',
-                    detail: ee.message,
-                    stderr: ee.stderr,
-                    fallbackTried: 'ntlm',
-                  });
+                return res.status(500).json({
+                  error: 'curl-head-failed',
+                  detail: ee.message,
+                  stderr: ee.stderr,
+                  fallbackTried: 'ntlm',
+                });
               }
             }
             return res
@@ -537,14 +558,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               invalidateCurlCache();
               return res.status(200).json(parsed2);
             } catch (ee: any) {
-              return res
-                .status(500)
-                .json({
-                  error: 'curl-post-failed',
-                  detail: ee.message,
-                  stderr: ee.stderr,
-                  fallbackTried: 'ntlm',
-                });
+              return res.status(500).json({
+                error: 'curl-post-failed',
+                detail: ee.message,
+                stderr: ee.stderr,
+                fallbackTried: 'ntlm',
+              });
             }
           }
           return res
@@ -690,13 +709,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       if (!normalized) normalized = rawOut; // fallback raw
       if (typeof normalized === 'string' && /<html/i.test(normalized) && /401/i.test(normalized)) {
-        return res
-          .status(401)
-          .json({
-            error: 'Unauthorized (curl)',
-            snippet: normalized.substring(0, 160),
-            stderr: process.env.SP_CURL_VERBOSE === 'true' ? output.stderr : undefined,
-          });
+        return res.status(401).json({
+          error: 'Unauthorized (curl)',
+          snippet: normalized.substring(0, 160),
+          stderr: process.env.SP_CURL_VERBOSE === 'true' ? output.stderr : undefined,
+        });
       }
       // Shape response to look like native SharePoint depending on Accept header
       const wantsNoMeta = /odata=nometadata/i.test(clientAccept);
@@ -720,7 +737,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json(bodyToSend);
     }
 
-    const authContext = await getSharePointAuthHeaders();
+    const authContext = await getSharePointAuthHeaders(instance);
     const authHeaders = authContext.headers;
     const ntlmAgent = authContext.agent;
     if ((process.env.SP_STRATEGY || '') === 'kerberos') {

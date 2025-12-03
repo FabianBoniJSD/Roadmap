@@ -171,16 +171,32 @@ export function loadUserCredentialsFromSecrets(): UserCredentials[] {
 }
 
 /**
- * Get the first available user credentials
- * Priority: SP_USERNAME/SP_PASSWORD → Fallback to GitHub Secrets (USER_*)
+ * Credentials overrides allow multi-instance providers (e.g., Prisma) to supply
+ * SharePoint service-account usernames/passwords per tenant.
  */
-export function getPrimaryCredentials(): { username: string; password: string } | null {
-  const usernameEnv = (process.env.SP_USERNAME || '').trim();
-  const passwordEnv = process.env.SP_PASSWORD;
+export type CredentialOverrides = {
+  username?: string | null;
+  password?: string | null;
+};
+
+/**
+ * Get the first available user credentials
+ * Priority: explicit overrides → SP_USERNAME/SP_PASSWORD → GitHub Secrets (USER_*)
+ */
+export function getPrimaryCredentials(
+  overrides?: CredentialOverrides
+): { username: string; password: string } | null {
+  const usernameEnv = (overrides?.username ?? process.env.SP_USERNAME ?? '').trim();
+  const passwordEnv = overrides?.password ?? process.env.SP_PASSWORD;
 
   if (usernameEnv && passwordEnv) {
+    const usingOverrides = Boolean(overrides?.username || overrides?.password);
     // eslint-disable-next-line no-console
-    console.log('[Credentials] Using SP_USERNAME/SP_PASSWORD for SharePoint proxy');
+    console.log(
+      `[Credentials] Using ${
+        usingOverrides ? 'instance-specific' : 'SP_USERNAME/SP_PASSWORD'
+      } credentials for SharePoint proxy`
+    );
     return { username: usernameEnv, password: passwordEnv };
   }
 

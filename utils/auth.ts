@@ -78,6 +78,10 @@ export function persistAdminSession(token: string, username: string) {
   setStoredSession(token, username);
 }
 
+export function getAdminSessionToken(): string | null {
+  return getStoredToken();
+}
+
 // Check if the current browser session has admin access
 export async function hasAdminAccess(): Promise<boolean> {
   try {
