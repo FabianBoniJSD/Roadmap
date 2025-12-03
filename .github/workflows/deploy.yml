@@ -46,14 +46,11 @@ jobs:
           node-version: '20'
           cache: 'yarn'
 
-      - name: Install Yarn CLI
-        shell: powershell
-        run: |
-          npm install -g yarn
-          "$env:APPDATA\npm" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
       - name: Enable Corepack (Yarn)
         run: corepack enable
+
+      - name: Activate Yarn 1.x (Classic)
+        run: corepack prepare yarn@1.22.22 --activate
 
       - name: Show disk space (before)
         run: |
