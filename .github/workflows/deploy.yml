@@ -44,28 +44,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'yarn'
-
-      - name: Install Yarn 1.x CLI
-        shell: powershell
-        run: |
-          npm install -g yarn@1.22.22
-          $binPath = Join-Path $env:APPDATA 'npm'
-          if (-not (Test-Path $binPath)) {
-            Write-Error "npm global bin path not found: $binPath"
-            exit 1
-          }
-          echo $binPath >> $env:GITHUB_PATH
 
       - name: Show disk space (before)
         run: |
           Write-Output "Disk space before:"
           Get-PSDrive C | Select-Object Used,Free
 
+      - name: Clean Yarn cache
+        uses: Borales/actions-yarn@v5.0.0
+        with:
+          cmd: cache clean
+
       - name: Free up disk space (caches, logs, artifacts)
         run: |
-          # Clean Yarn cache
-          yarn cache clean || true
           # Remove PM2 logs if present
           if (Test-Path "$env:USERPROFILE\.pm2\logs") {
             Remove-Item -Path "$env:USERPROFILE\.pm2\logs\*" -Force -ErrorAction SilentlyContinue
@@ -81,7 +72,9 @@ jobs:
           Get-PSDrive C | Select-Object Used,Free
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        uses: Borales/actions-yarn@v5.0.0
+        with:
+          cmd: install --frozen-lockfile
 
       - name: Build application
         env:
@@ -93,7 +86,9 @@ jobs:
           USER_STEFAN: ${{ secrets.USER_STEFAN }}
           USER_ADMIN: ${{ secrets.USER_ADMIN }}
           # Add more USER_* secrets as needed
-        run: yarn build
+        uses: Borales/actions-yarn@v5.0.0
+        with:
+          cmd: build
 
       - name: Verify Next.js build output exists
         run: |
@@ -125,7 +120,9 @@ jobs:
           }
 
       - name: Install PM2 (process manager)
-        run: yarn global add pm2
+        uses: Borales/actions-yarn@v5.0.0
+        with:
+          cmd: global add pm2
 
       - name: Stop existing instance and free port 3000
         run: |
