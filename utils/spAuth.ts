@@ -9,7 +9,7 @@ import os from 'os';
 import { resolveSharePointSiteUrl } from './sharepointEnv';
 import { getPrimaryCredentials } from './userCredentials';
 import fs from 'fs';
-import type { IAuthOptions } from 'node-sp-auth';
+import type { IAuthOptions } from 'node-sp-auth/lib/src/auth/IAuthOptions';
 
 type NodeSpAuthResponse = {
   headers: Record<string, unknown>;
