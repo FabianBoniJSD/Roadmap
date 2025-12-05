@@ -90,6 +90,29 @@ jobs:
           Write-Output "Disk space after cleanup:"
           Get-PSDrive C | Select-Object Used,Free
 
+      - name: Force remove stale node_modules directory
+        run: |
+          if (Test-Path "node_modules") {
+            Write-Output "Attempting to remove existing node_modules..."
+            try {
+              Remove-Item -Path "node_modules" -Recurse -Force -ErrorAction Stop
+              Write-Output "Removed node_modules with Remove-Item."
+            } catch {
+              Write-Output "Remove-Item failed, falling back to takeown/icacls + rd."
+              takeown /f "node_modules" /r /d y | Out-Null
+              icacls "node_modules" /grant "$env:USERNAME:(OI)(CI)F" /t | Out-Null
+              cmd /c "rd /s /q node_modules"
+              if (Test-Path "node_modules") {
+                Write-Error "Failed to remove node_modules directory even after fallback."
+                exit 1
+              } else {
+                Write-Output "Fallback removal succeeded."
+              }
+            }
+          } else {
+            Write-Output "node_modules directory not present."
+          }
+
       - name: Install dependencies
         uses: Borales/actions-yarn@v5.0.0
         with:
