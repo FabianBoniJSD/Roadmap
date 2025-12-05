@@ -105,16 +105,26 @@ jobs:
               }
             }
             Start-Sleep -Seconds 2
+            $targetPath = "node_modules"
             try {
-              Remove-Item -Path "node_modules" -Recurse -Force -ErrorAction Stop
-              Write-Output "Removed node_modules with Remove-Item."
+              $tempName = "node_modules_to_delete_$(([Guid]::NewGuid().ToString('N')).Substring(0,8))"
+              Move-Item -Path "node_modules" -Destination $tempName -Force
+              $targetPath = $tempName
+              Write-Output "Renamed node_modules to $targetPath for removal."
+            } catch {
+              Write-Output "Rename step failed, continuing with original directory."
+            }
+            try {
+              Remove-Item -Path $targetPath -Recurse -Force -ErrorAction Stop
+              Write-Output "Removed $targetPath with Remove-Item."
             } catch {
               Write-Output "Remove-Item failed, falling back to takeown/icacls + rd."
-              takeown /f "node_modules" /r /d y | Out-Null
-              icacls "node_modules" /grant "$($env:USERNAME):(OI)(CI)F" /t | Out-Null
-              cmd /c "rd /s /q node_modules"
-              if (Test-Path "node_modules") {
-                Write-Error "Failed to remove node_modules directory even after fallback."
+              cmd /c "takeown /f `"$targetPath`" /r /d y" | Out-Null
+              cmd /c "icacls `"$targetPath`" /grant %USERNAME%:(OI)(CI)F /T /C" | Out-Null
+              cmd /c "icacls `"$targetPath`" /grant Administrators:(OI)(CI)F /T /C" | Out-Null
+              cmd /c "rmdir /s /q `"$targetPath`""
+              if (Test-Path $targetPath) {
+                Write-Error "Failed to remove $targetPath directory even after fallback."
                 exit 1
               } else {
                 Write-Output "Fallback removal succeeded."
