@@ -94,13 +94,24 @@ jobs:
         run: |
           if (Test-Path "node_modules") {
             Write-Output "Attempting to remove existing node_modules..."
+            Write-Output "Stopping potential Node/Prisma processes..."
+            $processNames = @('node', 'prisma', 'next', 'npm', 'yarn')
+            foreach ($name in $processNames) {
+              try {
+                Get-Process -Name $name -ErrorAction Stop | Stop-Process -Force -ErrorAction Stop
+                Write-Output "Stopped process $name"
+              } catch {
+                # ignore if process not running
+              }
+            }
+            Start-Sleep -Seconds 2
             try {
               Remove-Item -Path "node_modules" -Recurse -Force -ErrorAction Stop
               Write-Output "Removed node_modules with Remove-Item."
             } catch {
               Write-Output "Remove-Item failed, falling back to takeown/icacls + rd."
               takeown /f "node_modules" /r /d y | Out-Null
-              icacls "node_modules" /grant "$env:USERNAME:(OI)(CI)F" /t | Out-Null
+              icacls "node_modules" /grant "$($env:USERNAME):(OI)(CI)F" /t | Out-Null
               cmd /c "rd /s /q node_modules"
               if (Test-Path "node_modules") {
                 Write-Error "Failed to remove node_modules directory even after fallback."
