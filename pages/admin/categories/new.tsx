@@ -1,33 +1,30 @@
-import React from 'react';
 import { useRouter } from 'next/router';
-import CategoryForm from '../../../components/CategoryForm';
-import Link from 'next/link';
+import { type FC } from 'react';
+import AdminSubpageLayout from '@/components/AdminSubpageLayout';
+import CategoryForm from '@/components/CategoryForm';
 import withAdminAuth from '@/components/withAdminAuth';
 
-const NewCategoryPage: React.FC = () => {
+const NewCategoryPage: FC = () => {
   const router = useRouter();
-  
+
   const handleCancel = () => {
     router.push('/admin');
   };
-  
+
+  const handleSave = () => {
+    router.push('/admin');
+  };
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Create New Category</h1>
-          <Link href="/admin">
-            <button className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded transition-colors">
-              Back to Dashboard
-            </button>
-          </Link>
-        </div>
-        <CategoryForm 
-          onSave={() => router.push('/admin')} 
-          onCancel={handleCancel} 
-        />
-      </div>
-    </div>
+    <AdminSubpageLayout
+      title="Neue Kategorie anlegen"
+      description="Strukturieren Sie die Roadmap, indem Sie Themenbereiche mit eindeutigen Farben und Icons versehen."
+      breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Kategorien' }, { label: 'Neu' }]}
+    >
+      <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
+        <CategoryForm onSave={handleSave} onCancel={handleCancel} />
+      </section>
+    </AdminSubpageLayout>
   );
 };
 

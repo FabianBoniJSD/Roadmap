@@ -6,11 +6,8 @@ import { Category, Project } from '../types';
 import { clientDataService } from '../utils/clientDataService';
 import { normalizeCategoryId, UNCATEGORIZED_ID } from '../utils/categoryUtils';
 import CategorySidebar from './CategorySidebar';
-import Footer from './Footer';
 import { FaBars, FaTimes } from 'react-icons/fa';
-import Nav from './Nav';
 import { loadThemeSettings } from '../utils/theme';
-import StatusLegend from './StatusLegend';
 import RoadmapFilters from './RoadmapFilters';
 import CompactProjectCard from './CompactProjectCard';
 
@@ -38,12 +35,17 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   const [viewType, setViewType] = useState<'quarters' | 'months' | 'weeks'>('quarters');
   const [mobileCategoriesOpen, setMobileCategoriesOpen] = useState(false);
   const [siteTitle, setSiteTitle] = useState('IT + Digital Roadmap');
-  const [themeColors, setThemeColors] = useState<{gradientFrom:string;gradientTo:string}>({gradientFrom:'#eab308',gradientTo:'#b45309'});
-  const [showLegend, setShowLegend] = useState(true);
+  const [themeColors, setThemeColors] = useState<{ gradientFrom: string; gradientTo: string }>({
+    gradientFrom: '#eab308',
+    gradientTo: '#b45309',
+  });
   const [filterText, setFilterText] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [tagFilters, setTagFilters] = useState<string[]>([]);
-  const [monthRange, setMonthRange] = useState<{start:number; end:number}>({ start: 1, end: 12 });
+  const [monthRange, setMonthRange] = useState<{ start: number; end: number }>({
+    start: 1,
+    end: 12,
+  });
   const [onlyRunning, setOnlyRunning] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'timeline' | 'tiles'>('timeline');
 
@@ -59,19 +61,19 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
   useEffect(() => {
     // Laden des Site-Titels beim Mounten der Komponente
-  const loadAppTitle = async () => {
+    const loadAppTitle = async () => {
       try {
-    const theme = await loadThemeSettings();
-    setSiteTitle(theme.siteTitle || 'IT + Digital Roadmap');
-    setThemeColors({ gradientFrom: theme.gradientFrom, gradientTo: theme.gradientTo });
+        const theme = await loadThemeSettings();
+        setSiteTitle(theme.siteTitle || 'IT + Digital Roadmap');
+        setThemeColors({ gradientFrom: theme.gradientFrom, gradientTo: theme.gradientTo });
       } catch (error) {
         console.error('Fehler beim Laden des Site-Titels:', error);
       }
@@ -82,19 +84,25 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
   // Load filters from URL on mount and whenever query changes
   useEffect(() => {
-    const { q, status, tags, start, end, running, cats, view } = router.query as Record<string, string | string[]>;
+    const { q, status, tags, start, end, running, cats, view } = router.query as Record<
+      string,
+      string | string[]
+    >;
     if (q && typeof q === 'string') setFilterText(q);
     if (status) {
       const list = Array.isArray(status) ? status : status.split(',');
-      setStatusFilters(list.filter(Boolean).map(s => s.toLowerCase()));
+      setStatusFilters(list.filter(Boolean).map((s) => s.toLowerCase()));
     }
     if (tags) {
       const list = Array.isArray(tags) ? tags : tags.split(',');
       setTagFilters(list.filter(Boolean));
     }
-    const sNum = Number(start); const eNum = Number(end);
-    if (!isNaN(sNum) && sNum >= 1 && sNum <= 12) setMonthRange(r => ({ ...r, start: Math.max(1, Math.min(12, sNum)) }));
-    if (!isNaN(eNum) && eNum >= 1 && eNum <= 12) setMonthRange(r => ({ ...r, end: Math.max(r.start, Math.min(12, eNum)) }));
+    const sNum = Number(start);
+    const eNum = Number(end);
+    if (!isNaN(sNum) && sNum >= 1 && sNum <= 12)
+      setMonthRange((r) => ({ ...r, start: Math.max(1, Math.min(12, sNum)) }));
+    if (!isNaN(eNum) && eNum >= 1 && eNum <= 12)
+      setMonthRange((r) => ({ ...r, end: Math.max(r.start, Math.min(12, eNum)) }));
     if (running === '1') setOnlyRunning(true);
     if (view === 'tiles') setViewMode('tiles');
     if (!urlCatsAppliedRef.current && cats && typeof cats === 'string') {
@@ -117,10 +125,18 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       const rawEnd = q['end'];
       const rawRunning = q['running'];
       const rawQ = q['q'];
-      const toScalar = (value: string | string[] | undefined): string => (Array.isArray(value) ? value[0] ?? '' : value ?? '');
-      const status = (rawStatus ? (Array.isArray(rawStatus) ? rawStatus.join(',') : rawStatus) : '').split(',').filter(Boolean).map((s:string)=>s.toLowerCase());
-      const tags = (rawTags ? (Array.isArray(rawTags) ? rawTags.join(',') : rawTags) : '').split(',').filter(Boolean);
-      const cats = (rawCats ? (Array.isArray(rawCats) ? rawCats.join(',') : rawCats) : '').split(',').filter(Boolean);
+      const toScalar = (value: string | string[] | undefined): string =>
+        Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+      const status = (rawStatus ? (Array.isArray(rawStatus) ? rawStatus.join(',') : rawStatus) : '')
+        .split(',')
+        .filter(Boolean)
+        .map((s: string) => s.toLowerCase());
+      const tags = (rawTags ? (Array.isArray(rawTags) ? rawTags.join(',') : rawTags) : '')
+        .split(',')
+        .filter(Boolean);
+      const cats = (rawCats ? (Array.isArray(rawCats) ? rawCats.join(',') : rawCats) : '')
+        .split(',')
+        .filter(Boolean);
       return {
         q: toScalar(rawQ),
         status,
@@ -134,26 +150,35 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
     const current = readQuery(router.query);
     // Determine whether current category selection is effectively default
-    const hasAllNamed = categories.length > 0 && categories.every(c => activeCategories.includes(c.id));
+    const hasAllNamed =
+      categories.length > 0 && categories.every((c) => activeCategories.includes(c.id));
     const hasUncat = activeCategories.includes(UNCATEGORIZED_ID);
-    const isDefaultCats = hasAllNamed && hasUncat && activeCategories.length === categories.length + 1;
-    const isAllNamedOnly = hasAllNamed && !hasUncat && activeCategories.length === categories.length;
+    const isDefaultCats =
+      hasAllNamed && hasUncat && activeCategories.length === categories.length + 1;
+    const isAllNamedOnly =
+      hasAllNamed && !hasUncat && activeCategories.length === categories.length;
 
     const next = {
       q: filterText || '',
-      status: [...statusFilters].map(s=>s.toLowerCase()),
+      status: [...statusFilters].map((s) => s.toLowerCase()),
       tags: [...tagFilters],
       start: monthRange.start,
       end: monthRange.end,
       running: onlyRunning,
       // Omit cats from URL when selection equals default (all named +/- uncategorized)
       // Also omit if only uncategorized is selected (likely means no real categories exist yet)
-      cats: (isDefaultCats || isAllNamedOnly || activeCategories.length === 0 || (activeCategories.length === 1 && activeCategories[0] === UNCATEGORIZED_ID)) ? [] : [...activeCategories],
+      cats:
+        isDefaultCats ||
+        isAllNamedOnly ||
+        activeCategories.length === 0 ||
+        (activeCategories.length === 1 && activeCategories[0] === UNCATEGORIZED_ID)
+          ? []
+          : [...activeCategories],
       view: viewMode,
     };
 
     if (JSON.stringify(current) !== JSON.stringify(next)) {
-  const query: Record<string, string> = {};
+      const query: Record<string, string> = {};
       if (next.q) query.q = next.q;
       if (next.status.length) query.status = next.status.join(',');
       if (next.tags.length) query.tags = next.tags.join(',');
@@ -161,11 +186,23 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       if (next.end !== 12) query.end = String(next.end);
       if (next.running) query.running = '1';
       if (next.cats.length) query.cats = next.cats.join(',');
-  if (next.view && next.view !== 'timeline') query.view = next.view;
-      router.replace({ pathname: router.pathname, query }, undefined, { shallow: true, scroll: false });
+      if (next.view && next.view !== 'timeline') query.view = next.view;
+      router.replace({ pathname: router.pathname, query }, undefined, {
+        shallow: true,
+        scroll: false,
+      });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterText, statusFilters, tagFilters, monthRange.start, monthRange.end, onlyRunning, activeCategories, categories.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    filterText,
+    statusFilters,
+    tagFilters,
+    monthRange.start,
+    monthRange.end,
+    onlyRunning,
+    activeCategories,
+    categories.length,
+  ]);
 
   // Fetch categories and filter projects based on the selected year
   useEffect(() => {
@@ -173,20 +210,40 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
     const derive = (q: string, end = false): string => {
       const y = currentYear;
       switch ((q || '').toUpperCase()) {
-        case 'Q1': return end ? new Date(Date.UTC(y,2,31,23,59,59)).toISOString() : new Date(Date.UTC(y,0,1)).toISOString();
-        case 'Q2': return end ? new Date(Date.UTC(y,5,30,23,59,59)).toISOString() : new Date(Date.UTC(y,3,1)).toISOString();
-        case 'Q3': return end ? new Date(Date.UTC(y,8,30,23,59,59)).toISOString() : new Date(Date.UTC(y,6,1)).toISOString();
-        case 'Q4': return end ? new Date(Date.UTC(y,11,31,23,59,59)).toISOString() : new Date(Date.UTC(y,9,1)).toISOString();
-        default: return end ? new Date(Date.UTC(y,11,31,23,59,59)).toISOString() : new Date(Date.UTC(y,0,1)).toISOString();
+        case 'Q1':
+          return end
+            ? new Date(Date.UTC(y, 2, 31, 23, 59, 59)).toISOString()
+            : new Date(Date.UTC(y, 0, 1)).toISOString();
+        case 'Q2':
+          return end
+            ? new Date(Date.UTC(y, 5, 30, 23, 59, 59)).toISOString()
+            : new Date(Date.UTC(y, 3, 1)).toISOString();
+        case 'Q3':
+          return end
+            ? new Date(Date.UTC(y, 8, 30, 23, 59, 59)).toISOString()
+            : new Date(Date.UTC(y, 6, 1)).toISOString();
+        case 'Q4':
+          return end
+            ? new Date(Date.UTC(y, 11, 31, 23, 59, 59)).toISOString()
+            : new Date(Date.UTC(y, 9, 1)).toISOString();
+        default:
+          return end
+            ? new Date(Date.UTC(y, 11, 31, 23, 59, 59)).toISOString()
+            : new Date(Date.UTC(y, 0, 1)).toISOString();
       }
     };
-    const filteredProjects = initialProjects.filter(project => {
-      const startIso = project.startDate || (project.startQuarter ? derive(project.startQuarter, false) : '');
-      const endIso = project.endDate || (project.endQuarter || project.startQuarter ? derive(project.endQuarter || project.startQuarter, true) : '');
+    const filteredProjects = initialProjects.filter((project) => {
+      const startIso =
+        project.startDate || (project.startQuarter ? derive(project.startQuarter, false) : '');
+      const endIso =
+        project.endDate ||
+        (project.endQuarter || project.startQuarter
+          ? derive(project.endQuarter || project.startQuarter, true)
+          : '');
       if (!startIso || !endIso) return false;
 
-  const startYear = getYearFromISOString(startIso, currentYear);
-  const endYear = getYearFromISOString(endIso, currentYear);
+      const startYear = getYearFromISOString(startIso, currentYear);
+      const endYear = getYearFromISOString(endIso, currentYear);
       return startYear <= currentYear && endYear >= currentYear;
     });
 
@@ -198,9 +255,9 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
         const categoriesData = await clientDataService.getAllCategories();
         setCategories(categoriesData);
         // Only set active categories automatically if none have been applied yet
-        setActiveCategories(prev => {
+        setActiveCategories((prev) => {
           if (prev.length === 0 && !urlCatsAppliedRef.current) {
-            return [...categoriesData.map(c => c.id), UNCATEGORIZED_ID];
+            return [...categoriesData.map((c) => c.id), UNCATEGORIZED_ID];
           }
           return prev;
         });
@@ -216,24 +273,26 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
   const toggleCategory = (categoryId: string) => {
     if (activeCategories.includes(categoryId)) {
-      setActiveCategories(activeCategories.filter(id => id !== categoryId));
+      setActiveCategories(activeCategories.filter((id) => id !== categoryId));
     } else {
       setActiveCategories([...activeCategories, categoryId]);
     }
   };
 
   // Derive filter options from displayed projects
-  const allStatuses = Array.from(new Set(displayedProjects.map(p => (p.status || '').toLowerCase()).filter(Boolean)));
+  const allStatuses = Array.from(
+    new Set(displayedProjects.map((p) => (p.status || '').toLowerCase()).filter(Boolean))
+  );
   const allTags = Array.from(
     new Set(
       displayedProjects
-        .flatMap(project => project.ProjectFields ?? [])
+        .flatMap((project) => project.ProjectFields ?? [])
         .filter((value): value is string => Boolean(value))
     )
   );
 
   // Filter projects by active categories + advanced filters
-  const filteredProjects = displayedProjects.filter(project => {
+  const filteredProjects = displayedProjects.filter((project) => {
     const catId = normalizeCategoryId(project.category, categories);
     if (!activeCategories.includes(catId)) return false;
 
@@ -253,8 +312,8 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
     // Tag filter (ProjectFields contains any of selected)
     if (tagFilters.length > 0) {
-  const pf: string[] = (project.ProjectFields ?? []).map(t => (t || '').toLowerCase());
-      const hasAny = tagFilters.some(t => pf.includes(t.toLowerCase()));
+      const pf: string[] = (project.ProjectFields ?? []).map((t) => (t || '').toLowerCase());
+      const hasAny = tagFilters.some((t) => pf.includes(t.toLowerCase()));
       if (!hasAny) return false;
     }
 
@@ -291,34 +350,22 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
   // Ordered list of visible categories (only those with projects)
   const visibleCategoryIds = [
-    ...categories.filter(c => projectsByCategory[c.id]?.length).map(c => c.id),
-    ...(projectsByCategory[UNCATEGORIZED_ID]?.length ? [UNCATEGORIZED_ID] : [])
+    ...categories.filter((c) => projectsByCategory[c.id]?.length).map((c) => c.id),
+    ...(projectsByCategory[UNCATEGORIZED_ID]?.length ? [UNCATEGORIZED_ID] : []),
   ];
 
   // Get category name by ID
   const getCategoryName = (categoryId: string) => {
     if (categoryId === UNCATEGORIZED_ID) return 'Uncategorized';
-    const category = categories.find(cat => cat.id === categoryId);
+    const category = categories.find((cat) => cat.id === categoryId);
     return category?.name || 'Uncategorized';
   };
 
   // Get category color by ID
   const getCategoryColor = (categoryId: string) => {
     if (categoryId === UNCATEGORIZED_ID) return '#777777';
-    const category = categories.find(cat => cat.id === categoryId);
+    const category = categories.find((cat) => cat.id === categoryId);
     return category?.color || '#777777';
-  };
-
-  // Get status color
-  const getStatusColor = (status: string): string => {
-    switch (status.toLowerCase()) {
-      case 'completed': return '#10B981'; // green-500
-      case 'in-progress': return '#3B82F6'; // blue-500
-      case 'planned': return '#6B7280'; // gray-500
-      case 'paused': return '#F59E0B'; // yellow-500
-      case 'cancelled': return '#EF4444'; // red-500
-      default: return '#6B7280'; // gray-500
-    }
   };
 
   // Handle mouse over for project tooltip
@@ -338,7 +385,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   };
 
   // Calculate position for quarter view
-  const calculateQuarterPosition = (project: Project): { startPosition: number, width: number } => {
+  const calculateQuarterPosition = (project: Project): { startPosition: number; width: number } => {
     if (!project.startDate || !project.endDate) {
       return { startPosition: 0, width: 0 };
     }
@@ -378,7 +425,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   };
 
   // Calculate position for month view
-  const calculateMonthPosition = (project: Project): { startPosition: number, width: number } => {
+  const calculateMonthPosition = (project: Project): { startPosition: number; width: number } => {
     if (!project.startDate || !project.endDate) {
       return { startPosition: 0, width: 0 };
     }
@@ -423,7 +470,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
     const dayNum = d.getUTCDay() || 7; // 1..7 (Mon..Sun)
     d.setUTCDate(d.getUTCDate() + 4 - dayNum);
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
   };
   const getISOWeeksInYear = (year: number): number => {
     const d = new Date(Date.UTC(year, 11, 31));
@@ -432,7 +479,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   };
 
   // Calculate position for week view (ISO weeks, dynamic 52/53)
-  const calculateWeekPosition = (project: Project): { startPosition: number, width: number } => {
+  const calculateWeekPosition = (project: Project): { startPosition: number; width: number } => {
     if (!project.startDate || !project.endDate) {
       return { startPosition: 0, width: 0 };
     }
@@ -458,7 +505,8 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       startPosition = 0;
     } else if (startYear === currentYear) {
       // Project starts in current year
-      startPosition = ((Math.max(1, Math.min(startWeek, weeksInCurrent)) - 1) / weeksInCurrent) * 100;
+      startPosition =
+        ((Math.max(1, Math.min(startWeek, weeksInCurrent)) - 1) / weeksInCurrent) * 100;
     }
 
     if (endYear > currentYear) {
@@ -466,7 +514,8 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       width = 100 - startPosition;
     } else if (endYear === currentYear) {
       // Project ends in current year
-      width = ((Math.max(1, Math.min(endWeek, weeksInCurrent))) / weeksInCurrent) * 100 - startPosition;
+      width =
+        (Math.max(1, Math.min(endWeek, weeksInCurrent)) / weeksInCurrent) * 100 - startPosition;
     }
 
     return { startPosition, width };
@@ -475,65 +524,93 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   return (
     <>
       {/* Top Navigation Bar */}
-      <div className="min-h-screen pt-20 px-4 md:px-8 lg:px-20 font-sans bg-gray-900 text-white overflow-hidden p-0 m-0">
-        <header className="w-full flex flex-row justify-between py-4 md:py-8 px-4 md:px-10">
-          <h1 className="text-3xl md:text-5xl font-bold m-0 uppercase tracking-wider bg-clip-text text-transparent shadow-xl" style={{ backgroundImage: `linear-gradient(to right, ${themeColors.gradientFrom}, ${themeColors.gradientTo})` }}>
-            {siteTitle}
-          </h1>
-          <Nav currentPage="roadmap" />
-        </header>
-
-        {/* Controls section - View type and Year navigation */}
-  <div className="flex flex-col md:flex-row justify-between items-center p-2 px-4 md:px-10 mb-4 gap-4">
-          {/* View mode + View scale buttons */}
-          <div className="flex flex-wrap gap-2 w-full md:w-auto items-center">
-            <div className="inline-flex bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-              <button
-                className={`px-3 py-2 text-sm font-medium ${viewMode==='timeline' ? 'bg-yellow-600 text-black' : 'text-gray-200 hover:bg-gray-700'}`}
-                onClick={() => setViewMode('timeline')}
-                title="Zeitstrahl"
-              >Zeitstrahl</button>
-              <button
-                className={`px-3 py-2 text-sm font-medium ${viewMode==='tiles' ? 'bg-yellow-600 text-black' : 'text-gray-200 hover:bg-gray-700'}`}
-                onClick={() => setViewMode('tiles')}
-                title="Kachelansicht"
-              >Kacheln</button>
-            </div>
-            {/* View scale buttons */}
-            <button
-              className={`px-4 py-2 text-sm font-medium rounded-lg flex-1 md:flex-none ${viewType === 'quarters' ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'}`}
-              onClick={() => setViewType('quarters')}
-            >
-              Quartale
-            </button>
-            <button
-              className={`px-4 py-2 text-sm font-medium rounded-lg flex-1 md:flex-none ${viewType === 'months' ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'}`}
-              onClick={() => setViewType('months')}
-            >
-              Monate
-            </button>
-            <button
-              className={`px-4 py-2 text-sm font-medium rounded-lg flex-1 md:flex-none ${viewType === 'weeks' ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'}`}
-              onClick={() => setViewType('weeks')}
-            >
-              Wochen
-            </button>
-          </div>
-
-          {/* Year navigation - Responsive */}
-          <div className="w-full md:w-auto flex justify-center md:justify-end gap-4 items-center flex-wrap">
-            <RoadmapYearNavigation
-              initialYear={currentYear}
-              onYearChange={setCurrentYear}
-            />
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowLegend(v => !v)}
-                className="text-xs md:text-sm px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 border border-gray-600"
+      <div className="mx-auto w-full space-y-8 px-3 sm:px-6 lg:w-[85%]">
+        <div className="rounded-3xl border border-slate-800/80 bg-slate-900/70 px-6 py-8 shadow-xl shadow-slate-950/30">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-sky-300/90">
+                Roadmap {currentYear}
+              </p>
+              <h1
+                className="text-3xl font-semibold text-white sm:text-4xl"
+                style={{
+                  backgroundImage: `linear-gradient(to right, ${themeColors.gradientFrom}, ${themeColors.gradientTo})`,
+                  WebkitBackgroundClip: 'text',
+                  color: 'transparent',
+                }}
               >
-                {showLegend ? 'Legende ausblenden' : 'Legende anzeigen'}
+                {siteTitle}
+              </h1>
+              <p className="text-sm text-slate-300 sm:text-base">
+                Filtere Projekte nach Status, Kategorien und Zeiträumen, um Fortschritt und
+                Prioritäten auf einen Blick sichtbar zu machen.
+              </p>
+            </div>
+            <div className="grid w-full gap-3 text-xs text-slate-300 sm:w-auto sm:text-sm md:grid-cols-2">
+              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-center">
+                <span className="block text-2xl font-semibold text-white">
+                  {displayedProjects.length}
+                </span>
+                <span>Projekte sichtbar</span>
+              </div>
+              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-center">
+                <span className="block text-2xl font-semibold text-white">{categories.length}</span>
+                <span>Kategorien insgesamt</span>
+              </div>
+              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-center md:col-span-2">
+                <span className="block text-sm text-slate-300">
+                  {activeCategories.length === categories.length
+                    ? 'Alle Kategorien aktiviert'
+                    : `${activeCategories.length} von ${categories.length} Kategorien aktiv`}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-800/80 bg-slate-900/60 px-4 py-5 shadow-lg shadow-slate-950/30 sm:px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            {/* View mode + View scale buttons */}
+            <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:gap-3">
+              <div className="inline-flex overflow-hidden rounded-xl border border-slate-700 bg-slate-900/70">
+                <button
+                  className={`px-3 py-2 text-sm font-medium transition ${viewMode === 'timeline' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'text-slate-200 hover:bg-slate-800'}`}
+                  onClick={() => setViewMode('timeline')}
+                  title="Zeitstrahl"
+                >
+                  Zeitstrahl
+                </button>
+                <button
+                  className={`px-3 py-2 text-sm font-medium transition ${viewMode === 'tiles' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'text-slate-200 hover:bg-slate-800'}`}
+                  onClick={() => setViewMode('tiles')}
+                  title="Kachelansicht"
+                >
+                  Kacheln
+                </button>
+              </div>
+              <button
+                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition md:flex-none ${viewType === 'quarters' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                onClick={() => setViewType('quarters')}
+              >
+                Quartale
               </button>
-              {showLegend && <StatusLegend />}
+              <button
+                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition md:flex-none ${viewType === 'months' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                onClick={() => setViewType('months')}
+              >
+                Monate
+              </button>
+              <button
+                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition md:flex-none ${viewType === 'weeks' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                onClick={() => setViewType('weeks')}
+              >
+                Wochen
+              </button>
+            </div>
+
+            {/* Year navigation - Responsive */}
+            <div className="flex w-full flex-wrap items-center justify-center gap-4 md:justify-end">
+              <RoadmapYearNavigation initialYear={currentYear} onYearChange={setCurrentYear} />
             </div>
           </div>
         </div>
@@ -542,19 +619,21 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
         <div className="md:hidden mb-4 px-4">
           <button
             onClick={() => setMobileCategoriesOpen(!mobileCategoriesOpen)}
-            className="w-full bg-gray-800 hover:bg-gray-700 text-white py-2 px-4 rounded-lg flex justify-between items-center"
+            className="flex w-full items-center justify-between rounded-lg border border-slate-700 bg-slate-900/70 px-4 py-2 text-slate-200 transition hover:border-sky-500 hover:text-white"
           >
-            <span>Kategorien {activeCategories.length}/{categories.length}</span>
+            <span>
+              Kategorien {activeCategories.length}/{categories.length}
+            </span>
             {mobileCategoriesOpen ? <FaTimes /> : <FaBars />}
           </button>
         </div>
 
-  {/* Responsive layout - stack on mobile, side-by-side on larger screens */}
+        {/* Responsive layout - stack on mobile, side-by-side on larger screens */}
         <div className="flex flex-col md:flex-row relative">
           {/* Sidebar with categories - collapsible on mobile */}
           <div
             ref={sidebarRef}
-            className={`md:w-64 mb-4 md:mb-0 ${mobileCategoriesOpen ? 'block' : 'hidden'} md:block z-20 bg-gray-900 md:bg-transparent md:static absolute top-0 left-0 right-0 p-4 md:p-0`}
+            className={`md:w-64 mb-4 md:mb-0 ${mobileCategoriesOpen ? 'block' : 'hidden'} md:block z-20 bg-slate-950/95 md:bg-transparent md:static absolute top-0 left-0 right-0 p-4 md:p-0`}
           >
             <CategorySidebar
               categories={categories}
@@ -566,7 +645,9 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
           {/* Main content area */}
           <div className="flex-1 overflow-hidden">
             <div className="overflow-x-auto pb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div className={`min-w-full ${viewType === 'months' || viewType === 'weeks' ? 'md:min-w-[800px]' : ''}`}>
+              <div
+                className={`min-w-full ${viewType === 'months' || viewType === 'weeks' ? 'md:min-w-[800px]' : ''}`}
+              >
                 {/* Advanced Filters Bar */}
                 <div className="mb-4">
                   <RoadmapFilters
@@ -574,234 +655,324 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                     onFilterTextChange={setFilterText}
                     availableStatuses={allStatuses}
                     selectedStatuses={statusFilters}
-                    onToggleStatus={(s) => setStatusFilters(prev => prev.includes(s) ? prev.filter(x => x!==s) : [...prev, s])}
+                    onToggleStatus={(s) =>
+                      setStatusFilters((prev) =>
+                        prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+                      )
+                    }
                     availableTags={allTags}
                     selectedTags={tagFilters}
-                    onToggleTag={(t) => setTagFilters(prev => prev.includes(t) ? prev.filter(x => x!==t) : [...prev, t])}
-                    onClearAll={() => { setFilterText(''); setStatusFilters([]); setTagFilters([]); setMonthRange({start:1,end:12}); setOnlyRunning(false); }}
+                    onToggleTag={(t) =>
+                      setTagFilters((prev) =>
+                        prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+                      )
+                    }
+                    onClearAll={() => {
+                      setFilterText('');
+                      setStatusFilters([]);
+                      setTagFilters([]);
+                      setMonthRange({ start: 1, end: 12 });
+                      setOnlyRunning(false);
+                    }}
                     monthRange={monthRange}
                     onMonthRangeChange={setMonthRange}
                     onlyRunning={onlyRunning}
                     onToggleOnlyRunning={setOnlyRunning}
                     categoriesCount={{ total: categories.length, active: activeCategories.length }}
-                    onSelectAllCategories={() => setActiveCategories(categories.map(c => c.id))}
+                    onSelectAllCategories={() => setActiveCategories(categories.map((c) => c.id))}
                     onClearCategories={() => setActiveCategories([])}
                   />
                 </div>
                 {/* Quarter/Month/Week headers */}
 
                 {viewMode === 'timeline' && (
-                <>
-                {/* Quarter/Month/Week headers */}
-                {viewType === 'quarters' ? (
-                  <div className="grid grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
-                    <div
-                      className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
-                      style={{ background: 'linear-gradient(to right, #eab308, #d97706)' }}
-                    >
-                      Q1 {currentYear}
-                    </div>
-                    <div
-                      className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
-                      style={{ background: 'linear-gradient(to right, #d97706, #ea580c)' }}
-                    >
-                      Q2 {currentYear}
-                    </div>
-                    <div
-                      className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
-                      style={{ background: 'linear-gradient(to right, #ea580c, #c2410c)' }}
-                    >
-                      Q3 {currentYear}
-                    </div>
-                    <div
-                      className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
-                      style={{ background: 'linear-gradient(to right, #c2410c, #b91c1c)' }}
-                    >
-                      Q4 {currentYear}
-                    </div>
-                  </div>
-                ) : viewType === 'months' ? (
-                  <div className="grid grid-cols-12 gap-1 md:gap-2 mb-4 md:mb-6">
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #eab308, #e3a008)' }}>Jan</div>
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #e3a008, #dd9107)' }}>Feb</div>
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #dd9107, #d97706)' }}>Mär</div>
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #d97706, #d57005)' }}>Apr</div>
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #d57005, #d16904)' }}>Mai</div>
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #d16904, #cc6203)' }}>Jun</div>
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #cc6203, #c65b02)' }}>Jul</div>
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #c65b02, #c05401)' }}>Aug</div>
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #c05401, #ba4d01)' }}>Sep</div>
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #ba4d01, #b44600)' }}>Okt</div>
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #b44600, #ae3f00)' }}>Nov</div>
-                    <div className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
-                      style={{ background: 'linear-gradient(to right, #ae3f00, #a83800)' }}>Dez</div>
-                  </div>
-                ) : (
-                  <div
-                    className="mb-4 md:mb-6 overflow-x-auto"
-                    style={{ display: 'grid', gridTemplateColumns: `repeat(${getISOWeeksInYear(currentYear)}, minmax(30px, 1fr))`, gap: 0 }}
-                  >
-                    {Array.from({ length: getISOWeeksInYear(currentYear) }, (_, i) => i + 1).map(week => (
+                  <>
+                    {/* Quarter/Month/Week headers */}
+                    {viewType === 'quarters' ? (
+                      <div className="grid grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
+                        <div
+                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          style={{ background: 'linear-gradient(to right, #eab308, #d97706)' }}
+                        >
+                          Q1 {currentYear}
+                        </div>
+                        <div
+                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          style={{ background: 'linear-gradient(to right, #d97706, #ea580c)' }}
+                        >
+                          Q2 {currentYear}
+                        </div>
+                        <div
+                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          style={{ background: 'linear-gradient(to right, #ea580c, #c2410c)' }}
+                        >
+                          Q3 {currentYear}
+                        </div>
+                        <div
+                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          style={{ background: 'linear-gradient(to right, #c2410c, #b91c1c)' }}
+                        >
+                          Q4 {currentYear}
+                        </div>
+                      </div>
+                    ) : viewType === 'months' ? (
+                      <div className="grid grid-cols-12 gap-1 md:gap-2 mb-4 md:mb-6">
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #eab308, #e3a008)' }}
+                        >
+                          Jan
+                        </div>
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #e3a008, #dd9107)' }}
+                        >
+                          Feb
+                        </div>
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #dd9107, #d97706)' }}
+                        >
+                          Mär
+                        </div>
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #d97706, #d57005)' }}
+                        >
+                          Apr
+                        </div>
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #d57005, #d16904)' }}
+                        >
+                          Mai
+                        </div>
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #d16904, #cc6203)' }}
+                        >
+                          Jun
+                        </div>
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #cc6203, #c65b02)' }}
+                        >
+                          Jul
+                        </div>
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #c65b02, #c05401)' }}
+                        >
+                          Aug
+                        </div>
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #c05401, #ba4d01)' }}
+                        >
+                          Sep
+                        </div>
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #ba4d01, #b44600)' }}
+                        >
+                          Okt
+                        </div>
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #b44600, #ae3f00)' }}
+                        >
+                          Nov
+                        </div>
+                        <div
+                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          style={{ background: 'linear-gradient(to right, #ae3f00, #a83800)' }}
+                        >
+                          Dez
+                        </div>
+                      </div>
+                    ) : (
                       <div
-                        key={week}
-                        className="p-1 text-center font-semibold text-xs"
+                        className="mb-4 md:mb-6 overflow-x-auto"
                         style={{
-                          background: `linear-gradient(to right, 
-                            hsl(${Math.max(40 - week * 0.5, 0)}, 90%, ${Math.max(50 - week * 0.3, 30)}%)
-                          )`
+                          display: 'grid',
+                          gridTemplateColumns: `repeat(${getISOWeeksInYear(currentYear)}, minmax(30px, 1fr))`,
+                          gap: 0,
                         }}
                       >
-                        {week}
+                        {Array.from(
+                          { length: getISOWeeksInYear(currentYear) },
+                          (_, i) => i + 1
+                        ).map((week) => (
+                          <div
+                            key={week}
+                            className="p-1 text-center font-semibold text-xs"
+                            style={{
+                              background: `linear-gradient(to right, 
+                            hsl(${Math.max(40 - week * 0.5, 0)}, 90%, ${Math.max(50 - week * 0.3, 30)}%)
+                          )`,
+                            }}
+                          >
+                            {week}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-                </>
+                    )}
+                  </>
                 )}
 
-                {viewMode === 'tiles' && (
-                  <div className="mb-6" />
-                )}
+                {viewMode === 'tiles' && <div className="mb-6" />}
 
                 {viewMode === 'timeline' && (
-                <>
-                {/* Project timeline bars grouped by Bereich (category) */}
-                <div className="space-y-6 md:space-y-8 relative">
-                  {visibleCategoryIds.map(catId => {
-                    const groupProjects = projectsByCategory[catId] || [];
-                    return (
-                      <div key={catId} className="relative">
-                        {/* Bereich Kopfzeile */}
-                        <div className="flex items-center gap-3 mb-2 md:mb-3">
-                          <span
-                            className="inline-block h-3 w-3 rounded-full"
-                            style={{ backgroundColor: getCategoryColor(catId) }}
-                          />
-                          <h2 className="text-lg md:text-xl font-semibold m-0">
-                            {getCategoryName(catId)}
-                          </h2>
-                          <span className="ml-2 text-xs md:text-sm px-2 py-0.5 rounded-full bg-gray-800/80 border border-white/10 text-gray-200">
-                            {groupProjects.length} {groupProjects.length === 1 ? 'Projekt' : 'Projekte'}
-                          </span>
-                        </div>
-
-                        {/* Projekte dieser Kategorie */}
-                        <div className="space-y-2 md:space-y-4">
-                          {groupProjects.map(project => {
-                    // Use the appropriate position calculation based on view type
-                    const { startPosition, width } = viewType === 'quarters'
-                      ? calculateQuarterPosition(project)
-                      : viewType === 'months'
-                        ? calculateMonthPosition(project)
-                        : calculateWeekPosition(project);
-
-                    // Skip projects with invalid positions
-                    if (width <= 0) {
-                      return null;
-                    }
-
-                    return (
-                      <div
-                        key={project.id}
-                        className="relative h-6 md:h-8 mb-1 md:mb-2"
-                      >
-                        {/* Background grid */}
-                        <div className="absolute top-0 left-0 right-0 h-full pointer-events-none">
-                          {viewType === 'quarters' ? (
-                            <div className="grid grid-cols-4 gap-2 md:gap-4 h-full">
-                              <div className="bg-gray-800 rounded-lg opacity-30"></div>
-                              <div className="bg-gray-800 rounded-lg opacity-30"></div>
-                              <div className="bg-gray-800 rounded-lg opacity-30"></div>
-                              <div className="bg-gray-800 rounded-lg opacity-30"></div>
+                  <>
+                    {/* Project timeline bars grouped by Bereich (category) */}
+                    <div className="space-y-6 md:space-y-8 relative">
+                      {visibleCategoryIds.map((catId) => {
+                        const groupProjects = projectsByCategory[catId] || [];
+                        return (
+                          <div key={catId} className="relative">
+                            {/* Bereich Kopfzeile */}
+                            <div className="flex items-center gap-3 mb-2 md:mb-3">
+                              <span
+                                className="inline-block h-3 w-3 rounded-full"
+                                style={{ backgroundColor: getCategoryColor(catId) }}
+                              />
+                              <h2 className="text-lg md:text-xl font-semibold m-0">
+                                {getCategoryName(catId)}
+                              </h2>
+                              <span className="ml-2 text-xs md:text-sm px-2 py-0.5 rounded-full bg-slate-800/80 border border-white/10 text-slate-200">
+                                {groupProjects.length}{' '}
+                                {groupProjects.length === 1 ? 'Projekt' : 'Projekte'}
+                              </span>
                             </div>
-                          ) : viewType === 'months' ? (
-                            <div className="grid grid-cols-12 gap-1 md:gap-2 h-full">
-                              {Array.from({ length: 12 }, (_, i) => (
-                                <div key={i} className="bg-gray-800 rounded-lg opacity-30"></div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div
-                              className="h-full"
-                              style={{ display: 'grid', gridTemplateColumns: `repeat(${getISOWeeksInYear(currentYear)}, minmax(0, 1fr))`, gap: 0 }}
-                            >
-                              {Array.from({ length: getISOWeeksInYear(currentYear) }, (_, i) => (
-                                <div key={i} className="bg-gray-800 rounded-lg opacity-30"></div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
 
-                        {/* Project bar */}
-                        <div
-                          className="absolute top-0 h-full rounded-lg flex items-center px-1 md:px-3 cursor-pointer transition-all hover:brightness-110 group border border-white border-opacity-30 hover:border-opacity-70"
-                          style={{
-                            left: `${startPosition}%`,
-                            width: `${width}%`,
-                            backgroundColor: getCategoryColor(catId),
-                            opacity: 0.85
-                          }}
-                          onMouseEnter={(e) => handleMouseOver(e, project)}
-                          onMouseLeave={handleMouseLeave}
-                          onClick={() => handleProjectClick(project.id)}
-                          onTouchStart={(e) => {
-                            // Show tooltip on touch start
-                            const touch = e.touches[0];
-                            handleMouseOver({ clientX: touch.clientX, clientY: touch.clientY } as React.MouseEvent, project);
-                          }}
-                          onTouchEnd={() => {
-                            // Hide tooltip after a short delay to allow for tap recognition
-                            setTimeout(() => handleMouseLeave(), 500);
-                          }}
-                        >
-                          {/* Status indicator */}
-                          <div
-                            className="h-2 w-2 md:h-3 md:w-3 rounded-full mr-1 md:mr-2 flex-shrink-0 border border-white border-opacity-70"
-                            style={{ backgroundColor: getStatusColor(project.status) }}
-                          />
+                            {/* Projekte dieser Kategorie */}
+                            <div className="space-y-2 md:space-y-4">
+                              {groupProjects.map((project) => {
+                                // Use the appropriate position calculation based on view type
+                                const { startPosition, width } =
+                                  viewType === 'quarters'
+                                    ? calculateQuarterPosition(project)
+                                    : viewType === 'months'
+                                      ? calculateMonthPosition(project)
+                                      : calculateWeekPosition(project);
 
-                           {/* Project title with improved visibility */}
-                           <div className="flex items-center gap-1 w-full overflow-hidden">
-                             <span className="font-medium truncate px-1 md:px-2 py-0.5 rounded bg-black bg-opacity-40 text-white group-hover:bg-opacity-60 text-[10px] md:text-sm flex-shrink">
-                               {project.title}
-                             </span>
-                           </div>
-                        </div>
-                      </div>
-                    );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                </>
+                                // Skip projects with invalid positions
+                                if (width <= 0) {
+                                  return null;
+                                }
+
+                                return (
+                                  <div
+                                    key={project.id}
+                                    className="relative h-6 md:h-8 mb-1 md:mb-2"
+                                  >
+                                    {/* Background grid */}
+                                    <div className="absolute top-0 left-0 right-0 h-full pointer-events-none">
+                                      {viewType === 'quarters' ? (
+                                        <div className="grid grid-cols-4 gap-2 md:gap-4 h-full">
+                                          <div className="bg-slate-800 rounded-lg opacity-30"></div>
+                                          <div className="bg-slate-800 rounded-lg opacity-30"></div>
+                                          <div className="bg-slate-800 rounded-lg opacity-30"></div>
+                                          <div className="bg-slate-800 rounded-lg opacity-30"></div>
+                                        </div>
+                                      ) : viewType === 'months' ? (
+                                        <div className="grid grid-cols-12 gap-1 md:gap-2 h-full">
+                                          {Array.from({ length: 12 }, (_, i) => (
+                                            <div
+                                              key={i}
+                                              className="bg-slate-800 rounded-lg opacity-30"
+                                            ></div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div
+                                          className="h-full"
+                                          style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: `repeat(${getISOWeeksInYear(currentYear)}, minmax(0, 1fr))`,
+                                            gap: 0,
+                                          }}
+                                        >
+                                          {Array.from(
+                                            { length: getISOWeeksInYear(currentYear) },
+                                            (_, i) => (
+                                              <div
+                                                key={i}
+                                                className="bg-slate-800 rounded-lg opacity-30"
+                                              ></div>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Project bar */}
+                                    <div
+                                      className="absolute top-0 h-full rounded-lg flex items-center px-1 md:px-3 cursor-pointer transition-all hover:brightness-110 group border border-white border-opacity-30 hover:border-opacity-70"
+                                      style={{
+                                        left: `${startPosition}%`,
+                                        width: `${width}%`,
+                                        backgroundColor: getCategoryColor(catId),
+                                        opacity: 0.85,
+                                      }}
+                                      onMouseEnter={(e) => handleMouseOver(e, project)}
+                                      onMouseLeave={handleMouseLeave}
+                                      onClick={() => handleProjectClick(project.id)}
+                                      onTouchStart={(e) => {
+                                        // Show tooltip on touch start
+                                        const touch = e.touches[0];
+                                        handleMouseOver(
+                                          {
+                                            clientX: touch.clientX,
+                                            clientY: touch.clientY,
+                                          } as React.MouseEvent,
+                                          project
+                                        );
+                                      }}
+                                      onTouchEnd={() => {
+                                        // Hide tooltip after a short delay to allow for tap recognition
+                                        setTimeout(() => handleMouseLeave(), 500);
+                                      }}
+                                    >
+                                      {/* Project title with improved visibility */}
+                                      <div className="flex items-center gap-1 w-full overflow-hidden">
+                                        <span className="font-medium truncate px-1 md:px-2 py-0.5 rounded bg-black bg-opacity-40 text-white group-hover:bg-opacity-60 text-[10px] md:text-sm flex-shrink">
+                                          {project.title}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
 
                 {viewMode === 'tiles' && (
                   <div className="space-y-8">
-                    {visibleCategoryIds.map(catId => {
+                    {visibleCategoryIds.map((catId) => {
                       const groupProjects = projectsByCategory[catId] || [];
                       return (
                         <div key={catId}>
                           <div className="flex items-center gap-3 mb-3">
-                            <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: getCategoryColor(catId) }} />
-                            <h2 className="text-lg md:text-xl font-semibold m-0">{getCategoryName(catId)}</h2>
-                            <span className="ml-2 text-xs md:text-sm px-2 py-0.5 rounded-full bg-gray-800/80 border border-white/10 text-gray-200">{groupProjects.length} {groupProjects.length===1?'Projekt':'Projekte'}</span>
+                            <span
+                              className="inline-block h-3 w-3 rounded-full"
+                              style={{ backgroundColor: getCategoryColor(catId) }}
+                            />
+                            <h2 className="text-lg md:text-xl font-semibold m-0">
+                              {getCategoryName(catId)}
+                            </h2>
+                            <span className="ml-2 rounded-full border border-slate-700/70 bg-slate-900/80 px-2 py-0.5 text-xs text-slate-200 md:text-sm">
+                              {groupProjects.length}{' '}
+                              {groupProjects.length === 1 ? 'Projekt' : 'Projekte'}
+                            </span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-                            {groupProjects.map(project => (
+                            {groupProjects.map((project) => (
                               <CompactProjectCard
                                 key={project.id}
                                 project={project}
@@ -824,7 +995,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
         {/* Enhanced Hover Popup (Rich Tooltip) */}
         {hoveredProject && (
           <div
-            className="fixed z-50 pointer-events-none shadow-2xl rounded-xl border border-gray-700 bg-gradient-to-b from-gray-900/95 to-gray-800/95 backdrop-blur-sm text-white p-3 md:p-4 w-[300px] md:w-[360px] animate-fadeIn"
+            className="fixed z-50 w-[300px] pointer-events-none rounded-xl border border-slate-800/70 bg-gradient-to-b from-slate-950/95 to-slate-900/95 p-3 text-white shadow-2xl shadow-slate-950/50 backdrop-blur-sm md:w-[360px] md:p-4 animate-fadeIn"
             style={{
               top: Math.min(tooltipPosition.y + 16, window.innerHeight - 380),
               left: Math.min(tooltipPosition.x + 16, window.innerWidth - 380),
@@ -840,7 +1011,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                   className="text-[10px] px-2 py-0.5 rounded-full font-medium tracking-wide uppercase"
                   style={{
                     backgroundColor: getCategoryColor(hoveredProject.category),
-                    color: '#fff'
+                    color: '#fff',
                   }}
                 >
                   {getCategoryName(hoveredProject.category)}
@@ -876,22 +1047,33 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
               </div>
             </div>
 
-
             {/* Description (truncated) */}
             {hoveredProject.description && (
-              <p className="text-xs md:text-[13px] text-gray-200 leading-snug mb-3 line-clamp-4">{hoveredProject.description}</p>
+              <p className="text-xs md:text-[13px] text-gray-200 leading-snug mb-3 line-clamp-4">
+                {hoveredProject.description}
+              </p>
             )}
 
             {/* Project Fields */}
             {hoveredProject.ProjectFields && hoveredProject.ProjectFields.length > 0 && (
               <div className="mb-3">
-                <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-medium">Felder</div>
+                <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-medium">
+                  Felder
+                </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {hoveredProject.ProjectFields.slice(0,8).map(f => (
-                    <span key={f} className="text-[10px] bg-black/40 border border-white/10 px-2 py-0.5 rounded-full text-gray-200 truncate max-w-[120px]" title={f}>{f}</span>
+                  {hoveredProject.ProjectFields.slice(0, 8).map((f) => (
+                    <span
+                      key={f}
+                      className="text-[10px] bg-black/40 border border-white/10 px-2 py-0.5 rounded-full text-gray-200 truncate max-w-[120px]"
+                      title={f}
+                    >
+                      {f}
+                    </span>
                   ))}
                   {hoveredProject.ProjectFields.length > 8 && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/30 border border-dashed border-white/20">+{hoveredProject.ProjectFields.length - 8}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/30 border border-dashed border-white/20">
+                      +{hoveredProject.ProjectFields.length - 8}
+                    </span>
                   )}
                 </div>
               </div>
@@ -900,20 +1082,26 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
             {/* Links */}
             {hoveredProject.links && hoveredProject.links.length > 0 && (
               <div className="mb-3">
-                <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-medium">Links</div>
+                <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-medium">
+                  Links
+                </div>
                 <ul className="space-y-1">
-                  {hoveredProject.links.slice(0,3).map(l => (
+                  {hoveredProject.links.slice(0, 3).map((l) => (
                     <li key={l.id} className="text-[11px] truncate">
                       <a
                         href={l.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-amber-300 hover:text-amber-200 underline decoration-dotted"
-                      >{l.title || l.url}</a>
+                      >
+                        {l.title || l.url}
+                      </a>
                     </li>
                   ))}
                   {hoveredProject.links.length > 3 && (
-                    <li className="text-[10px] text-gray-400">+{hoveredProject.links.length - 3} weitere…</li>
+                    <li className="text-[10px] text-gray-400">
+                      +{hoveredProject.links.length - 3} weitere…
+                    </li>
                   )}
                 </ul>
               </div>
@@ -922,36 +1110,62 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
             {/* Team Members */}
             {hoveredProject.teamMembers && hoveredProject.teamMembers.length > 0 && (
               <div className="mb-2">
-                <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-medium">Team</div>
+                <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-medium">
+                  Team
+                </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {hoveredProject.teamMembers.slice(0,6).map(tm => (
-                    <span key={tm.id || tm.name} className="text-[10px] px-2 py-0.5 rounded bg-gray-700/60 text-gray-200 border border-white/10 truncate max-w-[110px]" title={tm.name}>{tm.name}</span>
+                  {hoveredProject.teamMembers.slice(0, 6).map((tm) => (
+                    <span
+                      key={tm.id || tm.name}
+                      className="text-[10px] px-2 py-0.5 truncate rounded bg-slate-700/60 text-slate-200 border border-white/10 max-w-[110px]"
+                      title={tm.name}
+                    >
+                      {tm.name}
+                    </span>
                   ))}
                   {hoveredProject.teamMembers.length > 6 && (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-gray-700/40 border border-dashed border-white/20">+{hoveredProject.teamMembers.length - 6}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-700/40 border border-dashed border-white/20">
+                      +{hoveredProject.teamMembers.length - 6}
+                    </span>
                   )}
                 </div>
               </div>
             )}
 
             {/* Footer meta / budget etc. */}
-            {(hoveredProject.budget || hoveredProject.geplante_umsetzung || hoveredProject.naechster_meilenstein) && (
+            {(hoveredProject.budget ||
+              hoveredProject.geplante_umsetzung ||
+              hoveredProject.naechster_meilenstein) && (
               <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-2 text-[10px] text-gray-400">
                 {hoveredProject.budget && (
-                  <span className="bg-black/30 px-2 py-0.5 rounded border border-white/10" title="Budget">Budget: {hoveredProject.budget} CHF</span>
+                  <span
+                    className="bg-black/30 px-2 py-0.5 rounded border border-white/10"
+                    title="Budget"
+                  >
+                    Budget: {hoveredProject.budget} CHF
+                  </span>
                 )}
                 {hoveredProject.geplante_umsetzung && (
-                  <span className="bg-black/30 px-2 py-0.5 rounded border border-white/10" title="Geplante Umsetzung">Plan: {hoveredProject.geplante_umsetzung}</span>
+                  <span
+                    className="bg-black/30 px-2 py-0.5 rounded border border-white/10"
+                    title="Geplante Umsetzung"
+                  >
+                    Plan: {hoveredProject.geplante_umsetzung}
+                  </span>
                 )}
                 {hoveredProject.naechster_meilenstein && (
-                  <span className="bg-black/30 px-2 py-0.5 rounded border border-white/10" title="Nächster Meilenstein">Meilenstein: {hoveredProject.naechster_meilenstein}</span>
+                  <span
+                    className="bg-black/30 px-2 py-0.5 rounded border border-white/10"
+                    title="Nächster Meilenstein"
+                  >
+                    Meilenstein: {hoveredProject.naechster_meilenstein}
+                  </span>
                 )}
               </div>
             )}
           </div>
         )}
       </div>
-      <Footer />
     </>
   );
 };

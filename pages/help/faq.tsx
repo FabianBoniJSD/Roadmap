@@ -1,41 +1,91 @@
 import Link from 'next/link';
-import Nav from '@/components/Nav';
-import Footer from '@/components/Footer';
+import HelpLayout from '@/components/HelpLayout';
 
-export default function FAQ() {
+const questions = [
+  {
+    question: 'Was ist die Roadmap?',
+    answer:
+      'Die Roadmap bündelt alle zentralen Projekte des Justiz- und Sicherheitsdepartements. Sie zeigt Status, Verantwortliche und Zeiträume in einer einheitlichen Darstellung.',
+  },
+  {
+    question: 'Wie finde ich bestimmte Projekte?',
+    answer:
+      'Nutzen Sie die Suche für Stichworte oder filtern Sie nach Kategorien, Status und Monaten. Die aktuelle Auswahl bleibt in der URL gespeichert – so können Sie Ansichten einfach teilen.',
+    link: { label: 'Projekte finden', href: '/help/projekte-ansehen' },
+  },
+  {
+    question: 'Wer pflegt die Inhalte?',
+    answer:
+      'Das Roadmap-Team im Bereich IT + Digital sammelt Meldungen aus den Fachbereichen, stimmt Aktualisierungen ab und veröffentlicht geprüfte Informationen.',
+  },
+  {
+    question: 'Wie gebe ich Feedback oder Ergänzungen weiter?',
+    answer:
+      'Über den Button „Rückmeldung geben“ direkt in der Roadmap oder per E-Mail an roadmap@jsd.bs.ch. Bitte beschreiben Sie Ihr Anliegen möglichst konkret.',
+    link: { label: 'Projekte melden', href: '/help/projekte-melden' },
+  },
+  {
+    question: 'Benötige ich spezielle Berechtigungen?',
+    answer:
+      'Die meisten Roadmap-Instanzen sind für das interne Netzwerk freigeschaltet. Für administrative Aufgaben benötigen Sie einen Service-Account oder persönliche Freigaben.',
+    link: { label: 'Berechtigungen verstehen', href: '/help/admin/rechte-und-zugang' },
+  },
+];
+
+const FAQ = () => {
   return (
-    <main className="min-h-screen bg-gray-900 text-white">
-      <Nav currentPage="doc" />
-      <div className="pt-20 max-w-3xl mx-auto p-6 space-y-8">
-        <header>
-          <h1 className="text-3xl font-black">❓ Häufige Fragen (FAQ)</h1>
-          <p className="text-gray-300">Schnelle Antworten in einfacher Sprache.</p>
-        </header>
+    <HelpLayout
+      title="Häufige Fragen"
+      description={
+        <>
+          Die wichtigsten Antworten auf einen Blick. Nicht fündig geworden? Schreiben Sie uns oder
+          besuchen Sie die ausführliche Dokumentation.
+        </>
+      }
+      breadcrumbs={[{ label: 'Hilfe', href: '/help' }, { label: 'FAQ' }]}
+    >
+      <section className="space-y-4">
+        {questions.map((entry) => (
+          <article
+            key={entry.question}
+            className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 transition hover:border-sky-500/40 hover:bg-slate-900 sm:p-7"
+          >
+            <h2 className="text-lg font-semibold text-white sm:text-xl">{entry.question}</h2>
+            <p className="mt-3 text-sm text-slate-300 sm:text-base">{entry.answer}</p>
+            {entry.link && (
+              <Link
+                href={entry.link.href}
+                className="mt-4 inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200 transition hover:border-sky-400 hover:text-white"
+              >
+                {entry.link.label}
+              </Link>
+            )}
+          </article>
+        ))}
+      </section>
 
-        <section className="space-y-4">
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <h2 className="font-bold">Was ist die Roadmap?</h2>
-            <p className="text-gray-300">Die Roadmap zeigt wichtige Projekte in Planung und Umsetzung – übersichtlich und aktuell.</p>
-          </div>
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <h2 className="font-bold">Wie finde ich Projekte?</h2>
-            <p className="text-gray-300">Nutzen Sie oben die Suche oder die Filter (Kategorie, Status, Jahr). Klicken Sie ein Projekt an, um Details zu sehen.</p>
-          </div>
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <h2 className="font-bold">Wer pflegt die Inhalte?</h2>
-            <p className="text-gray-300">Die Inhalte werden durch das Team IT + Digital betreut. Melden Sie Hinweise über den Kontakt.</p>
-          </div>
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <h2 className="font-bold">Kann ich Feedback geben?</h2>
-            <p className="text-gray-300">Ja, sehr gern. Nutzen Sie den Link „Kontakt“ oder schreiben Sie an <a className="text-blue-400 underline" href="mailto:roadmap@jsd.bs.ch">roadmap@jsd.bs.ch</a>.</p>
-          </div>
-        </section>
-
-        <footer className="text-gray-400 text-sm">
-          Zurück zur <Link href="/help" className="text-blue-400 underline">Hilfe-Übersicht</Link>
-        </footer>
-      </div>
-      <Footer />
-    </main>
+      <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 sm:p-8">
+        <h2 className="text-lg font-semibold text-white sm:text-xl">Weitere Unterstützung</h2>
+        <p className="mt-3 text-sm text-slate-300 sm:text-base">
+          Für alle Anliegen, die hier nicht beantwortet wurden, erreichen Sie uns via{' '}
+          <a
+            href="mailto:roadmap@jsd.bs.ch"
+            className="underline decoration-dotted underline-offset-4 transition hover:text-white"
+          >
+            roadmap@jsd.bs.ch
+          </a>
+          . Technische Details und API-Infos finden Sie in der{' '}
+          <Link
+            href="/docs"
+            className="underline decoration-dotted underline-offset-4 transition hover:text-white"
+          >
+            Dokumentation
+          </Link>
+          .
+        </p>
+      </section>
+    </HelpLayout>
   );
-}
+};
+
+export default FAQ;

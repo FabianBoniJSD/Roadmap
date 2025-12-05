@@ -8,19 +8,13 @@ interface CompactProjectCardProps {
   onClick: (projectId: string) => void;
 }
 
-const CompactProjectCard: React.FC<CompactProjectCardProps> = ({ project, categoryName, categoryColor, onClick }) => {
-  const formatDate = (iso?: string) => iso ? new Date(iso).toLocaleDateString() : 'n/a';
-  const statusColor = (status?: string) => {
-    const s = (status || '').toLowerCase();
-    switch (s) {
-      case 'completed': return '#10B981';
-      case 'in-progress': return '#3B82F6';
-      case 'planned': return '#6B7280';
-      case 'paused': return '#F59E0B';
-      case 'cancelled': return '#EF4444';
-      default: return '#6B7280';
-    }
-  };
+const CompactProjectCard: React.FC<CompactProjectCardProps> = ({
+  project,
+  categoryName,
+  categoryColor,
+  onClick,
+}) => {
+  const formatDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString() : 'n/a');
 
   return (
     <div
@@ -31,10 +25,14 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({ project, catego
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="inline-block w-2.5 h-2.5 rounded-full border border-white/50" style={{ backgroundColor: statusColor(project.status) }} />
           <h3 className="font-semibold text-sm md:text-base truncate">{project.title}</h3>
         </div>
-        <span className="text-[10px] px-2 py-0.5 rounded-full border border-white/10" style={{ backgroundColor: categoryColor, color: '#fff' }}>{categoryName}</span>
+        <span
+          className="text-[10px] px-2 py-0.5 rounded-full border border-white/10"
+          style={{ backgroundColor: categoryColor, color: '#fff' }}
+        >
+          {categoryName}
+        </span>
       </div>
 
       {/* Zeitraum */}
@@ -45,7 +43,10 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({ project, catego
       {/* Fortschritt */}
       {typeof project.fortschritt === 'number' && (
         <div className="w-full h-2 bg-gray-700/60 rounded overflow-hidden">
-          <div className="h-full bg-emerald-500" style={{ width: `${Math.min(Math.max(project.fortschritt,0),100)}%` }} />
+          <div
+            className="h-full bg-emerald-500"
+            style={{ width: `${Math.min(Math.max(project.fortschritt, 0), 100)}%` }}
+          />
         </div>
       )}
 
@@ -57,13 +58,19 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({ project, catego
       {/* Footer meta */}
       <div className="mt-auto pt-2 text-[11px] text-gray-300 flex flex-wrap gap-2">
         {project.ProjectFields && project.ProjectFields.length > 0 && (
-          <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">{project.ProjectFields.length} Tags</span>
+          <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">
+            {project.ProjectFields.length} Tags
+          </span>
         )}
         {project.links && project.links.length > 0 && (
-          <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">{project.links.length} Links</span>
+          <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">
+            {project.links.length} Links
+          </span>
         )}
         {project.teamMembers && project.teamMembers.length > 0 && (
-          <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">{project.teamMembers.length} Team</span>
+          <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">
+            {project.teamMembers.length} Team
+          </span>
         )}
       </div>
     </div>

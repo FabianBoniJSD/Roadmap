@@ -1,29 +1,34 @@
-import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
-import ProjectForm from '../../../components/ProjectForm';
+import { useEffect, useState, type FC } from 'react';
+import AdminSubpageLayout from '@/components/AdminSubpageLayout';
+import JSDoITLoader from '@/components/JSDoITLoader';
+import ProjectForm from '@/components/ProjectForm';
 import withAdminAuth from '@/components/withAdminAuth';
-import { clientDataService } from '@/utils/clientDataService';
 import { Category, Project } from '@/types';
+import { clientDataService } from '@/utils/clientDataService';
 
-const NewProjectPage: React.FC = () => {
+const NewProjectPage: FC = () => {
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchCategories = async () => {
       try {
+        setLoading(true);
+        setError(null);
         const categoriesData = await clientDataService.getAllCategories();
         setCategories(categoriesData);
-      } catch (error) {
-        console.error('Error fetching data:', error);
+      } catch (err) {
+        console.error('Error fetching categories:', err);
+        setError('Kategorien konnten nicht geladen werden. Bitte versuchen Sie es erneut.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
+    fetchCategories();
   }, []);
 
   const handleCancel = () => {
@@ -34,40 +39,33 @@ const NewProjectPage: React.FC = () => {
     try {
       await clientDataService.saveProject(project);
       router.push('/admin');
-    } catch (error) {
-      console.error('Error saving project:', error);
+    } catch (err) {
+      console.error('Error saving project:', err);
+      setError('Projekt konnte nicht gespeichert werden. Bitte prüfen Sie die Eingaben.');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <header className="bg-gray-800 py-4 px-6 border-b border-gray-700">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Neues Projekt hinzufügen</h1>
-          <Link href="/admin">
-            <button className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded transition-colors">
-              Zurück zum Dashboard
-            </button>
-          </Link>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="bg-gray-800 rounded-lg shadow p-6">
-          {loading ? (
-            <div className="text-center py-8">
-              <p>Daten werden geladen...</p>
+    <AdminSubpageLayout
+      title="Neues Projekt erstellen"
+      description="Legen Sie ein Projekt mit allen relevanten Informationen an. Pflichtfelder sind markiert, weitere Angaben können später ergänzt werden."
+      breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Projekte' }, { label: 'Neu' }]}
+    >
+      {loading ? (
+        <section className="flex items-center justify-center rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-16 shadow-lg shadow-slate-950/30">
+          <JSDoITLoader message="Kategorien werden geladen …" />
+        </section>
+      ) : (
+        <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
+          {error && (
+            <div className="mb-6 rounded-2xl border border-rose-500/50 bg-rose-500/15 px-4 py-3 text-sm text-rose-100">
+              {error}
             </div>
-          ) : (
-            <ProjectForm 
-              categories={categories}
-              onSubmit={handleSubmit}
-              onCancel={handleCancel} 
-            />
           )}
-        </div>
-      </main>
-    </div>
+          <ProjectForm categories={categories} onSubmit={handleSubmit} onCancel={handleCancel} />
+        </section>
+      )}
+    </AdminSubpageLayout>
   );
 };
 

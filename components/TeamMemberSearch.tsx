@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TeamMember } from '@/types';
 import { clientDataService } from '@/utils/clientDataService';
+import JSDoITLoader from './JSDoITLoader';
 
 interface TeamMemberSearchProps {
   projectId: string;
@@ -8,16 +9,15 @@ interface TeamMemberSearchProps {
   setTeamMembers: React.Dispatch<React.SetStateAction<TeamMember[]>>;
 }
 
-const TeamMemberSearch: React.FC<TeamMemberSearchProps> = ({ 
-  projectId, 
-  teamMembers, 
-  setTeamMembers 
+const TeamMemberSearch: React.FC<TeamMemberSearchProps> = ({
+  projectId,
+  teamMembers,
+  setTeamMembers,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<TeamMember[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Debounced search function
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedSearch = useCallback((query: string) => {
@@ -45,109 +45,114 @@ const TeamMemberSearch: React.FC<TeamMemberSearchProps> = ({
     }, 300);
   }, []);
 
-  useEffect(() => () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
   }, []);
 
-  // Auto-search when query changes
   useEffect(() => {
     debouncedSearch(searchQuery);
   }, [searchQuery, debouncedSearch]);
 
-  // Function to add a team member to the project
   const handleAddTeamMember = (member: TeamMember) => {
-    // Check if member is already added
-    const isAlreadyAdded = teamMembers.some(m => 
-      m.name.toLowerCase() === member.name.toLowerCase());
-    
-    if (isAlreadyAdded) return;
+    const isAlreadyAdded = teamMembers.some(
+      (existing) => existing.name.toLowerCase() === member.name.toLowerCase()
+    );
 
-    // Create a new team member object
+    if (isAlreadyAdded) {
+      return;
+    }
+
     const newMember = {
       name: member.name,
-      role: 'Teammitglied', // Default role
-      projectId: projectId,
-      id: `temp-${Date.now()}`
+      role: 'Teammitglied',
+      projectId,
+      id: `temp-${Date.now()}`,
     };
-    
-    // Update the team members state
-    setTeamMembers(prevMembers => [...prevMembers, newMember]);
-    
-    // Clear search
+
+    setTeamMembers((prev) => [...prev, newMember]);
     setSearchQuery('');
     setSearchResults([]);
   };
 
-  // Function to remove a team member from the project
   const handleRemoveTeamMember = (memberId: string) => {
-    setTeamMembers(prevMembers => prevMembers.filter(member => member.id !== memberId));
+    setTeamMembers((prev) => prev.filter((member) => member.id !== memberId));
   };
 
   return (
-    <div className="mt-6 bg-gray-700 p-4 rounded-lg">
-      <h3 className="text-lg font-medium mb-3">Team-Mitglieder hinzufügen</h3>
+    <div className="mt-6 rounded-3xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-lg shadow-slate-950/30">
+      <h3 className="mb-4 text-lg font-semibold text-slate-100">Teammitglieder hinzufügen</h3>
       <div className="relative">
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Nach Benutzern suchen..."
-          className="w-full px-3 py-2 bg-gray-600 text-white rounded outline-none focus:ring-2 focus:ring-blue-500"
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Nach Personen suchen …"
+          className="w-full rounded-2xl border border-slate-800/80 bg-slate-950 px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 transition focus:border-sky-400/80 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
         />
         {isSearching && (
-          <div className="absolute right-3 top-2">
-            <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+          <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+            <JSDoITLoader
+              sizeRem={1}
+              message=""
+              showGlow={false}
+              className="flex-row gap-1 px-0 py-0 text-sky-200"
+            />
           </div>
         )}
-        
-        {/* Dropdown search results */}
+
         {searchResults.length > 0 && (
-          <div className="absolute z-10 w-full mt-1 bg-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+          <div className="absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-800/80 bg-slate-950/95 shadow-xl shadow-slate-950/40 backdrop-blur">
             <ul>
               {searchResults.map((user) => (
-                <li 
-                  key={user.id || user.name} 
-                  className="px-3 py-2 hover:bg-gray-600 cursor-pointer flex items-center justify-between border-b border-gray-600 last:border-0"
+                <li
+                  key={user.id || user.name}
+                  className="flex cursor-pointer items-center justify-between border-b border-slate-800/60 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800/70 last:border-0"
                   onClick={() => handleAddTeamMember(user)}
                 >
                   <span>{user.name}</span>
-                  <span className="text-xs text-blue-400">Hinzufügen</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-300">
+                    Neu
+                  </span>
                 </li>
               ))}
             </ul>
           </div>
         )}
       </div>
-      
-      {/* Current team members */}
-      <div className="mt-5">
-        <h4 className="text-sm font-medium mb-2">Aktuelle Team-Mitglieder:</h4>
+
+      <div className="mt-6">
+        <h4 className="mb-3 text-sm font-semibold uppercase tracking-[0.3em] text-slate-300">
+          Aktuelles Team
+        </h4>
         {teamMembers.length > 0 ? (
           <ul className="space-y-2">
             {teamMembers.map((member) => (
-              <li 
-                key={member.id} 
-                className="flex items-center justify-between p-2 bg-gray-600 rounded"
+              <li
+                key={member.id}
+                className="flex items-center justify-between rounded-2xl border border-slate-800/80 bg-slate-900/80 px-4 py-2.5 text-sm text-slate-100 shadow-inner shadow-slate-950/30"
               >
                 <div>
                   <span>{member.name}</span>
-                  <span className="ml-2 text-xs text-gray-400">({member.role || 'Teammitglied'})</span>
+                  <span className="ml-2 text-xs text-slate-400">
+                    ({member.role || 'Teammitglied'})
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <select
                     value={member.role || 'Teammitglied'}
-                    onChange={(e) => {
-                      const newRole = e.target.value;
-                      setTeamMembers(prev => 
-                        prev.map(m => m.id === member.id ? {...m, role: newRole} : m)
+                    onChange={(event) => {
+                      const newRole = event.target.value;
+                      setTeamMembers((prev) =>
+                        prev.map((existing) =>
+                          existing.id === member.id ? { ...existing, role: newRole } : existing
+                        )
                       );
                     }}
-                    className="px-2 py-1 text-xs bg-gray-700 rounded"
+                    className="rounded-full border border-slate-800/70 bg-slate-950 px-3 py-1 text-xs text-slate-200 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30"
                   >
                     <option value="Teammitglied">Teammitglied</option>
                     <option value="Projektleiter">Projektleiter</option>
@@ -156,7 +161,7 @@ const TeamMemberSearch: React.FC<TeamMemberSearchProps> = ({
                   </select>
                   <button
                     onClick={() => member.id && handleRemoveTeamMember(member.id)}
-                    className="px-2 py-1 bg-red-600 hover:bg-red-700 text-xs rounded"
+                    className="rounded-full border border-red-500/50 px-3 py-1 text-xs font-semibold text-red-200 transition hover:border-red-400 hover:text-red-100"
                   >
                     Entfernen
                   </button>
@@ -165,7 +170,7 @@ const TeamMemberSearch: React.FC<TeamMemberSearchProps> = ({
             ))}
           </ul>
         ) : (
-          <p className="text-gray-400 text-sm">Keine Team-Mitglieder vorhanden</p>
+          <p className="text-sm text-slate-400">Noch keine Teammitglieder hinzugefügt.</p>
         )}
       </div>
     </div>

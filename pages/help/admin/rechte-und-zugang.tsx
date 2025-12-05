@@ -1,37 +1,65 @@
-import Link from 'next/link';
+import HelpLayout from '@/components/HelpLayout';
 
-export default function RechteUndZugang() {
+const steps = [
+  'Klärung im Team oder mit der Projektleitung: Benötigen Sie Zugriff auf Instanz-Ebene oder nur Leserechte?',
+  'Anfrage an roadmap@jsd.bs.ch mit kurzer Begründung, gewünschter Dauer und Kontaktangaben senden.',
+  'Das Roadmap-Team prüft den Bedarf, legt den Zugang an und informiert Sie über nächste Schritte.',
+];
+
+const RechteUndZugang = () => {
   return (
-    <main className="min-h-screen bg-gray-900 text-white">
-      <div className="max-w-3xl mx-auto p-6 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-black">🔑 Rechte & Zugang</h1>
-          <p className="text-gray-300">So kommen Sie in den Admin-Bereich.</p>
-        </header>
+    <HelpLayout
+      title="Rechte & Zugang"
+      description={
+        <>
+          Der Admin-Bereich ist bewusst geschützt. Hier erfahren Sie, wer Zugriff erhält, wie
+          Anfragen ablaufen und worauf Sie beim Umgang mit Service-Accounts achten sollten.
+        </>
+      }
+      breadcrumbs={[
+        { label: 'Hilfe', href: '/help' },
+        { label: 'Admin', href: '/help/admin' },
+        { label: 'Rechte & Zugang' },
+      ]}
+    >
+      <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 sm:p-8">
+        <h2 className="text-lg font-semibold text-white sm:text-xl">Wer erhält Admin-Rechte?</h2>
+        <p className="mt-3 text-sm text-slate-300 sm:text-base">
+          Berechtigt sind Personen, die Projekte oder Kategorien aktiv pflegen. Typischerweise sind
+          dies Mitglieder des Bereichs IT + Digital oder definierte Fachvertreterinnen und
+          -vertreter.
+        </p>
+      </section>
 
-        <section className="bg-gray-800 rounded-lg p-4 border border-gray-700 space-y-3">
-          <h2 className="text-xl font-bold">Wer hat Admin-Rechte?</h2>
-          <p className="text-gray-300">Admin-Rechte erhalten ausgewählte Personen im Bereich IT + Digital. Aus Sicherheitsgründen sind die Rechte beschränkt.</p>
-        </section>
-
-        <section className="bg-gray-800 rounded-lg p-4 border border-gray-700 space-y-3">
-          <h2 className="text-xl font-bold">Zugang anfragen</h2>
-          <ol className="list-decimal ml-6 text-gray-300 space-y-1">
-            <li>Klären Sie die Notwendigkeit im Team.</li>
-            <li>Schreiben Sie an <a className="text-blue-400 underline" href="mailto:roadmap@jsd.bs.ch">roadmap@jsd.bs.ch</a>.</li>
-            <li>Geben Sie Nutzung und gewünschten Zeitraum an.</li>
+      <section className="grid gap-6 rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 sm:grid-cols-[1.1fr_0.9fr] sm:p-8">
+        <article className="space-y-3">
+          <h2 className="text-lg font-semibold text-white sm:text-xl">So beantragen Sie Zugriff</h2>
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-300 sm:text-base">
+            {steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
           </ol>
-        </section>
+        </article>
+        <aside className="space-y-3 rounded-2xl border border-slate-800/60 bg-slate-900/70 px-5 py-4 text-sm text-slate-300">
+          <h3 className="text-base font-semibold text-white">Service-Account nutzen</h3>
+          <ul className="space-y-2">
+            <li>Passwörter nicht weitergeben – stattdessen zentral verwalten.</li>
+            <li>Nur im gesicherten Netzwerk einsetzen.</li>
+            <li>Regelmäßig überprüfen, welche Personen Zugriff benötigen.</li>
+          </ul>
+        </aside>
+      </section>
 
-        <section className="bg-gray-800 rounded-lg p-4 border border-gray-700 space-y-3">
-          <h2 className="text-xl font-bold">Hinweis</h2>
-          <p className="text-gray-300">Admin-Hilfe ist öffentlich lesbar. Inhalte im Admin-Bereich sind jedoch nur mit Rechten sichtbar.</p>
-        </section>
-
-        <footer className="text-gray-400 text-sm">
-          Zurück zur <Link href="/help/admin" className="text-blue-400 underline">Admin Hilfe</Link>
-        </footer>
-      </div>
-    </main>
+      <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 sm:p-8">
+        <h2 className="text-lg font-semibold text-white sm:text-xl">Transparenz & Datenschutz</h2>
+        <p className="mt-3 text-sm text-slate-300 sm:text-base">
+          Alle Admin-Aktionen werden protokolliert. Bitte hinterlegen Sie keine sensiblen
+          Personendaten. Nutzen Sie stattdessen die vorgesehenen Systeme für vertrauliche
+          Informationen.
+        </p>
+      </section>
+    </HelpLayout>
   );
-}
+};
+
+export default RechteUndZugang;

@@ -5,6 +5,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { FaTrash, FaPlus } from 'react-icons/fa';
 import { clientDataService } from '@/utils/clientDataService';
+import JSDoITLoader from './JSDoITLoader';
 
 interface ProjectFormProps {
   initialProject?: Project;
@@ -13,7 +14,13 @@ interface ProjectFormProps {
   onCancel: () => void;
 }
 
-type ProjectPhase = 'initialisierung' | 'konzept' | 'realisierung' | 'einführung' | 'einfuehrung' | 'abschluss';
+type ProjectPhase =
+  | 'initialisierung'
+  | 'konzept'
+  | 'realisierung'
+  | 'einführung'
+  | 'einfuehrung'
+  | 'abschluss';
 
 const normalizePhase = (val?: string): ProjectPhase => {
   if (!val) return 'initialisierung';
@@ -28,7 +35,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   initialProject,
   categories,
   onSubmit,
-  onCancel
+  onCancel,
 }) => {
   // Grundlegende Projektdaten
   const [title, setTitle] = useState(initialProject?.title || '');
@@ -40,20 +47,24 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   const [endDate, setEndDate] = useState<Date | null>(
     initialProject?.endDate ? new Date(initialProject.endDate) : null
   );
-  const [selectedCategory, setSelectedCategory] = useState<string>(
-    initialProject?.category || ''
-  );
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialProject?.category || '');
 
   // Zusätzliche Felder aus dem SharePoint-Schema
   const [projektleitung, setProjektleitung] = useState(initialProject?.projektleitung || '');
   const [bisher, setBisher] = useState(initialProject?.bisher || '');
   const [zukunft, setZukunft] = useState(initialProject?.zukunft || '');
   const [fortschritt, setFortschritt] = useState(initialProject?.fortschritt || 0);
-  const [geplantUmsetzung, setGeplantUmsetzung] = useState(initialProject?.geplante_umsetzung || '');
+  const [geplantUmsetzung, setGeplantUmsetzung] = useState(
+    initialProject?.geplante_umsetzung || ''
+  );
   const [budget, setBudget] = useState(initialProject?.budget || '');
   // Neue Felder: Projektphase & Nächster Meilenstein
-  const [projektphase, setProjektphase] = useState<ProjectPhase>(normalizePhase(initialProject?.projektphase));
-  const [naechsterMeilenstein, setNaechsterMeilenstein] = useState(initialProject?.naechster_meilenstein || '');
+  const [projektphase, setProjektphase] = useState<ProjectPhase>(
+    normalizePhase(initialProject?.projektphase)
+  );
+  const [naechsterMeilenstein, setNaechsterMeilenstein] = useState(
+    initialProject?.naechster_meilenstein || ''
+  );
 
   // Team member search functionality
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,17 +78,22 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     if (!rawMembers.length) return [];
 
     if (typeof rawMembers[0] === 'string') {
-      return rawMembers.map(member => ({
+      return rawMembers.map((member) => ({
         id: `temp-${uuidv4()}`,
         name: String(member),
         role: 'Teammitglied',
-        projectId: initialProject.id
+        projectId: initialProject.id,
       }));
     }
 
-    return rawMembers.map(member =>
+    return rawMembers.map((member) =>
       typeof member === 'string'
-        ? { id: `temp-${uuidv4()}`, name: member, role: 'Teammitglied', projectId: initialProject.id }
+        ? {
+            id: `temp-${uuidv4()}`,
+            name: member,
+            role: 'Teammitglied',
+            projectId: initialProject.id,
+          }
         : member
     );
   });
@@ -100,7 +116,10 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     if (typeof initialProject.ProjectFields === 'string') {
       const fieldStr = initialProject.ProjectFields as string;
       if (fieldStr.includes(';') || fieldStr.includes(',')) {
-        return fieldStr.split(/[;,]/).map(f => f.trim()).filter(Boolean);
+        return fieldStr
+          .split(/[;,]/)
+          .map((f) => f.trim())
+          .filter(Boolean);
       }
       return [fieldStr];
     }
@@ -174,7 +193,12 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     } else if (typeof initialProject.ProjectFields === 'string') {
       const fieldStr = initialProject.ProjectFields as unknown as string;
       if (fieldStr.includes(';') || fieldStr.includes(',')) {
-        setSelectedFields(fieldStr.split(/[;,]/).map(f => f.trim()).filter(Boolean));
+        setSelectedFields(
+          fieldStr
+            .split(/[;,]/)
+            .map((f) => f.trim())
+            .filter(Boolean)
+        );
       } else if (fieldStr) {
         setSelectedFields([fieldStr]);
       } else {
@@ -187,9 +211,14 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     setLinks(initialProject.links || []);
     // Team members normalize
     if (initialProject.teamMembers && initialProject.teamMembers.length) {
-      const tms = (initialProject.teamMembers as (string | TeamMember)[]).map(member =>
+      const tms = (initialProject.teamMembers as (string | TeamMember)[]).map((member) =>
         typeof member === 'string'
-          ? { id: `temp-${uuidv4()}`, name: member, role: 'Teammitglied', projectId: initialProject.id }
+          ? {
+              id: `temp-${uuidv4()}`,
+              name: member,
+              role: 'Teammitglied',
+              projectId: initialProject.id,
+            }
           : member
       );
       setTeamMembers(tms);
@@ -204,8 +233,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   // Function to add a team member to the project
   const handleAddTeamMember = (member: TeamMember) => {
     // Check if member is already added
-    const isAlreadyAdded = teamMembers.some(m =>
-      m.name.toLowerCase() === member.name.toLowerCase());
+    const isAlreadyAdded = teamMembers.some(
+      (m) => m.name.toLowerCase() === member.name.toLowerCase()
+    );
 
     if (isAlreadyAdded) return;
 
@@ -214,11 +244,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       id: `temp-${uuidv4()}`,
       name: member.name,
       role: 'Teammitglied', // Default role
-      projectId: initialProject?.id || ''
+      projectId: initialProject?.id || '',
     };
 
     // Update the team members state
-    setTeamMembers(prevMembers => [...prevMembers, newMember]);
+    setTeamMembers((prevMembers) => [...prevMembers, newMember]);
 
     // Clear search
     setSearchQuery('');
@@ -227,7 +257,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
 
   // Function to remove a team member from the project
   const handleRemoveTeamMember = (memberId: string) => {
-    setTeamMembers(prevMembers => prevMembers.filter(member => member.id !== memberId));
+    setTeamMembers((prevMembers) => prevMembers.filter((member) => member.id !== memberId));
   };
 
   // Kategorie auswählen
@@ -237,9 +267,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
 
   // Feld umschalten
   const toggleField = (fieldValue: string) => {
-    setSelectedFields(prev => {
+    setSelectedFields((prev) => {
       if (prev.includes(fieldValue)) {
-        return prev.filter(name => name !== fieldValue);
+        return prev.filter((name) => name !== fieldValue);
       } else {
         return [...prev, fieldValue];
       }
@@ -252,7 +282,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       const newLink: ProjectLink = {
         id: uuidv4(),
         title: newLinkTitle.trim(),
-        url: newLinkUrl.trim()
+        url: newLinkUrl.trim(),
       };
 
       setLinks([...links, newLink]);
@@ -263,7 +293,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
 
   // Link entfernen
   const removeLink = (linkId: string) => {
-    setLinks(links.filter(link => link.id !== linkId));
+    setLinks(links.filter((link) => link.id !== linkId));
   };
 
   // Formular validieren
@@ -361,11 +391,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       fortschritt,
       geplante_umsetzung: geplantUmsetzung,
       budget,
-  projektphase: projektphase === 'einführung' ? 'einfuehrung' : projektphase,
-  naechster_meilenstein: naechsterMeilenstein || undefined,
+      projektphase: projektphase === 'einführung' ? 'einfuehrung' : projektphase,
+      naechster_meilenstein: naechsterMeilenstein || undefined,
       teamMembers,
       links,
-      ProjectFields: selectedFields
+      ProjectFields: selectedFields,
     };
 
     onSubmit(projectData);
@@ -377,7 +407,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     { id: 'service', name: 'Dienstleistung', description: 'Servicebezogene Aspekte' },
     { id: 'data', name: 'Daten', description: 'Datenbezogene Aspekte' },
     { id: 'security', name: 'Sicherheit', description: 'Sicherheitsaspekte' },
-    { id: 'infrastructure', name: 'Infrastruktur', description: 'Infrastrukturaspekte' }
+    { id: 'infrastructure', name: 'Infrastruktur', description: 'Infrastrukturaspekte' },
   ];
 
   return (
@@ -392,8 +422,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className={`w-full bg-gray-800 border ${errors.title ? 'border-red-500' : 'border-gray-700'
-            } rounded p-2`}
+          className={`w-full rounded-2xl border px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition ${
+            errors.title ? 'border-rose-500 bg-slate-900/60' : 'border-slate-800/70 bg-slate-950'
+          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
           required
         />
         {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
@@ -409,8 +440,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={4}
-          className={`w-full bg-gray-800 border ${errors.description ? 'border-red-500' : 'border-gray-700'
-            } rounded p-2`}
+          className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 placeholder-slate-500 outline-none transition ${
+            errors.description
+              ? 'border-rose-500 bg-slate-900/60'
+              : 'border-slate-800/70 bg-slate-950'
+          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
           required
         />
         {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
@@ -424,8 +458,12 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         <select
           id="status"
           value={status}
-          onChange={(e) => setStatus(e.target.value as "planned" | "in-progress" | "completed" | "paused" | "cancelled")}
-          className="w-full bg-gray-800 border border-gray-700 rounded p-2"
+          onChange={(e) =>
+            setStatus(
+              e.target.value as 'planned' | 'in-progress' | 'completed' | 'paused' | 'cancelled'
+            )
+          }
+          className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
           required
         >
           <option value="planned">Geplant</option>
@@ -446,7 +484,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
             id="startDate"
             selected={startDate}
             onChange={setStartDate}
-            className={`w-full bg-gray-800 border ${errors.startDate ? 'border-red-500' : 'border-gray-700'} rounded p-2`}
+            className={`w-full rounded-2xl border px-4 py-2 text-sm text-slate-100 outline-none transition ${
+              errors.startDate
+                ? 'border-rose-500 bg-slate-900/60'
+                : 'border-slate-800/70 bg-slate-950'
+            } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
             dateFormat="dd.MM.yyyy"
             placeholderText="TT.MM.JJJJ"
             required
@@ -461,7 +503,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
             id="endDate"
             selected={endDate}
             onChange={setEndDate}
-            className={`w-full bg-gray-800 border ${errors.endDate ? 'border-red-500' : 'border-gray-700'} rounded p-2`}
+            className={`w-full rounded-2xl border px-4 py-2 text-sm text-slate-100 outline-none transition ${
+              errors.endDate
+                ? 'border-rose-500 bg-slate-900/60'
+                : 'border-slate-800/70 bg-slate-950'
+            } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
             dateFormat="dd.MM.yyyy"
             placeholderText="TT.MM.JJJJ"
             minDate={startDate || undefined}
@@ -478,17 +524,16 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           Kategorie <span className="text-red-500">*</span>
         </label>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-          {categories.map(category => (
+          {categories.map((category) => (
             <div
               key={category.id}
-              className={`flex items-center p-2 rounded cursor-pointer transition-all ${selectedCategory === category.id
-                ? 'bg-gray-700 border-l-4'
-                : 'bg-gray-800 opacity-70'
-                }`}
+              className={`flex items-center p-2 rounded cursor-pointer transition-all ${
+                selectedCategory === category.id
+                  ? 'bg-slate-900/70 border-l-4 border-sky-500/60'
+                  : 'bg-slate-950/60 opacity-70'
+              }`}
               style={{
-                borderLeftColor: selectedCategory === category.id
-                  ? category.color
-                  : 'transparent'
+                borderLeftColor: selectedCategory === category.id ? category.color : 'transparent',
               }}
               onClick={() => selectCategory(category.id)}
             >
@@ -500,9 +545,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
             </div>
           ))}
         </div>
-        {errors.category && (
-          <p className="text-red-500 text-sm mt-1">{errors.category}</p>
-        )}
+        {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category}</p>}
       </div>
 
       {/* Projektleitung */}
@@ -515,13 +558,19 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           type="text"
           value={projektleitung}
           onChange={(e) => setProjektleitung(e.target.value)}
-          className={`w-full bg-gray-800 border ${errors.projektleitung ? 'border-red-500' : 'border-gray-700'} rounded p-2`}
+          className={`w-full rounded-2xl border px-4 py-2 text-sm text-slate-100 outline-none transition ${
+            errors.projektleitung
+              ? 'border-rose-500 bg-slate-900/60'
+              : 'border-slate-800/70 bg-slate-950'
+          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
           required
         />
-        {errors.projektleitung && <p className="text-red-500 text-sm mt-1">{errors.projektleitung}</p>}
+        {errors.projektleitung && (
+          <p className="text-red-500 text-sm mt-1">{errors.projektleitung}</p>
+        )}
       </div>
 
-  {/* Fortschritt entfernt – Phasensteuerung ersetzt die Prozentanzeige */}
+      {/* Fortschritt entfernt – Phasensteuerung ersetzt die Prozentanzeige */}
 
       {/* Budget */}
       <div>
@@ -533,7 +582,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           type="text"
           value={budget}
           onChange={(e) => setBudget(e.target.value)}
-          className={`w-full bg-gray-800 border ${errors.budget ? 'border-red-500' : 'border-gray-700'} rounded p-2`}
+          className={`w-full rounded-2xl border px-4 py-2 text-sm text-slate-100 outline-none transition ${
+            errors.budget ? 'border-rose-500 bg-slate-900/60' : 'border-slate-800/70 bg-slate-950'
+          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
           placeholder="Nur Zahlen eingeben (z.B. 150000)"
           required
         />
@@ -549,7 +600,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           id="projektphase"
           value={projektphase}
           onChange={(e) => setProjektphase(normalizePhase(e.target.value))}
-          className="w-full bg-gray-800 border border-gray-700 rounded p-2"
+          className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
         >
           <option value="initialisierung">Initialisierung</option>
           <option value="konzept">Konzept</option>
@@ -569,7 +620,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           type="text"
           value={naechsterMeilenstein}
           onChange={(e) => setNaechsterMeilenstein(e.target.value)}
-          className="w-full bg-gray-800 border border-gray-700 rounded p-2"
+          className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
           placeholder="z.B. Go-Live Q3 2025"
         />
       </div>
@@ -584,7 +635,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           value={bisher}
           onChange={(e) => setBisher(e.target.value)}
           rows={3}
-          className={`w-full bg-gray-800 border ${errors.bisher ? 'border-red-500' : 'border-gray-700'} rounded p-2`}
+          className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
+            errors.bisher ? 'border-rose-500 bg-slate-900/60' : 'border-slate-800/70 bg-slate-950'
+          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
           placeholder="Was wurde bisher erreicht?"
           required
         />
@@ -601,7 +654,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           value={zukunft}
           onChange={(e) => setZukunft(e.target.value)}
           rows={3}
-          className={`w-full bg-gray-800 border ${errors.zukunft ? 'border-red-500' : 'border-gray-700'} rounded p-2`}
+          className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
+            errors.zukunft ? 'border-rose-500 bg-slate-900/60' : 'border-slate-800/70 bg-slate-950'
+          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
           placeholder="Was ist für die Zukunft geplant?"
           required
         />
@@ -618,36 +673,44 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           value={geplantUmsetzung}
           onChange={(e) => setGeplantUmsetzung(e.target.value)}
           rows={3}
-          className={`w-full bg-gray-800 border ${errors.geplantUmsetzung ? 'border-red-500' : 'border-gray-700'} rounded p-2`}
+          className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
+            errors.geplantUmsetzung
+              ? 'border-rose-500 bg-slate-900/60'
+              : 'border-slate-800/70 bg-slate-950'
+          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
           placeholder="Wie soll das Projekt umgesetzt werden?"
           required
         />
-        {errors.geplantUmsetzung && <p className="text-red-500 text-sm mt-1">{errors.geplantUmsetzung}</p>}
+        {errors.geplantUmsetzung && (
+          <p className="text-red-500 text-sm mt-1">{errors.geplantUmsetzung}</p>
+        )}
       </div>
 
       {/* Felder */}
       <div className="mt-6">
         <h3 className="text-lg font-medium mb-2">Felder</h3>
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-          <p className="text-sm text-gray-400 mb-4">
+        <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
+          <p className="mb-4 text-sm text-slate-300">
             Wählen Sie die Felder aus, die für dieses Projekt relevant sind:
           </p>
           {/* For debugging */}
-          <p className="text-xs text-gray-500 mb-2">Selected fields: {selectedFields.join(', ')}</p>
+          <p className="mb-2 text-xs text-slate-500">
+            Selected fields: {selectedFields.join(', ')}
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {availableFields.map(field => (
+            {availableFields.map((field) => (
               <div key={field.id} className="flex items-center space-x-2">
                 <input
                   type="checkbox"
                   id={`field-${field.id}`}
                   checked={selectedFields.includes(field.name)}
                   onChange={() => toggleField(field.name)}
-                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                  className="h-4 w-4 rounded border-slate-700 bg-slate-900/70 text-sky-400 focus:ring-2 focus:ring-sky-500"
                 />
                 <label htmlFor={`field-${field.id}`} className="text-sm">
                   {field.name}
                   {field.description && (
-                    <span className="text-xs text-gray-400 block">{field.description}</span>
+                    <span className="block text-xs text-slate-400">{field.description}</span>
                   )}
                 </label>
               </div>
@@ -659,36 +722,40 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       {/* Team-Mitglieder with search */}
       <div className="mt-6">
         <h3 className="text-lg font-medium mb-2">Team-Mitglieder</h3>
-        <div className="bg-gray-700 p-4 rounded-lg">
+        <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
           <div className="relative">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Nach Benutzern suchen..."
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
             />
             {isSearching && (
-              <div className="absolute right-3 top-2">
-                <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+              <div className="absolute right-2 top-1.5">
+                <JSDoITLoader
+                  sizeRem={0.7}
+                  message=""
+                  showGlow={false}
+                  className="flex-row gap-1 px-0 py-0 text-sky-200"
+                />
               </div>
             )}
 
             {/* Dropdown search results */}
             {searchResults.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+              <div className="absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-800/70 bg-slate-950/95 shadow-xl shadow-slate-950/40 backdrop-blur">
                 <ul>
                   {searchResults.map((user) => (
                     <li
                       key={user.id || user.name}
-                      className="px-3 py-2 hover:bg-gray-600 cursor-pointer flex items-center justify-between border-b border-gray-600 last:border-0"
+                      className="flex cursor-pointer items-center justify-between border-b border-slate-800/60 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-900/80 last:border-0"
                       onClick={() => handleAddTeamMember(user)}
                     >
                       <span>{user.name}</span>
-                      <span className="text-xs text-blue-400">Hinzufügen</span>
+                      <span className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
+                        Hinzufügen
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -704,22 +771,24 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                 {teamMembers.map((member) => (
                   <li
                     key={member.id}
-                    className="flex items-center justify-between p-2 bg-gray-600 rounded"
+                    className="flex items-center justify-between rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm text-slate-200"
                   >
                     <div>
                       <span>{member.name}</span>
-                      <span className="ml-2 text-xs text-gray-400">({member.role || 'Teammitglied'})</span>
+                      <span className="ml-2 text-xs text-slate-400">
+                        ({member.role || 'Teammitglied'})
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <select
                         value={member.role || 'Teammitglied'}
                         onChange={(e) => {
                           const newRole = e.target.value;
-                          setTeamMembers(prev =>
-                            prev.map(m => m.id === member.id ? { ...m, role: newRole } : m)
+                          setTeamMembers((prev) =>
+                            prev.map((m) => (m.id === member.id ? { ...m, role: newRole } : m))
                           );
                         }}
-                        className="px-2 py-1 text-xs bg-gray-700 rounded"
+                        className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-200 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30"
                       >
                         <option value="Teammitglied">Teammitglied</option>
                         <option value="Projektleiter">Projektleiter</option>
@@ -728,7 +797,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                       </select>
                       <button
                         type="button"
-                        onClick={() => member.id && handleRemoveTeamMember(member.id)} className="text-red-400 hover:text-red-300 p-1"
+                        onClick={() => member.id && handleRemoveTeamMember(member.id)}
+                        className="rounded-full border border-rose-500/50 p-1 text-rose-300 transition hover:border-rose-400 hover:text-rose-100"
                         aria-label="Teammitglied entfernen"
                       >
                         <FaTrash size={16} />
@@ -738,7 +808,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                 ))}
               </ul>
             ) : (
-              <p className="text-gray-400 text-sm">Keine Team-Mitglieder vorhanden</p>
+              <p className="text-sm text-slate-400">Keine Team-Mitglieder vorhanden</p>
             )}
           </div>
         </div>
@@ -749,16 +819,19 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         <h3 className="text-lg font-medium mb-2">Referenz-Links</h3>
 
         {/* Liste der vorhandenen Links */}
-        <div className="space-y-2 mb-4">
-          {links.map(link => (
-            <div key={link.id} className="flex items-center bg-gray-800 p-2 rounded">
+        <div className="mb-4 space-y-2">
+          {links.map((link) => (
+            <div
+              key={link.id}
+              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm text-slate-200"
+            >
               <div className="flex-grow">
-                <div className="font-medium">{link.title}</div>
+                <div className="font-semibold text-white">{link.title}</div>
                 <a
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-400 text-sm hover:underline"
+                  className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300 transition hover:text-sky-200"
                 >
                   {link.url}
                 </a>
@@ -766,7 +839,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
               <button
                 type="button"
                 onClick={() => removeLink(link.id)}
-                className="text-red-400 hover:text-red-300 p-1"
+                className="rounded-full border border-rose-500/50 p-1 text-rose-300 transition hover:border-rose-400 hover:text-rose-100"
                 aria-label="Link entfernen"
               >
                 <FaTrash size={16} />
@@ -783,7 +856,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
               placeholder="Link-Titel"
               value={newLinkTitle}
               onChange={(e) => setNewLinkTitle(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded p-2"
+              className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
             />
           </div>
           <div className="md:col-span-3">
@@ -792,14 +865,14 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
               placeholder="URL (https://...)"
               value={newLinkUrl}
               onChange={(e) => setNewLinkUrl(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded p-2"
+              className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
             />
           </div>
           <div className="md:col-span-1">
             <button
               type="button"
               onClick={addLink}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 px-4 rounded flex items-center justify-center"
+              className="flex w-full items-center justify-center rounded-full bg-sky-500 px-4 py-2 text-white transition hover:bg-sky-400 disabled:opacity-60"
               disabled={!newLinkTitle.trim() || !newLinkUrl.trim()}
             >
               <FaPlus />
@@ -809,17 +882,17 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       </div>
 
       {/* Buttons */}
-      <div className="flex justify-end space-x-3 pt-4">
+      <div className="flex justify-end gap-3 pt-6">
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+          className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
         >
           Abbrechen
         </button>
         <button
           type="submit"
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded"
+          className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:opacity-60"
           disabled={isSubmitting}
         >
           {initialProject ? 'Aktualisieren' : 'Erstellen'}

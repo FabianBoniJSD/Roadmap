@@ -45,13 +45,25 @@ jobs:
       - name: Write environment file from secret
         env:
           ENV_FILE_CONTENT: ${{ secrets.env }}
+          USER_FABIAN: ${{ secrets.USER_FABIAN }}
+          USER_STEFAN: ${{ secrets.USER_STEFAN }}
+          USER_ADMIN: ${{ secrets.USER_ADMIN }}
         run: |
           if (-not $env:ENV_FILE_CONTENT) {
             Write-Error "Secret 'env' is not set or empty."
             exit 1
           }
           Write-Output "Writing .env file to workspace root..."
-          $env:ENV_FILE_CONTENT | Out-File -FilePath ".env" -Encoding utf8NoBOM
+          $envPath = Join-Path (Get-Location) ".env"
+          $env:ENV_FILE_CONTENT | Out-File -FilePath $envPath -Encoding utf8NoBOM
+
+          $userSecrets = Get-ChildItem Env: | Where-Object { $_.Name -like 'USER_*' -and $_.Value }
+          if ($userSecrets) {
+            Add-Content -Path $envPath -Value "`n# Admin users injected from GitHub Actions secrets"
+            foreach ($secret in $userSecrets) {
+              Add-Content -Path $envPath -Value ("{0}={1}" -f $secret.Name, $secret.Value)
+            }
+          }
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -328,8 +340,7 @@ jobs:
           PORT: 3000
           # GitHub Secrets for multi-user authentication
           USER_FABIAN: ${{ secrets.USER_FABIAN }}
-          USER_STEFAN: ${{ secrets.USER_STEFAN }}
-          USER_ADMIN: ${{ secrets.USER_ADMIN }}
+          USER_MARTIN: ${{ secrets.USER_MARTIN }}
         run: |
           Write-Output "=== STARTING APPLICATION ==="
           Write-Output "PM2_HOME: $env:PM2_HOME"

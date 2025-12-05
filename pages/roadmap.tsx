@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import Roadmap from '../components/Roadmap';
-import { Project } from '../types';
 import JSDoITLoader from '../components/JSDoITLoader';
+import SiteFooter from '@/components/SiteFooter';
+import SiteHeader from '@/components/SiteHeader';
+import { Project } from '../types';
 
 const RoadmapPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -33,13 +35,25 @@ const RoadmapPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <JSDoITLoader />
+      <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+        <SiteHeader activeRoute="roadmap" />
+        <main className="flex flex-1 items-center justify-center pt-12">
+          <JSDoITLoader message="Roadmap wird geladen …" />
+        </main>
+        <SiteFooter />
       </div>
     );
   }
 
-  return <Roadmap initialProjects={projects} />;
+  return (
+    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+      <SiteHeader activeRoute="roadmap" />
+      <main className="flex-1 pt-12">
+        <Roadmap initialProjects={projects} />
+      </main>
+      <SiteFooter />
+    </div>
+  );
 };
 
 export default RoadmapPage;

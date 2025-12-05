@@ -1,40 +1,85 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
+import HelpLayout from '@/components/HelpLayout';
 
-export default function AdminHelp() {
+const adminTopics = [
+  {
+    title: 'Projekte verwalten',
+    description: 'Anlegen, bearbeiten, archivieren und Verantwortliche zuordnen.',
+    href: '/help/admin/projekte-verwalten',
+  },
+  {
+    title: 'Kategorien & Tags',
+    description: 'Struktur und Farbcodes festlegen, Reihenfolge definieren.',
+    href: '/help/admin/kategorien-verwalten',
+  },
+  {
+    title: 'Design & Einstellungen',
+    description: 'Titel, Farbverläufe und Startjahr konfigurieren.',
+    href: '/help/admin/einstellungen-und-design',
+  },
+  {
+    title: 'Rechte & Zugang',
+    description: 'Service-Accounts, Benutzerrechte und Freigaben verwalten.',
+    href: '/help/admin/rechte-und-zugang',
+  },
+];
+
+const AdminHelp = () => {
   return (
-    <main className="min-h-screen bg-gray-900 text-white">
-      <div className="max-w-4xl mx-auto p-6 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-4xl font-black">🛡️ Admin Hilfe</h1>
-          <p className="text-gray-300">Kurze Anleitungen für Personen mit Admin-Rechten. Einfach, klar, ohne Techniksprech.</p>
-        </header>
+    <HelpLayout
+      title="Admin-Handbuch"
+      description={
+        <>
+          Dieser Bereich richtet sich an Administratorinnen und Administratoren einer
+          Roadmap-Instanz. Er zeigt, wie Sie Projekte pflegen, Kategorien strukturieren und das
+          Design an Ihr Departement anpassen.
+        </>
+      }
+      breadcrumbs={[{ label: 'Hilfe', href: '/help' }, { label: 'Admin' }]}
+      actions={
+        <Link
+          href="/admin"
+          className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white transition hover:bg-sky-400"
+        >
+          Admin-Dashboard öffnen
+        </Link>
+      }
+    >
+      <section className="grid gap-4 sm:grid-cols-2">
+        {adminTopics.map((topic) => (
+          <Link
+            key={topic.href}
+            href={topic.href}
+            className="group rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 transition hover:border-sky-500/50 hover:bg-slate-900"
+          >
+            <h2 className="text-lg font-semibold text-white transition group-hover:text-sky-100">
+              {topic.title}
+            </h2>
+            <p className="mt-3 text-sm text-slate-300">{topic.description}</p>
+            <span className="mt-4 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-400 transition group-hover:text-sky-200">
+              Weiterlesen
+              <span aria-hidden="true">â†—</span>
+            </span>
+          </Link>
+        ))}
+      </section>
 
-        <section className="grid gap-4 sm:grid-cols-2">
-          <Card title="Projekte verwalten" emoji="🧩" href="/help/admin/projekte-verwalten" desc="Anlegen, bearbeiten, archivieren, löschen." />
-          <Card title="Kategorien verwalten" emoji="🗂️" href="/help/admin/kategorien-verwalten" desc="Struktur anpassen, Reihenfolge, Farben." />
-          <Card title="Einstellungen & Design" emoji="🎨" href="/help/admin/einstellungen-und-design" desc="Titel, Farben, Legende, Startjahr." />
-          <Card title="Rechte & Zugang" emoji="🔑" href="/help/admin/rechte-und-zugang" desc="Wer hat Zugriff? Wie erhalte ich Rechte?" />
-        </section>
-
-        <section className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <h2 className="text-xl font-bold">Wer ist Admin?</h2>
-          <p className="text-gray-300">Admin-Rechte erhalten ausgewählte Personen im Bereich IT + Digital. Wenn Sie Zugriff benötigen, melden Sie sich bei <a className="text-blue-400 underline" href="mailto:roadmap@jsd.bs.ch">roadmap@jsd.bs.ch</a>.</p>
-        </section>
-
-        <footer className="text-gray-400 text-sm">
-          Zurück zur <Link href="/help" className="text-blue-400 underline">Hilfe-Übersicht</Link>
-        </footer>
-      </div>
-    </main>
+      <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 sm:p-8">
+        <h2 className="text-lg font-semibold text-white sm:text-xl">Wer erhÃ¤lt Admin-Zugriff?</h2>
+        <p className="mt-3 text-sm text-slate-300 sm:text-base">
+          Admin-Rechte erhalten ausgewÃ¤hlte Personen im Bereich IT + Digital oder in den
+          Fachbereichen. Wenn Sie Zugriff benÃ¶tigen, melden Sie sich unter{' '}
+          <a
+            href="mailto:roadmap@jsd.bs.ch"
+            className="underline decoration-dotted underline-offset-4 transition hover:text-white"
+          >
+            roadmap@jsd.bs.ch
+          </a>
+          . Wir stimmen die Freigabe mit dem zustÃ¤ndigen Service-Owner ab.
+        </p>
+      </section>
+    </HelpLayout>
   );
-}
+};
 
-function Card({ title, emoji, desc, href }: { title: string; emoji: string; desc: string; href: string }) {
-  return (
-    <Link href={href} className="block rounded-lg bg-gray-800 hover:bg-gray-750 border border-gray-700 p-4 transition">
-      <div className="text-2xl">{emoji}</div>
-      <div className="mt-2 font-semibold">{title}</div>
-      <div className="text-gray-400 text-sm mt-1">{desc}</div>
-    </Link>
-  );
-}
+export default AdminHelp;

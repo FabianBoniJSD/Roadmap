@@ -1,69 +1,81 @@
-import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import CategoryForm from '../../../../components/CategoryForm';
-import { clientDataService } from '@/utils/clientDataService';
+import { useEffect, useState, type FC } from 'react';
+import AdminSubpageLayout from '@/components/AdminSubpageLayout';
+import CategoryForm from '@/components/CategoryForm';
+import JSDoITLoader from '@/components/JSDoITLoader';
 import withAdminAuth from '@/components/withAdminAuth';
 import { Category } from '@/types';
+import { clientDataService } from '@/utils/clientDataService';
 
-const EditCategoryPage: React.FC = () => {
+const EditCategoryPage: FC = () => {
   const router = useRouter();
   const { id } = router.query;
+
   const [category, setCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Use useCallback to memoize the fetchCategory function
-  const fetchCategory = useCallback(async (categoryId: string) => {
-    try {
-      setLoading(true);
-      // Use clientDataService directly
-      const data = await clientDataService.getCategoryById(categoryId);
-      if (data) {
-        setCategory(data);
-      } else {
-        console.error('Category not found');
-        router.push('/admin');
-      }
-    } catch (error) {
-      console.error('Error fetching category:', error);
-      console.error('Failed to load category');
-      router.push('/admin');
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (id && typeof id === 'string') {
-      fetchCategory(id);
-    }
-  }, [id, fetchCategory]);
+    const fetchCategory = async () => {
+      if (!id || typeof id !== 'string') return;
+
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await clientDataService.getCategoryById(id);
+        setCategory(data);
+      } catch (err) {
+        console.error('Error fetching category:', err);
+        setError('Kategorie konnte nicht geladen werden.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCategory();
+  }, [id]);
 
   const handleCancel = () => {
     router.push('/admin');
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white p-8 flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
-      </div>
-    );
-  }
+  const handleSave = () => {
+    router.push('/admin');
+  };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Edit Category</h1>
-        {category && (
-          <CategoryForm
-            category={category}  // Use "category" instead of "initialData"
-            onSave={() => router.push('/admin')}  // Add the onSave pro
-            onCancel={handleCancel}
-          />
-        )}
-
-      </div>
-    </div>
+    <AdminSubpageLayout
+      title="Kategorie bearbeiten"
+      description="Passen Sie Name, Farbe und Icon an, um die Roadmap übersichtlich zu halten."
+      breadcrumbs={[
+        { label: 'Admin', href: '/admin' },
+        { label: 'Kategorien' },
+        { label: 'Bearbeiten' },
+      ]}
+    >
+      {loading ? (
+        <section className="flex items-center justify-center rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-16 shadow-lg shadow-slate-950/30">
+          <JSDoITLoader message="Kategorie wird geladen …" />
+        </section>
+      ) : error || !category ? (
+        <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-12 text-center shadow-lg shadow-slate-950/30">
+          <p className="text-sm text-slate-300">
+            {error ?? 'Die gewünschte Kategorie wurde nicht gefunden.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push('/admin')}
+            className="mt-4 rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+          >
+            Zurück zum Dashboard
+          </button>
+        </section>
+      ) : (
+        <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
+          <CategoryForm category={category} onSave={handleSave} onCancel={handleCancel} />
+        </section>
+      )}
+    </AdminSubpageLayout>
   );
 };
 

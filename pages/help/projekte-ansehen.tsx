@@ -1,43 +1,117 @@
 import Link from 'next/link';
-import Nav from '@/components/Nav';
-import Footer from '@/components/Footer';
+import HelpLayout from '@/components/HelpLayout';
 
-export default function ProjekteAnsehen() {
+const ProjekteAnsehen = () => {
   return (
-    <main className="min-h-screen bg-gray-900 text-white">
-      <Nav currentPage="doc" />
-      <div className="pt-20 max-w-3xl mx-auto p-6 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-black">👀 Projekte ansehen</h1>
-          <p className="text-gray-300">Alles auf einen Blick – mit Farben, Symbolen und kurzen Texten.</p>
-        </header>
+    <HelpLayout
+      title="Projekte finden und vergleichen"
+      description={
+        <>
+          Filtern Sie Projekte nach Kategorie, Status, Tags oder Zeitraum und wechseln Sie zwischen
+          Zeitstrahl und Kachelansicht. Mit diesen Tipps gewinnen Sie schnell Orientierung.
+        </>
+      }
+      breadcrumbs={[{ label: 'Hilfe', href: '/help' }, { label: 'Projekte ansehen' }]}
+    >
+      <section className="grid gap-6 rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 sm:grid-cols-[1.1fr_0.9fr] sm:p-8">
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-white sm:text-xl">Visuelle Orientierung</h2>
+          <p className="text-sm text-slate-300 sm:text-base">
+            Die Roadmap nutzt die dunkle Grundgestaltung der Anwendung und hebt Fachbereiche durch
+            farbige Balken hervor. Bewegen Sie den Mauszeiger über ein Projekt oder tippen Sie auf
+            mobilen Geräten, um Details zu Phase, Budget, Team und Zeitplan anzuzeigen.
+          </p>
+        </div>
+        <ul className="grid gap-3">
+          <li className="flex items-start gap-3 rounded-2xl border border-slate-800/60 bg-slate-900/70 px-4 py-3 text-sm text-slate-200">
+            <span
+              className="mt-1 inline-flex h-2 w-5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500"
+              aria-hidden="true"
+            />
+            <span>
+              <strong className="text-slate-100">Kategorie-Farben:</strong> Jede Rubrik besitzt eine
+              eigene Farbe und erleichtert so das Erkennen von Zuständigkeiten.
+            </span>
+          </li>
+          <li className="flex items-start gap-3 rounded-2xl border border-slate-800/60 bg-slate-900/70 px-4 py-3 text-sm text-slate-200">
+            <span
+              className="mt-1 inline-flex h-2 w-5 rounded-full bg-slate-700"
+              aria-hidden="true"
+            />
+            <span>
+              <strong className="text-slate-100">Hover-Details:</strong> Tooltips liefern kompakte
+              Kontextinformationen ohne die Ansicht zu verlassen.
+            </span>
+          </li>
+          <li className="flex items-start gap-3 rounded-2xl border border-slate-800/60 bg-slate-900/70 px-4 py-3 text-sm text-slate-200">
+            <span
+              className="mt-1 inline-flex h-2 w-5 rounded-full bg-slate-600"
+              aria-hidden="true"
+            />
+            <span>
+              <strong className="text-slate-100">Tiles & Timeline:</strong> Wechseln Sie je nach
+              Fragestellung zwischen überblicksorientiertem Zeitstrahl und detailreicher
+              Kachelansicht.
+            </span>
+          </li>
+        </ul>
+      </section>
 
-        <section className="bg-gray-800 rounded-lg p-4 border border-gray-700 space-y-3">
-          <h2 className="text-xl font-bold">Farben & Symbole</h2>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div>✅ Abgeschlossen</div>
-            <div>🛠️ In Bearbeitung</div>
-            <div>🕒 Pausiert</div>
-            <div>🧭 Geplant</div>
-            <div>⛔ Abgebrochen</div>
-          </div>
-          <p className="text-gray-300">Tipp: Fahren Sie mit der Maus über ein Projekt für eine Kurzübersicht.</p>
-        </section>
-
-        <section className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <h2 className="text-xl font-bold">Filter clever nutzen</h2>
-          <ul className="list-disc ml-6 mt-2 text-gray-300">
-            <li>Kategorie: Themenbereich wählen</li>
-            <li>Status: Zeigt nur den gewünschten Fortschritt</li>
-            <li>Zeitraum: Viertel/Jahr eingrenzen</li>
+      <section className="grid gap-6 rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 sm:grid-cols-2 sm:p-8">
+        <article className="space-y-3">
+          <h2 className="text-lg font-semibold text-white sm:text-xl">Filter und Suche</h2>
+          <p className="text-sm text-slate-300 sm:text-base">
+            Nutzen Sie die Kombination aus Textsuche und Filtern, um Projekte in Sekunden
+            einzugrenzen. Alle Einstellungen werden automatisch in der URL gespeichert – ideal zum
+            Teilen mit Kolleginnen und Kollegen.
+          </p>
+          <ul className="space-y-2 text-sm text-slate-300">
+            <li>
+              <strong className="text-slate-100">Textsuche:</strong> Durchsucht Titel und
+              Beschreibung.
+            </li>
+            <li>
+              <strong className="text-slate-100">Kategorien & Tags:</strong> Fokus auf einen
+              Fachbereich oder Stakeholder-Kreis.
+            </li>
+            <li>
+              <strong className="text-slate-100">Zeitraum:</strong> Grenzen Sie Monate oder Quartale
+              ein, um aktuelle Vorhaben zu sehen.
+            </li>
           </ul>
-        </section>
+        </article>
+        <article className="space-y-3">
+          <h2 className="text-lg font-semibold text-white sm:text-xl">Ansichten wechseln</h2>
+          <p className="text-sm text-slate-300 sm:text-base">
+            Der Zeitstrahl eignet sich für die Jahresplanung und zeigt Abhängigkeiten. Die
+            Kachelansicht fokussiert auf Zusammenfassungen, KPIs und Teammitglieder.
+          </p>
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/70 px-4 py-3 text-sm text-slate-300">
+            Tipp: Aktivieren Sie „Nur laufende Projekte“, um schnell auf aktuelle Initiativen zu
+            fokussieren.
+          </div>
+        </article>
+      </section>
 
-        <footer className="text-gray-400 text-sm">
-          Zurück zur <Link href="/help" className="text-blue-400 underline">Hilfe-Übersicht</Link>
-        </footer>
-      </div>
-      <Footer />
-    </main>
+      <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 sm:p-8">
+        <h2 className="text-lg font-semibold text-white sm:text-xl">Weitere Ressourcen</h2>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Link
+            href="/help/projekte-melden"
+            className="rounded-2xl border border-slate-800/60 bg-slate-900/70 px-5 py-4 text-sm text-slate-200 transition hover:border-sky-500/50 hover:text-white"
+          >
+            Informationen an das Roadmap-Team melden
+          </Link>
+          <Link
+            href="/docs/funktionen/roadmap"
+            className="rounded-2xl border border-slate-800/60 bg-slate-900/70 px-5 py-4 text-sm text-slate-200 transition hover:border-sky-500/50 hover:text-white"
+          >
+            Technische Dokumentation zur Roadmap-Ansicht
+          </Link>
+        </div>
+      </section>
+    </HelpLayout>
   );
-}
+};
+
+export default ProjekteAnsehen;
