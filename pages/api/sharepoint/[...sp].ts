@@ -870,10 +870,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           else if (typeof value === 'string') gotHeaders.set(key, value);
         });
         const bufferBody = resp.body as Buffer;
-        const responseBody = bufferBody.buffer.slice(
-          bufferBody.byteOffset,
-          bufferBody.byteOffset + bufferBody.byteLength
-        ) as ArrayBuffer;
+        const disallowBodyStatuses = new Set([204, 205, 304]);
+        let responseBody: ArrayBuffer | null = null;
+        if (!disallowBodyStatuses.has(resp.statusCode)) {
+          responseBody = bufferBody.buffer.slice(
+            bufferBody.byteOffset,
+            bufferBody.byteOffset + bufferBody.byteLength
+          ) as ArrayBuffer;
+        }
         return new Response(responseBody, {
           status: resp.statusCode,
           statusText: resp.statusMessage || '',
@@ -933,6 +937,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const ct = spResp.headers.get('content-type') || '';
     const buffer = Buffer.from(await spResp.arrayBuffer());
+    if (spResp.status === 401 || spResp.status === 403) {
+      try {
+        const snippet = buffer.toString('utf8', 0, Math.min(buffer.length, 500));
+        // eslint-disable-next-line no-console
+        console.error('[sharepoint proxy] auth failure from SharePoint', {
+          status: spResp.status,
+          instance: instance.slug,
+          targetUrl,
+          snippet,
+        });
+      } catch {
+        // ignore logging errors
+      }
+    }
     const isJson = /application\/json|text\/json/i.test(ct);
     const isXml = /application\/atom\+xml|text\/xml|application\/xml/i.test(ct);
     const isText = /^text\//i.test(ct) && !isXml && !isJson;
