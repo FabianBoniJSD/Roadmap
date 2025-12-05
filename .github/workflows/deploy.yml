@@ -42,6 +42,17 @@ jobs:
         with:
           clean: false
 
+      - name: Write environment file from secret
+        env:
+          ENV_FILE_CONTENT: ${{ secrets.env }}
+        run: |
+          if (-not $env:ENV_FILE_CONTENT) {
+            Write-Error "Secret 'env' is not set or empty."
+            exit 1
+          }
+          Write-Output "Writing .env file to workspace root..."
+          $env:ENV_FILE_CONTENT | Out-File -FilePath ".env" -Encoding utf8NoBOM
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
