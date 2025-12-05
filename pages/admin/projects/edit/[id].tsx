@@ -189,11 +189,13 @@ const EditProjectPage: FC = () => {
         }
       }
 
-      if (updatedProject.ProjectFields) {
-        if (Array.isArray(updatedProject.ProjectFields)) {
-          projectToSave.ProjectFields = updatedProject.ProjectFields.map((field) => String(field));
-        } else if (typeof updatedProject.ProjectFields === 'string') {
-          const fieldString = updatedProject.ProjectFields;
+      const projectFieldsRaw = updatedProject.ProjectFields as unknown;
+
+      if (projectFieldsRaw) {
+        if (Array.isArray(projectFieldsRaw)) {
+          projectToSave.ProjectFields = projectFieldsRaw.map((field) => String(field));
+        } else if (typeof projectFieldsRaw === 'string') {
+          const fieldString = projectFieldsRaw;
           if (fieldString.includes(';') || fieldString.includes(',')) {
             projectToSave.ProjectFields = fieldString
               .split(/[;,]/)
@@ -203,7 +205,7 @@ const EditProjectPage: FC = () => {
             projectToSave.ProjectFields = [fieldString];
           }
         } else {
-          projectToSave.ProjectFields = [String(updatedProject.ProjectFields)];
+          projectToSave.ProjectFields = [String(projectFieldsRaw)];
         }
       }
 
@@ -260,7 +262,7 @@ const EditProjectPage: FC = () => {
     }
   };
 
-  const attachmentsSection = (projectId: string) => (
+  const attachmentsSection = () => (
     <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
       <header className="space-y-1 border-b border-slate-800/60 pb-5">
         <h2 className="text-lg font-semibold text-white sm:text-xl">Anhänge verwalten</h2>
@@ -410,7 +412,7 @@ const EditProjectPage: FC = () => {
             />
           </section>
 
-          {resolvedProjectId && attachmentsSection(resolvedProjectId)}
+          {resolvedProjectId && attachmentsSection()}
         </>
       )}
     </AdminSubpageLayout>
