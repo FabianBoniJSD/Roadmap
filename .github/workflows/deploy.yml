@@ -151,6 +151,13 @@ jobs:
         with:
           cmd: install --frozen-lockfile
 
+      - name: Apply Prisma migrations
+        env:
+          NODE_ENV: production
+        run: |
+          npx prisma migrate deploy
+          npx prisma generate
+
       - name: Build application
         env:
           NODE_ENV: production
