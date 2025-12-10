@@ -17,6 +17,7 @@ type LandingInstance = {
   strategy: string;
   hosts: string[];
   frontendTarget: string | null;
+  landingPage: string | null;
 };
 
 type LandingPageProps = {
@@ -347,6 +348,7 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async ()
       strategy: record.sharePointStrategy || 'onprem',
       hosts,
       frontendTarget: resolveFrontendTarget(record.settingsJson ?? null, hosts),
+      landingPage: record.landingPage ?? null,
     };
   });
 

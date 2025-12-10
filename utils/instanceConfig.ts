@@ -163,6 +163,7 @@ export const mapInstanceRecord = (record: PrismaInstanceWithHosts): RoadmapInsta
     deploymentEnv: record.deploymentEnv || undefined,
     defaultLocale: record.defaultLocale || undefined,
     defaultTimeZone: record.defaultTimeZone || undefined,
+    landingPage: record.landingPage || undefined,
     hosts: record.hosts.map((host) => host.host),
     sharePoint,
     theme,

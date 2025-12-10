@@ -86,6 +86,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? req.body.defaultTimeZone.trim()
           : null;
     }
+    if (req.body.landingPage !== undefined) {
+      data.landingPage =
+        typeof req.body.landingPage === 'string' && req.body.landingPage.trim()
+          ? req.body.landingPage.trim()
+          : null;
+    }
 
     if (sharePoint.siteUrlDev && typeof sharePoint.siteUrlDev === 'string') {
       data.sharePointSiteUrlDev = sharePoint.siteUrlDev.trim();

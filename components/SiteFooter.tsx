@@ -17,9 +17,9 @@ const SiteFooter: React.FC = () => {
           <Link href="/docs" className="transition hover:text-white">
             Dokumentation
           </Link>
-          <a href="mailto:roadmap@jsd.bs.ch" className="transition hover:text-white">
+          <Link href="/support" className="transition hover:text-white">
             Support kontaktieren
-          </a>
+          </Link>
         </div>
       </div>
     </footer>

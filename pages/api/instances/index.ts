@@ -41,6 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       deploymentEnv,
       defaultLocale,
       defaultTimeZone,
+      landingPage,
     } = req.body || {};
     const sharePoint = req.body?.sharePoint || {};
 
@@ -68,6 +69,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const settings = buildSettingsPayload(req.body);
     const hosts = normalizeHosts(req.body?.hosts);
+    const landingPageValue =
+      typeof landingPage === 'string' && landingPage.trim() ? landingPage.trim() : null;
 
     const created = await prisma.roadmapInstance.create({
       data: {
@@ -94,6 +97,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         deploymentEnv: deploymentEnv?.trim() || null,
         defaultLocale: defaultLocale?.trim() || null,
         defaultTimeZone: defaultTimeZone?.trim() || null,
+        landingPage: landingPageValue,
         settingsJson: serializeSettings(settings),
         hosts: {
           create: hosts.map((host) => ({ host })),

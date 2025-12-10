@@ -43,6 +43,7 @@ export interface RoadmapInstanceConfig {
   deploymentEnv?: string | null;
   defaultLocale?: string | null;
   defaultTimeZone?: string | null;
+  landingPage?: string | null;
   hosts: string[];
   sharePoint: RoadmapInstanceSharePointSettings;
   theme?: RoadmapInstanceThemeConfig;

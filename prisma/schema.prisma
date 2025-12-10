@@ -32,6 +32,7 @@ model RoadmapInstance {
   deploymentEnv        String?
   defaultLocale        String?
   defaultTimeZone      String?
+  landingPage          String?   @unique
   settingsJson         String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt

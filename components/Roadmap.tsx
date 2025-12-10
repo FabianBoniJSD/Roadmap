@@ -557,13 +557,6 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                 <span className="block text-2xl font-semibold text-white">{categories.length}</span>
                 <span>Kategorien insgesamt</span>
               </div>
-              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-center md:col-span-2">
-                <span className="block text-sm text-slate-300">
-                  {activeCategories.length === categories.length
-                    ? 'Alle Kategorien aktiviert'
-                    : `${activeCategories.length} von ${categories.length} Kategorien aktiv`}
-                </span>
-              </div>
             </div>
           </div>
         </div>
@@ -621,9 +614,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
             onClick={() => setMobileCategoriesOpen(!mobileCategoriesOpen)}
             className="flex w-full items-center justify-between rounded-lg border border-slate-700 bg-slate-900/70 px-4 py-2 text-slate-200 transition hover:border-sky-500 hover:text-white"
           >
-            <span>
-              Kategorien {activeCategories.length}/{categories.length}
-            </span>
+            <span>Kategorien auswählen</span>
             {mobileCategoriesOpen ? <FaTimes /> : <FaBars />}
           </button>
         </div>
@@ -678,7 +669,6 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                     onMonthRangeChange={setMonthRange}
                     onlyRunning={onlyRunning}
                     onToggleOnlyRunning={setOnlyRunning}
-                    categoriesCount={{ total: categories.length, active: activeCategories.length }}
                     onSelectAllCategories={() => setActiveCategories(categories.map((c) => c.id))}
                     onClearCategories={() => setActiveCategories([])}
                   />

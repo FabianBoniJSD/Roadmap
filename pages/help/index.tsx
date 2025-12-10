@@ -80,12 +80,12 @@ const HelpHome = () => {
           >
             FAQ öffnen
           </Link>
-          <a
-            href="mailto:roadmap@jsd.bs.ch"
+          <Link
+            href="/support"
             className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-300 transition hover:border-sky-400 hover:text-white"
           >
             Support kontaktieren
-          </a>
+          </Link>
         </>
       }
     >
@@ -197,7 +197,7 @@ const HelpHome = () => {
               >
                 N
               </span>
-              <span>Neue Werkzeuge f?r die Kategorie-Verwaltung befinden sich im Rollout.</span>
+              <span>Neue Werkzeuge für die Kategorie-Verwaltung befinden sich im Rollout.</span>
             </li>
             <li className="flex items-start gap-3">
               <span
@@ -207,7 +207,7 @@ const HelpHome = () => {
                 W
               </span>
               <span>
-                Workshops finden am letzten Donnerstag im Monat statt ? Anmeldung via{' '}
+                Workshops finden am letzten Donnerstag im Monat statt – Anmeldung via{' '}
                 <a
                   href="mailto:roadmap@jsd.bs.ch"
                   className="underline decoration-dotted underline-offset-4 transition hover:text-white"

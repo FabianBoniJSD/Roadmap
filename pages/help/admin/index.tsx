@@ -58,24 +58,24 @@ const AdminHelp = () => {
             <p className="mt-3 text-sm text-slate-300">{topic.description}</p>
             <span className="mt-4 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-400 transition group-hover:text-sky-200">
               Weiterlesen
-              <span aria-hidden="true">â†—</span>
+              <span aria-hidden="true">↗</span>
             </span>
           </Link>
         ))}
       </section>
 
       <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 sm:p-8">
-        <h2 className="text-lg font-semibold text-white sm:text-xl">Wer erhÃ¤lt Admin-Zugriff?</h2>
+        <h2 className="text-lg font-semibold text-white sm:text-xl">Wer erhält Admin-Zugriff?</h2>
         <p className="mt-3 text-sm text-slate-300 sm:text-base">
-          Admin-Rechte erhalten ausgewÃ¤hlte Personen im Bereich IT + Digital oder in den
-          Fachbereichen. Wenn Sie Zugriff benÃ¶tigen, melden Sie sich unter{' '}
+          Admin-Rechte erhalten ausgewählte Personen im Bereich IT + Digital oder in den
+          Fachbereichen. Wenn Sie Zugriff benötigen, melden Sie sich unter{' '}
           <a
             href="mailto:roadmap@jsd.bs.ch"
             className="underline decoration-dotted underline-offset-4 transition hover:text-white"
           >
             roadmap@jsd.bs.ch
           </a>
-          . Wir stimmen die Freigabe mit dem zustÃ¤ndigen Service-Owner ab.
+          . Wir stimmen die Freigabe mit dem zuständigen Service-Owner ab.
         </p>
       </section>
     </HelpLayout>
