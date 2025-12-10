@@ -34,6 +34,8 @@ model RoadmapInstance {
   defaultTimeZone      String?
   landingPage          String?   @unique
   settingsJson         String?
+  spHealthJson         String?
+  spHealthCheckedAt    DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   hosts                RoadmapInstanceHost[]

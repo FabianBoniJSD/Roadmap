@@ -10,6 +10,8 @@ import {
   serializeExtraModes,
   serializeSettings,
 } from './helpers';
+import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
+import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
 
 const hasProp = (value: unknown, key: string): boolean =>
   Boolean(value && typeof value === 'object' && key in (value as Record<string, unknown>));
@@ -170,6 +172,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         include: { hosts: true },
       });
     }
+
+    const mapped = mapInstanceRecord(updated);
+    let health: RoadmapInstanceHealth;
+    try {
+      health = await provisionSharePointForInstance(mapped);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      health = {
+        checkedAt: new Date().toISOString(),
+        permissions: { status: 'error', message },
+        lists: {
+          ensured: [],
+          created: [],
+          missing: [],
+          fieldsCreated: {},
+          errors: { __provision: message },
+        },
+      };
+      // eslint-disable-next-line no-console
+      console.error('[instances] sharepoint provisioning failed', error);
+    }
+
+    updated = await prisma.roadmapInstance.update({
+      where: { id: updated.id },
+      data: {
+        spHealthJson: JSON.stringify(health),
+        spHealthCheckedAt: new Date(),
+      },
+      include: { hosts: true },
+    });
 
     return res.status(200).json({ instance: toInstanceSummary(mapInstanceRecord(updated)) });
   }

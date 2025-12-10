@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import clsx from 'clsx';
 import AdminSubpageLayout from '@/components/AdminSubpageLayout';
@@ -271,6 +271,18 @@ const AdminInstancesPage = () => {
       setError(err instanceof Error ? err.message : 'Unbekannter Fehler');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const formatTimestamp = (iso?: string | null) => {
+    if (!iso) return null;
+    try {
+      return new Intl.DateTimeFormat('de-CH', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }).format(new Date(iso));
+    } catch {
+      return iso;
     }
   };
 
@@ -610,6 +622,35 @@ const AdminInstancesPage = () => {
                   key={instance.slug}
                   className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"
                 >
+                  {instance.health && (
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <span
+                        className={clsx(
+                          'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold',
+                          instance.health.permissions.status === 'ok' &&
+                            'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40',
+                          instance.health.permissions.status === 'insufficient' &&
+                            'bg-amber-500/20 text-amber-200 border border-amber-500/40',
+                          instance.health.permissions.status === 'error' &&
+                            'bg-rose-500/20 text-rose-200 border border-rose-500/40',
+                          instance.health.permissions.status === 'unknown' &&
+                            'bg-slate-700/40 text-slate-300 border border-slate-700/60'
+                        )}
+                        title={instance.health.permissions.message || undefined}
+                      >
+                        {instance.health.permissions.status === 'ok' && 'SharePoint bereit'}
+                        {instance.health.permissions.status === 'insufficient' &&
+                          'Berechtigungen fehlen'}
+                        {instance.health.permissions.status === 'error' && 'SharePoint-Fehler'}
+                        {instance.health.permissions.status === 'unknown' && 'Status unbekannt'}
+                      </span>
+                      {instance.health.checkedAt && (
+                        <span className="text-xs text-slate-500">
+                          geprüft: {formatTimestamp(instance.health.checkedAt) || ''}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="text-lg font-semibold text-white">{instance.displayName}</h3>
@@ -618,6 +659,12 @@ const AdminInstancesPage = () => {
                       </p>
                     </div>
                     <div className="flex gap-2">
+                      <Link
+                        href={`/admin/instances/${instance.slug}/health`}
+                        className="rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
+                      >
+                        Health
+                      </Link>
                       <button
                         type="button"
                         onClick={() => handleEdit(instance)}
@@ -656,6 +703,14 @@ const AdminInstancesPage = () => {
                         {instance.sharePoint.passwordSet ? 'gesetzt' : 'fehlt'}
                       </dd>
                     </div>
+                    {instance.health?.lists.missing.length ? (
+                      <div className="flex gap-2">
+                        <dt className="text-slate-500">Fehlende Listen:</dt>
+                        <dd className="text-slate-300">
+                          {instance.health.lists.missing.join(', ')}
+                        </dd>
+                      </div>
+                    ) : null}
                   </dl>
                 </article>
               ))}

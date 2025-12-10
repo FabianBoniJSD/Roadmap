@@ -9,6 +9,24 @@ export interface RoadmapInstanceFeatureFlags {
   [feature: string]: boolean | string | number | null;
 }
 
+export type RoadmapInstanceHealthStatus = 'unknown' | 'ok' | 'insufficient' | 'error';
+
+export interface RoadmapInstanceHealth {
+  checkedAt?: string;
+  permissions: {
+    status: RoadmapInstanceHealthStatus;
+    message?: string;
+    probeList?: string;
+  };
+  lists: {
+    ensured: string[];
+    created: string[];
+    missing: string[];
+    fieldsCreated: Record<string, string[]>;
+    errors: Record<string, string>;
+  };
+}
+
 export interface RoadmapInstanceSharePointSettings {
   siteUrlDev: string;
   siteUrlProd: string;
@@ -50,6 +68,7 @@ export interface RoadmapInstanceConfig {
   features?: RoadmapInstanceFeatureFlags;
   metadata?: Record<string, unknown>;
   settingsRaw?: Record<string, unknown>;
+  health?: RoadmapInstanceHealth;
 }
 
 export interface RoadmapInstanceSummary extends Omit<RoadmapInstanceConfig, 'sharePoint'> {

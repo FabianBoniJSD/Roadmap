@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import type {
   RoadmapInstanceConfig,
   RoadmapInstanceFeatureFlags,
+  RoadmapInstanceHealth,
   RoadmapInstanceSharePointSettings,
   RoadmapInstanceSummary,
 } from '@/types/roadmapInstance';
@@ -116,7 +117,49 @@ const decodeSettings = (
   return undefined;
 };
 
-export type PrismaInstanceWithHosts = PrismaRoadmapInstance & { hosts: RoadmapInstanceHost[] };
+const emptyHealth: RoadmapInstanceHealth = {
+  permissions: { status: 'unknown' },
+  lists: { ensured: [], created: [], missing: [], fieldsCreated: {}, errors: {} },
+};
+
+const decodeHealth = (
+  healthJson: PrismaRoadmapInstance['spHealthJson'],
+  checkedAt?: Date | null
+): RoadmapInstanceHealth | undefined => {
+  if (!healthJson && !checkedAt) return undefined;
+  let parsed: Partial<RoadmapInstanceHealth> = {};
+  if (healthJson) {
+    try {
+      const value = JSON.parse(healthJson);
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        parsed = value as Partial<RoadmapInstanceHealth>;
+      }
+    } catch {
+      /* ignore parse errors */
+    }
+  }
+  const normalized: RoadmapInstanceHealth = {
+    permissions: parsed.permissions ?? { status: 'unknown' },
+    lists: parsed.lists ?? { ensured: [], created: [], missing: [], fieldsCreated: {}, errors: {} },
+    checkedAt: parsed.checkedAt ?? undefined,
+  };
+  if (!normalized.permissions.status) normalized.permissions.status = 'unknown';
+  if (!normalized.lists.ensured) normalized.lists.ensured = [];
+  if (!normalized.lists.created) normalized.lists.created = [];
+  if (!normalized.lists.missing) normalized.lists.missing = [];
+  if (!normalized.lists.fieldsCreated) normalized.lists.fieldsCreated = {};
+  if (!normalized.lists.errors) normalized.lists.errors = {};
+  if ((!normalized.checkedAt || normalized.checkedAt.length === 0) && checkedAt) {
+    normalized.checkedAt = checkedAt.toISOString();
+  }
+  return { ...emptyHealth, ...normalized };
+};
+
+export type PrismaInstanceWithHosts = PrismaRoadmapInstance & {
+  hosts: RoadmapInstanceHost[];
+  spHealthJson?: string | null;
+  spHealthCheckedAt?: Date | null;
+};
 
 export const mapInstanceRecord = (record: PrismaInstanceWithHosts): RoadmapInstanceConfig => {
   const settingsObj = decodeSettings(record.settingsJson);
@@ -153,6 +196,7 @@ export const mapInstanceRecord = (record: PrismaInstanceWithHosts): RoadmapInsta
     settingsObj?.metadata && typeof settingsObj.metadata === 'object'
       ? (settingsObj.metadata as Record<string, unknown>)
       : undefined;
+  const health = decodeHealth(record.spHealthJson, record.spHealthCheckedAt);
 
   return {
     id: record.id,
@@ -170,6 +214,7 @@ export const mapInstanceRecord = (record: PrismaInstanceWithHosts): RoadmapInsta
     features,
     metadata,
     settingsRaw: settingsObj,
+    health,
   };
 };
 

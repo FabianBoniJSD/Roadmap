@@ -1,5 +1,52 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-console */
+import type { AsyncLocalStorage } from 'async_hooks';
 import { AppSettings, Category, Project, ProjectLink, TeamMember } from '@/types';
+import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
+
+type NodeRequireFn = typeof require;
+type AsyncLocalStorageCtor = new <T>() => AsyncLocalStorage<T>;
+let instanceContextStorage: AsyncLocalStorage<string | null> | null = null;
+let asyncLocalStorageCtor: AsyncLocalStorageCtor | null = null;
+
+const nodeRequire = (): NodeRequireFn | null => {
+  if (typeof window !== 'undefined') return null;
+  try {
+    // Use eval to avoid bundlers attempting to resolve this require on the client bundle.
+    return eval('require') as NodeRequireFn;
+  } catch {
+    return null;
+  }
+};
+
+const getAsyncLocalStorageCtor = (): AsyncLocalStorageCtor | null => {
+  if (asyncLocalStorageCtor || typeof window !== 'undefined') return asyncLocalStorageCtor;
+
+  const req = nodeRequire();
+  if (!req) return null;
+
+  try {
+    const mod =
+      (req('node:async_hooks') as { AsyncLocalStorage?: AsyncLocalStorageCtor }) ??
+      (req('async_hooks') as { AsyncLocalStorage?: AsyncLocalStorageCtor });
+    asyncLocalStorageCtor = mod?.AsyncLocalStorage ?? null;
+  } catch (error) {
+    console.warn('[clientDataService] AsyncLocalStorage unavailable', error);
+    asyncLocalStorageCtor = null;
+  }
+
+  return asyncLocalStorageCtor;
+};
+
+const getInstanceContextStorage = (): AsyncLocalStorage<string | null> | null => {
+  if (typeof window !== 'undefined') return null;
+  const ctor = getAsyncLocalStorageCtor();
+  if (!ctor) return null;
+
+  if (!instanceContextStorage) {
+    instanceContextStorage = new ctor<string | null>();
+  }
+  return instanceContextStorage;
+};
 
 // SharePoint list names
 const SP_LISTS = {
@@ -57,6 +104,38 @@ class ClientDataService {
       finalUrl += (finalUrl.includes('?') ? '&' : '?') + cacheBust;
     }
 
+    const activeSlug = isServer ? this.getActiveInstanceSlug() : null;
+    if (isServer && activeSlug) {
+      const headers =
+        prepared.headers instanceof Headers
+          ? prepared.headers
+          : new Headers(prepared.headers as HeadersInit | undefined);
+      headers.set('x-roadmap-instance', activeSlug);
+
+      const cookieValue = `${INSTANCE_COOKIE_NAME}=${activeSlug}`;
+      const existingCookie = headers.get('cookie');
+      if (existingCookie) {
+        const segments = existingCookie
+          .split(';')
+          .map((segment) => segment.trim())
+          .filter(Boolean)
+          .filter((segment) => !segment.toLowerCase().startsWith(`${INSTANCE_COOKIE_NAME}=`));
+        segments.push(cookieValue);
+        headers.set('cookie', segments.join('; '));
+      } else {
+        headers.set('cookie', cookieValue);
+      }
+      prepared.headers = headers;
+
+      try {
+        const urlObj = new URL(finalUrl);
+        urlObj.searchParams.set(INSTANCE_QUERY_PARAM, activeSlug);
+        finalUrl = urlObj.toString();
+      } catch {
+        /* ignore invalid URL transforms */
+      }
+    }
+
     return { url: finalUrl, init: prepared };
   }
 
@@ -76,6 +155,29 @@ class ClientDataService {
       return base + '/api/sharepoint';
     }
     return '/api/sharepoint';
+  }
+
+  private getActiveInstanceSlug(): string | null {
+    const storage = getInstanceContextStorage();
+    if (!storage) return null;
+    return storage.getStore() ?? null;
+  }
+
+  async withInstance<T>(slug: string | null | undefined, fn: () => Promise<T> | T): Promise<T> {
+    const storage = getInstanceContextStorage();
+    const callback = () => Promise.resolve(fn());
+    if (!storage) {
+      return await callback();
+    }
+    return await storage.run(slug ?? null, callback);
+  }
+
+  async requestDigest(): Promise<string> {
+    return this.getRequestDigest();
+  }
+
+  async sharePointFetch(url: string, init: RequestInit = {}): Promise<Response> {
+    return this.spFetch(url, init);
   }
 
   // Resolve actual list title by trying preferred and known variants, cache result
@@ -1305,7 +1407,7 @@ class ClientDataService {
             url: response.url,
             body: errorText,
           });
-        } catch (_error) {
+        } catch {
           errorDetails = 'Could not read error details';
         }
 
@@ -1734,7 +1836,7 @@ class ClientDataService {
             body: errorText,
             requestBody: requestBody,
           });
-        } catch (_error) {
+        } catch {
           errorDetails = 'Could not read error details';
         }
 

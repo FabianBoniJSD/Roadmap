@@ -1,14 +1,26 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
+import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
+import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  let instance: RoadmapInstanceConfig | null = null;
+  try {
+    instance = await getInstanceConfigFromRequest(req);
+  } catch (error) {
+    console.error('[api/settings] failed to resolve instance', error);
+    return res.status(500).json({ message: 'Failed to resolve roadmap instance' });
+  }
+  if (!instance) {
+    return res.status(404).json({ message: 'No roadmap instance configured for this request' });
+  }
+
   // Check authentication for write operations
   if (req.method !== 'GET') {
     try {
-      const isAdmin = await clientDataService.isCurrentUserAdmin();
+      const isAdmin = await clientDataService.withInstance(instance.slug, () =>
+        clientDataService.isCurrentUserAdmin()
+      );
       if (!isAdmin) {
         return res.status(401).json({ message: 'Unauthorized' });
       }
@@ -20,7 +32,9 @@ export default async function handler(
 
   if (req.method === 'GET') {
     try {
-      const settings = await clientDataService.getAppSettings();
+      const settings = await clientDataService.withInstance(instance.slug, () =>
+        clientDataService.getAppSettings()
+      );
       return res.status(200).json(settings);
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -29,18 +43,20 @@ export default async function handler(
   } else if (req.method === 'POST') {
     try {
       const { key, value, description } = req.body;
-      
+
       // Validate required fields
       if (!key || !value) {
         return res.status(400).json({ message: 'Key and value are required' });
       }
-      
-      const newSetting = await clientDataService.createSetting({
-        key,
-        value,
-        description: description || ''
-      });
-      
+
+      const newSetting = await clientDataService.withInstance(instance.slug, () =>
+        clientDataService.createSetting({
+          key,
+          value,
+          description: description || '',
+        })
+      );
+
       return res.status(201).json(newSetting);
     } catch (error) {
       console.error('Error creating setting:', error);

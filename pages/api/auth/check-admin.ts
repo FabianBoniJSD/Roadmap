@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
 import { loadUserCredentialsFromSecrets } from '@/utils/userCredentials';
+import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
+import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
 type CheckAdminResponse = {
   isAdmin: boolean;
@@ -33,6 +35,17 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  let instance: RoadmapInstanceConfig | null = null;
+  try {
+    instance = await getInstanceConfigFromRequest(req);
+  } catch (error) {
+    console.error('[check-admin] failed to resolve instance', error);
+    return res.status(500).json({ error: 'Failed to resolve roadmap instance' });
+  }
+  if (!instance) {
+    return res.status(404).json({ error: 'No roadmap instance configured for this request' });
+  }
+
   try {
     const githubUsers = loadUserCredentialsFromSecrets();
 
@@ -47,7 +60,9 @@ export default async function handler(
     }
 
     debugLog('No USER_* secrets. Falling back to service account check.');
-    const isAdmin = await clientDataService.isCurrentUserAdmin();
+    const isAdmin = await clientDataService.withInstance(instance.slug, () =>
+      clientDataService.isCurrentUserAdmin()
+    );
 
     return res.status(200).json({
       isAdmin,

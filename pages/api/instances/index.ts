@@ -14,6 +14,8 @@ import {
   serializeExtraModes,
   serializeSettings,
 } from './helpers';
+import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
+import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -72,7 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const landingPageValue =
       typeof landingPage === 'string' && landingPage.trim() ? landingPage.trim() : null;
 
-    const created = await prisma.roadmapInstance.create({
+    let created = await prisma.roadmapInstance.create({
       data: {
         slug: normalizedSlug,
         displayName: displayName.trim(),
@@ -102,6 +104,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         hosts: {
           create: hosts.map((host) => ({ host })),
         },
+      },
+      include: { hosts: true },
+    });
+
+    const mapped = mapInstanceRecord(created);
+    let health: RoadmapInstanceHealth;
+    try {
+      health = await provisionSharePointForInstance(mapped);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      health = {
+        checkedAt: new Date().toISOString(),
+        permissions: { status: 'error', message },
+        lists: {
+          ensured: [],
+          created: [],
+          missing: [],
+          fieldsCreated: {},
+          errors: { __provision: message },
+        },
+      };
+      // eslint-disable-next-line no-console
+      console.error('[instances] sharepoint provisioning failed', error);
+    }
+
+    created = await prisma.roadmapInstance.update({
+      where: { id: created.id },
+      data: {
+        spHealthJson: JSON.stringify(health),
+        spHealthCheckedAt: new Date(),
       },
       include: { hosts: true },
     });

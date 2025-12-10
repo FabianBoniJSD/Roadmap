@@ -553,10 +553,6 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                 </span>
                 <span>Projekte sichtbar</span>
               </div>
-              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-center">
-                <span className="block text-2xl font-semibold text-white">{categories.length}</span>
-                <span>Kategorien insgesamt</span>
-              </div>
             </div>
           </div>
         </div>
