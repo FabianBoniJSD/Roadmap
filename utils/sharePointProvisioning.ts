@@ -87,9 +87,11 @@ const ensureField = async (
       method: 'POST',
       headers: verboseHeaders(digest),
       body: JSON.stringify({
-        __metadata: { type: 'SP.XmlSchemaFieldCreationInformation' },
-        SchemaXml: field.schemaXml,
-        Options: 0,
+        parameters: {
+          __metadata: { type: 'SP.XmlSchemaFieldCreationInformation' },
+          SchemaXml: field.schemaXml,
+          Options: 0,
+        },
       }),
     }
   );
