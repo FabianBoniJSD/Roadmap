@@ -5,6 +5,7 @@ import AdminSubpageLayout from '@/components/AdminSubpageLayout';
 import withAdminAuth from '@/components/withAdminAuth';
 import { getAdminSessionToken } from '@/utils/auth';
 import type { RoadmapInstanceSummary } from '@/types/roadmapInstance';
+import { SHAREPOINT_LIST_DEFINITIONS } from '@/utils/sharePointLists';
 
 type ApiInstanceResponse = {
   instances: RoadmapInstanceSummary[];
@@ -66,6 +67,68 @@ const defaultForm: AdminFormState = {
   hostsInput: '',
 };
 
+type SharePointListStatus = 'created' | 'ensured' | 'missing' | 'unknown';
+
+const listStatusLabels: Record<SharePointListStatus, string> = {
+  created: 'neu erstellt',
+  ensured: 'vorhanden',
+  missing: 'fehlend',
+  unknown: 'offen',
+};
+
+const listStatusStyles: Record<SharePointListStatus, string> = {
+  created: 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40',
+  ensured: 'bg-sky-500/10 text-sky-200 border border-sky-400/40',
+  missing: 'bg-rose-500/10 text-rose-200 border border-rose-500/40',
+  unknown: 'bg-slate-700/30 text-slate-200 border border-slate-700/50',
+};
+
+type InstanceListOverviewEntry = {
+  key: string;
+  title: string;
+  exists: boolean;
+  resolvedTitle?: string;
+  matchedAlias?: string;
+  itemCount?: number;
+  created?: string;
+  modified?: string;
+  defaultViewUrl?: string;
+  serverRelativeUrl?: string;
+  errors?: string[];
+};
+
+type InstanceListPanelState = {
+  isOpen: boolean;
+  loading: boolean;
+  error: string | null;
+  lists: InstanceListOverviewEntry[] | null;
+  pending: Record<string, boolean>;
+};
+
+const createListPanelState = (): InstanceListPanelState => ({
+  isOpen: false,
+  loading: false,
+  error: null,
+  lists: null,
+  pending: {},
+});
+
+const resolveListStatus = (
+  health: RoadmapInstanceSummary['health'],
+  def: (typeof SHAREPOINT_LIST_DEFINITIONS)[number]
+): SharePointListStatus => {
+  if (!health?.lists) return 'unknown';
+  const { missing = [], created = [], ensured = [] } = health.lists;
+  const identifiers = [def.title, def.key, ...(def.aliases ?? [])].map((value) =>
+    value.toLowerCase()
+  );
+  const matches = (value: string) => identifiers.includes(value.toLowerCase());
+  if (missing.some(matches)) return 'missing';
+  if (created.some(matches)) return 'created';
+  if (ensured.some(matches)) return 'ensured';
+  return 'unknown';
+};
+
 const AdminInstancesPage = () => {
   const [instances, setInstances] = useState<RoadmapInstanceSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +138,7 @@ const AdminInstancesPage = () => {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [tokenMissing, setTokenMissing] = useState(true);
+  const [listPanels, setListPanels] = useState<Record<string, InstanceListPanelState>>({});
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -271,6 +335,143 @@ const AdminInstancesPage = () => {
       setError(err instanceof Error ? err.message : 'Unbekannter Fehler');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const updateListPanelState = (
+    slug: string,
+    updater: (current: InstanceListPanelState) => InstanceListPanelState
+  ) => {
+    setListPanels((prev) => ({
+      ...prev,
+      [slug]: updater(prev[slug] ?? createListPanelState()),
+    }));
+  };
+
+  const setListActionPending = (slug: string, key: string, pending: boolean) => {
+    updateListPanelState(slug, (current) => {
+      const nextPending = { ...current.pending };
+      if (pending) nextPending[key] = true;
+      else delete nextPending[key];
+      return { ...current, pending: nextPending };
+    });
+  };
+
+  const fetchListOverview = async (slug: string) => {
+    updateListPanelState(slug, (current) => ({
+      ...current,
+      isOpen: true,
+      loading: true,
+      error: null,
+    }));
+    try {
+      const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/lists`, {
+        headers: headersWithAuth(),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(payload?.error || 'Fehler beim Laden der Listen');
+      }
+      const lists = (payload?.lists ?? []) as InstanceListOverviewEntry[];
+      updateListPanelState(slug, (current) => ({
+        ...current,
+        loading: false,
+        error: null,
+        lists,
+      }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      updateListPanelState(slug, (current) => ({
+        ...current,
+        loading: false,
+        error: message,
+      }));
+    }
+  };
+
+  const toggleListPanel = (instance: RoadmapInstanceSummary) => {
+    const slug = instance.slug;
+    const previous = listPanels[slug] ?? createListPanelState();
+    const willOpen = !previous.isOpen;
+    updateListPanelState(slug, (current) => ({
+      ...current,
+      isOpen: willOpen,
+      error: willOpen ? null : current.error,
+    }));
+    if (willOpen && !previous.lists && !previous.loading) {
+      void fetchListOverview(slug);
+    }
+  };
+
+  const buildListUrl = (
+    instance: RoadmapInstanceSummary,
+    entry: InstanceListOverviewEntry
+  ): string | null => {
+    const base = (instance.sharePoint.siteUrlProd || instance.sharePoint.siteUrlDev || '').replace(
+      /\/$/,
+      ''
+    );
+    if (!base) return null;
+    const candidate = entry.defaultViewUrl || entry.serverRelativeUrl;
+    if (!candidate) return null;
+    if (candidate.startsWith('http')) return candidate;
+    if (candidate.startsWith('/')) return `${base}${candidate}`;
+    return `${base}/${candidate}`;
+  };
+
+  const ensureListForInstance = async (
+    instance: RoadmapInstanceSummary,
+    entry: InstanceListOverviewEntry
+  ) => {
+    const slug = instance.slug;
+    setListActionPending(slug, entry.key, true);
+    updateListPanelState(slug, (current) => ({ ...current, error: null }));
+    try {
+      const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/lists`, {
+        method: 'POST',
+        headers: { ...headersWithAuth(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: entry.key }),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(payload?.error || 'Fehler beim Anlegen der Liste');
+      }
+      await fetchListOverview(slug);
+      await fetchInstances();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      updateListPanelState(slug, (current) => ({ ...current, error: message }));
+    } finally {
+      setListActionPending(slug, entry.key, false);
+    }
+  };
+
+  const deleteListForInstance = async (
+    instance: RoadmapInstanceSummary,
+    entry: InstanceListOverviewEntry
+  ) => {
+    const slug = instance.slug;
+    const displayName = entry.resolvedTitle || entry.title;
+    if (!window.confirm(`Liste "${displayName}" wirklich löschen?`)) return;
+    setListActionPending(slug, entry.key, true);
+    updateListPanelState(slug, (current) => ({ ...current, error: null }));
+    try {
+      const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/lists`, {
+        method: 'DELETE',
+        headers: { ...headersWithAuth(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: entry.key }),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(payload?.error || 'Fehler beim Löschen der Liste');
+      }
+      await fetchListOverview(slug);
+      await fetchInstances();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      updateListPanelState(slug, (current) => ({ ...current, error: message }));
+    } finally {
+      setListActionPending(slug, entry.key, false);
     }
   };
 
@@ -617,103 +818,284 @@ const AdminInstancesPage = () => {
             <p className="mt-8 text-slate-400">Lade Daten …</p>
           ) : (
             <div className="mt-6 space-y-4">
-              {instances.map((instance) => (
-                <article
-                  key={instance.slug}
-                  className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"
-                >
-                  {instance.health && (
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <span
-                        className={clsx(
-                          'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold',
-                          instance.health.permissions.status === 'ok' &&
-                            'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40',
-                          instance.health.permissions.status === 'insufficient' &&
-                            'bg-amber-500/20 text-amber-200 border border-amber-500/40',
-                          instance.health.permissions.status === 'error' &&
-                            'bg-rose-500/20 text-rose-200 border border-rose-500/40',
-                          instance.health.permissions.status === 'unknown' &&
-                            'bg-slate-700/40 text-slate-300 border border-slate-700/60'
-                        )}
-                        title={instance.health.permissions.message || undefined}
-                      >
-                        {instance.health.permissions.status === 'ok' && 'SharePoint bereit'}
-                        {instance.health.permissions.status === 'insufficient' &&
-                          'Berechtigungen fehlen'}
-                        {instance.health.permissions.status === 'error' && 'SharePoint-Fehler'}
-                        {instance.health.permissions.status === 'unknown' && 'Status unbekannt'}
-                      </span>
-                      {instance.health.checkedAt && (
-                        <span className="text-xs text-slate-500">
-                          geprüft: {formatTimestamp(instance.health.checkedAt) || ''}
+              {instances.map((instance) => {
+                const panelState = listPanels[instance.slug] ?? createListPanelState();
+                return (
+                  <article
+                    key={instance.slug}
+                    className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"
+                  >
+                    {instance.health && (
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <span
+                          className={clsx(
+                            'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold',
+                            instance.health.permissions.status === 'ok' &&
+                              'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40',
+                            instance.health.permissions.status === 'insufficient' &&
+                              'bg-amber-500/20 text-amber-200 border border-amber-500/40',
+                            instance.health.permissions.status === 'error' &&
+                              'bg-rose-500/20 text-rose-200 border border-rose-500/40',
+                            instance.health.permissions.status === 'unknown' &&
+                              'bg-slate-700/40 text-slate-300 border border-slate-700/60'
+                          )}
+                          title={instance.health.permissions.message || undefined}
+                        >
+                          {instance.health.permissions.status === 'ok' && 'SharePoint bereit'}
+                          {instance.health.permissions.status === 'insufficient' &&
+                            'Berechtigungen fehlen'}
+                          {instance.health.permissions.status === 'error' && 'SharePoint-Fehler'}
+                          {instance.health.permissions.status === 'unknown' && 'Status unbekannt'}
                         </span>
-                      )}
+                        {instance.health.checkedAt && (
+                          <span className="text-xs text-slate-500">
+                            geprüft: {formatTimestamp(instance.health.checkedAt) || ''}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">{instance.displayName}</h3>
+                        <p className="text-xs uppercase tracking-wide text-slate-400">
+                          {instance.slug} • {instance.sharePoint.strategy || 'onprem'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/admin/instances/${instance.slug}/health`}
+                          className="rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
+                        >
+                          Health
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(instance)}
+                          className="rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
+                        >
+                          Bearbeiten
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleListPanel(instance)}
+                          className={clsx(
+                            'rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white',
+                            panelState.isOpen && 'border-sky-400 text-white'
+                          )}
+                        >
+                          Listen
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteInstance(instance.slug)}
+                          className="rounded-lg border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-200 transition hover:border-red-400 hover:text-white"
+                        >
+                          Löschen
+                        </button>
+                      </div>
                     </div>
-                  )}
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">{instance.displayName}</h3>
-                      <p className="text-xs uppercase tracking-wide text-slate-400">
-                        {instance.slug} • {instance.sharePoint.strategy || 'onprem'}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Link
-                        href={`/admin/instances/${instance.slug}/health`}
-                        className="rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
-                      >
-                        Health
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(instance)}
-                        className="rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
-                      >
-                        Bearbeiten
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteInstance(instance.slug)}
-                        className="rounded-lg border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-200 transition hover:border-red-400 hover:text-white"
-                      >
-                        Löschen
-                      </button>
-                    </div>
-                  </div>
-                  <dl className="mt-3 space-y-1 text-xs text-slate-400">
-                    <div className="flex gap-2">
-                      <dt className="text-slate-500">SharePoint:</dt>
-                      <dd className="truncate text-slate-200">
-                        {(
-                          instance.sharePoint.siteUrlProd || instance.sharePoint.siteUrlDev
-                        ).replace(/\/$/, '')}
-                      </dd>
-                    </div>
-                    <div className="flex gap-2">
-                      <dt className="text-slate-500">Hosts:</dt>
-                      <dd className="text-slate-300">
-                        {instance.hosts.length ? instance.hosts.join(', ') : '—'}
-                      </dd>
-                    </div>
-                    <div className="flex gap-2">
-                      <dt className="text-slate-500">Credentials:</dt>
-                      <dd className="text-slate-300">
-                        Benutzer {instance.sharePoint.usernameSet ? 'gesetzt' : 'fehlt'} · Passwort{' '}
-                        {instance.sharePoint.passwordSet ? 'gesetzt' : 'fehlt'}
-                      </dd>
-                    </div>
-                    {instance.health?.lists.missing.length ? (
+                    <dl className="mt-3 space-y-1 text-xs text-slate-400">
                       <div className="flex gap-2">
-                        <dt className="text-slate-500">Fehlende Listen:</dt>
-                        <dd className="text-slate-300">
-                          {instance.health.lists.missing.join(', ')}
+                        <dt className="text-slate-500">SharePoint:</dt>
+                        <dd className="truncate text-slate-200">
+                          {(
+                            instance.sharePoint.siteUrlProd || instance.sharePoint.siteUrlDev
+                          ).replace(/\/$/, '')}
                         </dd>
                       </div>
+                      <div className="flex gap-2">
+                        <dt className="text-slate-500">Hosts:</dt>
+                        <dd className="text-slate-300">
+                          {instance.hosts.length ? instance.hosts.join(', ') : '-'}
+                        </dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="text-slate-500">Credentials:</dt>
+                        <dd className="text-slate-300">
+                          Benutzer {instance.sharePoint.usernameSet ? 'gesetzt' : 'fehlt'} /
+                          Passwort {instance.sharePoint.passwordSet ? 'gesetzt' : 'fehlt'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-slate-500">Automatische Listen:</dt>
+                        <dd className="mt-1">
+                          <ul className="flex flex-wrap gap-2">
+                            {SHAREPOINT_LIST_DEFINITIONS.map((listDef) => {
+                              const status = resolveListStatus(instance.health, listDef);
+                              return (
+                                <li
+                                  key={`${instance.slug}-${listDef.key}`}
+                                  className={clsx(
+                                    'inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold capitalize',
+                                    listStatusStyles[status]
+                                  )}
+                                >
+                                  <span className="text-slate-100">{listDef.title}</span>
+                                  <span className="text-slate-300/80">
+                                    {listStatusLabels[status]}
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </dd>
+                      </div>
+                      {instance.health?.lists.missing.length ? (
+                        <div className="flex gap-2">
+                          <dt className="text-slate-500">Fehlende Listen:</dt>
+                          <dd className="text-slate-300">
+                            {instance.health.lists.missing.join(', ')}
+                          </dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                    {panelState.isOpen ? (
+                      <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Listenverwaltung
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => fetchListOverview(instance.slug)}
+                            disabled={panelState.loading}
+                            className={clsx(
+                              'text-xs text-slate-400 underline underline-offset-4 hover:text-white',
+                              panelState.loading && 'cursor-not-allowed opacity-60'
+                            )}
+                          >
+                            Aktualisieren
+                          </button>
+                        </div>
+                        {panelState.error ? (
+                          <div className="mb-2 rounded border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-200">
+                            {panelState.error}
+                          </div>
+                        ) : null}
+                        {panelState.loading ? (
+                          <p className="text-xs text-slate-400">Lade Listen …</p>
+                        ) : panelState.lists && panelState.lists.length > 0 ? (
+                          <ul className="space-y-2">
+                            {panelState.lists.map((list) => {
+                              const pending = Boolean(panelState.pending[list.key]);
+                              const exists = list.exists;
+                              const statusClass = exists
+                                ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40'
+                                : 'bg-rose-500/20 text-rose-200 border border-rose-500/40';
+                              const statusLabel = exists ? 'vorhanden' : 'fehlend';
+                              const viewUrl = buildListUrl(instance, list);
+                              const createdLabel =
+                                formatTimestamp(list.created) || list.created || '—';
+                              const modifiedLabel =
+                                formatTimestamp(list.modified) || list.modified || '—';
+                              return (
+                                <li
+                                  key={`${instance.slug}-${list.key}`}
+                                  className="rounded-lg border border-slate-800 bg-slate-950/40 p-3"
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div className="space-y-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-semibold text-white">
+                                          {list.title}
+                                        </span>
+                                        <span
+                                          className={clsx(
+                                            'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize',
+                                            statusClass
+                                          )}
+                                        >
+                                          {statusLabel}
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-3 text-[11px] text-slate-500">
+                                        <span>
+                                          Einträge:{' '}
+                                          <span className="text-slate-300">
+                                            {typeof list.itemCount === 'number'
+                                              ? list.itemCount
+                                              : '—'}
+                                          </span>
+                                        </span>
+                                        <span>
+                                          Erstellt:{' '}
+                                          <span className="text-slate-300">{createdLabel}</span>
+                                        </span>
+                                        <span>
+                                          Geändert:{' '}
+                                          <span className="text-slate-300">{modifiedLabel}</span>
+                                        </span>
+                                      </div>
+                                      {list.matchedAlias && list.matchedAlias !== list.title ? (
+                                        <div className="text-[11px] text-slate-500">
+                                          Gefundener Name:{' '}
+                                          <span className="text-slate-300">
+                                            {list.matchedAlias}
+                                          </span>
+                                        </div>
+                                      ) : null}
+                                      {list.errors?.length ? (
+                                        <div className="text-[11px] text-rose-300">
+                                          Fehler: {list.errors.join('; ')}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                    <div className="flex flex-col gap-2 text-xs sm:flex-row sm:items-center">
+                                      {exists ? (
+                                        <>
+                                          {viewUrl ? (
+                                            <a
+                                              href={viewUrl}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="inline-flex items-center justify-center rounded-md border border-slate-700 px-3 py-1 font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
+                                            >
+                                              Öffnen
+                                            </a>
+                                          ) : null}
+                                          <button
+                                            type="button"
+                                            onClick={() => deleteListForInstance(instance, list)}
+                                            disabled={panelState.loading || pending}
+                                            className={clsx(
+                                              'inline-flex items-center justify-center rounded-md border border-rose-500/40 px-3 py-1 font-semibold text-rose-200 transition hover:border-rose-400 hover:text-white',
+                                              (panelState.loading || pending) &&
+                                                'cursor-not-allowed opacity-60'
+                                            )}
+                                          >
+                                            {pending ? 'Lösche …' : 'Liste löschen'}
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => ensureListForInstance(instance, list)}
+                                          disabled={panelState.loading || pending}
+                                          className={clsx(
+                                            'inline-flex items-center justify-center rounded-md border border-sky-500/40 px-3 py-1 font-semibold text-sky-200 transition hover:border-sky-400 hover:text-white',
+                                            (panelState.loading || pending) &&
+                                              'cursor-not-allowed opacity-60'
+                                          )}
+                                        >
+                                          {pending ? 'Erstelle …' : 'Liste erstellen'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="text-xs text-slate-400">
+                            Keine bekannten Listen-Definitionen gefunden.
+                          </p>
+                        )}
+                      </div>
                     ) : null}
-                  </dl>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
               {!instances.length && (
                 <div className="rounded-xl border border-dashed border-slate-700 p-6 text-center text-slate-400">
                   <p className="font-medium text-white">Noch keine Instanzen</p>

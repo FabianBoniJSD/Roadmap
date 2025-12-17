@@ -4,220 +4,8 @@ import type {
   RoadmapInstanceHealth,
   RoadmapInstanceHealthStatus,
 } from '@/types/roadmapInstance';
-
-type FieldDefinition = { name: string; schemaXml: string };
-
-type ListDefinition = {
-  key: string;
-  title: string;
-  template: number;
-  description?: string;
-  aliases?: string[];
-  fields: FieldDefinition[];
-};
-
-const LIST_DEFINITIONS: ListDefinition[] = [
-  {
-    key: 'RoadmapProjects',
-    title: 'Roadmap Projects',
-    template: 100,
-    description: 'Roadmap project records',
-    aliases: ['RoadmapProjects'],
-    fields: [
-      {
-        name: 'Category',
-        schemaXml: '<Field DisplayName="Category" Name="Category" Type="Text" MaxLength="100" />',
-      },
-      {
-        name: 'StartQuarter',
-        schemaXml:
-          '<Field DisplayName="StartQuarter" Name="StartQuarter" Type="Text" MaxLength="50" />',
-      },
-      {
-        name: 'EndQuarter',
-        schemaXml:
-          '<Field DisplayName="EndQuarter" Name="EndQuarter" Type="Text" MaxLength="50" />',
-      },
-      {
-        name: 'Description',
-        schemaXml:
-          '<Field DisplayName="Description" Name="Description" Type="Note" NumLines="12" RichText="FALSE" />',
-      },
-      {
-        name: 'Status',
-        schemaXml: '<Field DisplayName="Status" Name="Status" Type="Text" MaxLength="50" />',
-      },
-      {
-        name: 'Projektleitung',
-        schemaXml:
-          '<Field DisplayName="Projektleitung" Name="Projektleitung" Type="Text" MaxLength="120" />',
-      },
-      {
-        name: 'Bisher',
-        schemaXml:
-          '<Field DisplayName="Bisher" Name="Bisher" Type="Note" NumLines="10" RichText="FALSE" />',
-      },
-      {
-        name: 'Zukunft',
-        schemaXml:
-          '<Field DisplayName="Zukunft" Name="Zukunft" Type="Note" NumLines="10" RichText="FALSE" />',
-      },
-      {
-        name: 'Fortschritt',
-        schemaXml:
-          '<Field DisplayName="Fortschritt" Name="Fortschritt" Type="Number" MinValue="0" MaxValue="100" />',
-      },
-      {
-        name: 'GeplantUmsetzung',
-        schemaXml:
-          '<Field DisplayName="GeplantUmsetzung" Name="GeplantUmsetzung" Type="Text" MaxLength="100" />',
-      },
-      {
-        name: 'Budget',
-        schemaXml: '<Field DisplayName="Budget" Name="Budget" Type="Text" MaxLength="120" />',
-      },
-      {
-        name: 'StartDate',
-        schemaXml:
-          '<Field DisplayName="StartDate" Name="StartDate" Type="DateTime" Format="DateOnly" />',
-      },
-      {
-        name: 'EndDate',
-        schemaXml:
-          '<Field DisplayName="EndDate" Name="EndDate" Type="DateTime" Format="DateOnly" />',
-      },
-      {
-        name: 'ProjectFields',
-        schemaXml:
-          '<Field DisplayName="ProjectFields" Name="ProjectFields" Type="Note" NumLines="6" RichText="FALSE" />',
-      },
-      {
-        name: 'Projektphase',
-        schemaXml:
-          '<Field DisplayName="Projektphase" Name="Projektphase" Type="Text" MaxLength="60" />',
-      },
-      {
-        name: 'NaechsterMeilenstein',
-        schemaXml:
-          '<Field DisplayName="NaechsterMeilenstein" Name="NaechsterMeilenstein" Type="Text" MaxLength="255" />',
-      },
-    ],
-  },
-  {
-    key: 'RoadmapCategories',
-    title: 'Roadmap Categories',
-    template: 100,
-    aliases: ['RoadmapCategories'],
-    fields: [
-      {
-        name: 'Color',
-        schemaXml: '<Field DisplayName="Color" Name="Color" Type="Text" MaxLength="20" />',
-      },
-      {
-        name: 'Icon',
-        schemaXml: '<Field DisplayName="Icon" Name="Icon" Type="Text" MaxLength="50" />',
-      },
-      {
-        name: 'ParentCategoryId',
-        schemaXml: '<Field DisplayName="ParentCategoryId" Name="ParentCategoryId" Type="Number" />',
-      },
-      {
-        name: 'IsSubcategory',
-        schemaXml: '<Field DisplayName="IsSubcategory" Name="IsSubcategory" Type="Boolean" />',
-      },
-    ],
-  },
-  {
-    key: 'RoadmapFieldTypes',
-    title: 'Roadmap Field Types',
-    template: 100,
-    aliases: ['RoadmapFieldTypes', 'Roadmap FieldTypes'],
-    fields: [
-      {
-        name: 'Type',
-        schemaXml: '<Field DisplayName="Type" Name="Type" Type="Text" MaxLength="50" />',
-      },
-      {
-        name: 'Description',
-        schemaXml:
-          '<Field DisplayName="Description" Name="Description" Type="Note" NumLines="8" RichText="FALSE" />',
-      },
-    ],
-  },
-  {
-    key: 'RoadmapFields',
-    title: 'Roadmap Fields',
-    template: 100,
-    aliases: ['RoadmapFields'],
-    fields: [
-      {
-        name: 'Type',
-        schemaXml: '<Field DisplayName="Type" Name="Type" Type="Text" MaxLength="50" />',
-      },
-      {
-        name: 'Value',
-        schemaXml:
-          '<Field DisplayName="Value" Name="Value" Type="Note" NumLines="8" RichText="FALSE" />',
-      },
-      {
-        name: 'ProjectId',
-        schemaXml: '<Field DisplayName="ProjectId" Name="ProjectId" Type="Text" MaxLength="120" />',
-      },
-    ],
-  },
-  {
-    key: 'RoadmapTeamMembers',
-    title: 'Roadmap Team Members',
-    template: 100,
-    aliases: ['RoadmapTeamMembers'],
-    fields: [
-      {
-        name: 'Role',
-        schemaXml: '<Field DisplayName="Role" Name="Role" Type="Text" MaxLength="100" />',
-      },
-      {
-        name: 'ProjectId',
-        schemaXml: '<Field DisplayName="ProjectId" Name="ProjectId" Type="Text" MaxLength="120" />',
-      },
-    ],
-  },
-  {
-    key: 'RoadmapUsers',
-    title: 'Roadmap Users',
-    template: 100,
-    aliases: ['RoadmapUsers'],
-    fields: [
-      {
-        name: 'Email',
-        schemaXml: '<Field DisplayName="Email" Name="Email" Type="Text" MaxLength="150" />',
-      },
-      {
-        name: 'Role',
-        schemaXml: '<Field DisplayName="Role" Name="Role" Type="Text" MaxLength="60" />',
-      },
-      {
-        name: 'HashedPassword',
-        schemaXml:
-          '<Field DisplayName="HashedPassword" Name="HashedPassword" Type="Text" MaxLength="255" />',
-      },
-    ],
-  },
-  {
-    key: 'RoadmapProjectLinks',
-    title: 'Roadmap Project Links',
-    template: 100,
-    aliases: ['RoadmapProjectLinks'],
-    fields: [
-      { name: 'Url', schemaXml: '<Field DisplayName="Url" Name="Url" Type="URL" />' },
-      {
-        name: 'ProjectId',
-        schemaXml: '<Field DisplayName="ProjectId" Name="ProjectId" Type="Text" MaxLength="120" />',
-      },
-    ],
-  },
-];
-
-const encodeValue = (value: string): string => value.replace(/'/g, "''");
+import type { SharePointFieldDefinition, SharePointListDefinition } from '@/utils/sharePointLists';
+import { SHAREPOINT_LIST_DEFINITIONS, encodeSharePointValue } from '@/utils/sharePointLists';
 
 const verboseHeaders = (digest: string) => ({
   Accept: 'application/json;odata=verbose',
@@ -227,6 +15,43 @@ const verboseHeaders = (digest: string) => ({
 
 const jsonHeaders = {
   Accept: 'application/json;odata=nometadata',
+};
+
+const getListCandidates = (def: SharePointListDefinition): string[] => {
+  const candidates = [def.title, def.key, ...(def.aliases ?? [])].filter(Boolean);
+  return Array.from(new Set(candidates.map((value) => value.trim()))).filter(Boolean);
+};
+
+const LIST_INFO_SELECT =
+  '?$select=Title,Id,ItemCount,Created,LastItemModifiedDate,DefaultViewUrl,RootFolder/ServerRelativeUrl&$expand=RootFolder';
+
+export type SharePointListOverviewEntry = {
+  key: string;
+  title: string;
+  exists: boolean;
+  resolvedTitle?: string;
+  matchedAlias?: string;
+  itemCount?: number;
+  created?: string;
+  modified?: string;
+  defaultViewUrl?: string;
+  serverRelativeUrl?: string;
+  errors?: string[];
+};
+
+export type SharePointListEnsureResult = {
+  key: string;
+  title: string;
+  resolvedTitle: string;
+  lists: RoadmapInstanceHealth['lists'];
+};
+
+export type SharePointListDeleteResult = {
+  key: string;
+  title: string;
+  resolvedTitle?: string;
+  status: 'deleted' | 'missing';
+  errors?: string[];
 };
 
 const readError = async (resp: Response): Promise<string> => {
@@ -240,12 +65,12 @@ const readError = async (resp: Response): Promise<string> => {
 
 const ensureField = async (
   listTitle: string,
-  field: FieldDefinition,
+  field: SharePointFieldDefinition,
   digest: string,
   health: RoadmapInstanceHealth
 ) => {
-  const encodedList = encodeValue(listTitle);
-  const encodedField = encodeValue(field.name);
+  const encodedList = encodeSharePointValue(listTitle);
+  const encodedField = encodeSharePointValue(field.name);
   const fieldCheck = await clientDataService.sharePointFetch(
     `/api/sharepoint/_api/web/lists/getByTitle('${encodedList}')/fields/getByInternalNameOrTitle('${encodedField}')?$select=InternalName`,
     { headers: jsonHeaders }
@@ -279,16 +104,16 @@ const ensureField = async (
 };
 
 const ensureList = async (
-  def: ListDefinition,
+  def: SharePointListDefinition,
   digest: string,
   health: RoadmapInstanceHealth
 ): Promise<string | null> => {
-  const candidates = [def.title, def.key, ...(def.aliases ?? [])];
+  const candidates = getListCandidates(def);
   let resolved: string | null = null;
 
   for (const candidate of candidates) {
     const check = await clientDataService.sharePointFetch(
-      `/api/sharepoint/_api/web/lists/getByTitle('${encodeValue(candidate)}')?$select=Id`,
+      `/api/sharepoint/_api/web/lists/getByTitle('${encodeSharePointValue(candidate)}')?$select=Id`,
       { headers: jsonHeaders }
     );
     if (check.ok) {
@@ -335,7 +160,7 @@ const ensureList = async (
 
 const deleteListByTitle = async (title: string, digest: string) => {
   await clientDataService.sharePointFetch(
-    `/api/sharepoint/_api/web/lists/getByTitle('${encodeValue(title)}')`,
+    `/api/sharepoint/_api/web/lists/getByTitle('${encodeSharePointValue(title)}')`,
     {
       method: 'POST',
       headers: {
@@ -398,6 +223,170 @@ const probePermissions = async (
   }
 };
 
+export async function getSharePointListOverview(
+  instance: RoadmapInstanceConfig
+): Promise<SharePointListOverviewEntry[]> {
+  const overview: SharePointListOverviewEntry[] = [];
+  await clientDataService.withInstance(instance.slug, async () => {
+    for (const def of SHAREPOINT_LIST_DEFINITIONS) {
+      const entry: SharePointListOverviewEntry = {
+        key: def.key,
+        title: def.title,
+        exists: false,
+      };
+      const errors: string[] = [];
+      const candidates = getListCandidates(def);
+      for (const candidate of candidates) {
+        const resp = await clientDataService.sharePointFetch(
+          `/api/sharepoint/_api/web/lists/getByTitle('${encodeSharePointValue(candidate)}')${LIST_INFO_SELECT}`,
+          { headers: jsonHeaders }
+        );
+        if (resp.ok) {
+          const data = await resp.json();
+          entry.exists = true;
+          entry.resolvedTitle = typeof data.Title === 'string' ? data.Title : candidate;
+          entry.matchedAlias = candidate;
+          if (typeof data.ItemCount === 'number') entry.itemCount = data.ItemCount;
+          if (typeof data.Created === 'string') entry.created = data.Created;
+          if (typeof data.LastItemModifiedDate === 'string') {
+            entry.modified = data.LastItemModifiedDate;
+          }
+          if (typeof data.DefaultViewUrl === 'string') entry.defaultViewUrl = data.DefaultViewUrl;
+          if (typeof data?.RootFolder?.ServerRelativeUrl === 'string') {
+            entry.serverRelativeUrl = data.RootFolder.ServerRelativeUrl;
+          }
+          break;
+        }
+        if (resp.status !== 404) {
+          const message = await readError(resp);
+          errors.push(`${candidate}: ${message}`);
+        }
+      }
+      if (!entry.exists && errors.length > 0) {
+        entry.errors = errors;
+      }
+      overview.push(entry);
+    }
+  });
+  return overview;
+}
+
+export async function ensureSharePointListForInstance(
+  instance: RoadmapInstanceConfig,
+  key: string
+): Promise<SharePointListEnsureResult> {
+  const def = SHAREPOINT_LIST_DEFINITIONS.find((candidate) => candidate.key === key);
+  if (!def) {
+    throw new Error(`Unbekannter Listen-Schlüssel "${key}"`);
+  }
+
+  const health: RoadmapInstanceHealth = {
+    checkedAt: new Date().toISOString(),
+    permissions: { status: 'unknown' },
+    lists: { ensured: [], created: [], missing: [], fieldsCreated: {}, errors: {} },
+  };
+  let resolvedTitle: string | null = null;
+
+  const candidateKeys = getListCandidates(def);
+
+  await clientDataService.withInstance(instance.slug, async () => {
+    let digest: string;
+    try {
+      digest = await clientDataService.requestDigest();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      health.lists.errors.__digest = message;
+      throw new Error(`Digest Fehler: ${message}`);
+    }
+
+    resolvedTitle = await ensureList(def, digest, health);
+    if (!resolvedTitle) {
+      const relevantErrors = Object.entries(health.lists.errors)
+        .filter(([errorKey]) => candidateKeys.some((candidate) => errorKey.startsWith(candidate)))
+        .map(([, errorMessage]) => errorMessage);
+      if (health.lists.errors.__digest) {
+        relevantErrors.push(`Digest: ${health.lists.errors.__digest}`);
+      }
+      const message =
+        relevantErrors.length > 0
+          ? relevantErrors.join('; ')
+          : 'SharePoint Liste konnte nicht erstellt werden';
+      throw new Error(message);
+    }
+  });
+
+  return {
+    key: def.key,
+    title: def.title,
+    resolvedTitle: resolvedTitle ?? def.title,
+    lists: health.lists,
+  };
+}
+
+export async function deleteSharePointListForInstance(
+  instance: RoadmapInstanceConfig,
+  key: string
+): Promise<SharePointListDeleteResult> {
+  const def = SHAREPOINT_LIST_DEFINITIONS.find((candidate) => candidate.key === key);
+  if (!def) {
+    throw new Error(`Unbekannter Listen-Schlüssel "${key}"`);
+  }
+
+  const result: SharePointListDeleteResult = {
+    key: def.key,
+    title: def.title,
+    status: 'missing',
+  };
+  const errors: string[] = [];
+
+  await clientDataService.withInstance(instance.slug, async () => {
+    let digest: string;
+    try {
+      digest = await clientDataService.requestDigest();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      errors.push(`Digest: ${message}`);
+      throw new Error(`Digest Fehler: ${message}`);
+    }
+
+    const candidates = getListCandidates(def);
+    let resolved: string | null = null;
+    for (const candidate of candidates) {
+      const check = await clientDataService.sharePointFetch(
+        `/api/sharepoint/_api/web/lists/getByTitle('${encodeSharePointValue(candidate)}')?$select=Id`,
+        { headers: jsonHeaders }
+      );
+      if (check.ok) {
+        resolved = candidate;
+        break;
+      }
+      if (check.status !== 404) {
+        const message = await readError(check);
+        errors.push(`${candidate}: ${message}`);
+      }
+    }
+
+    if (!resolved) {
+      return;
+    }
+
+    try {
+      await deleteListByTitle(resolved, digest);
+      result.status = 'deleted';
+      result.resolvedTitle = resolved;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      errors.push(message);
+      throw new Error(message);
+    }
+  });
+
+  if (errors.length > 0) {
+    result.errors = errors;
+  }
+  return result;
+}
+
 export async function provisionSharePointForInstance(
   instance: RoadmapInstanceConfig
 ): Promise<RoadmapInstanceHealth> {
@@ -418,7 +407,7 @@ export async function provisionSharePointForInstance(
       return;
     }
 
-    for (const def of LIST_DEFINITIONS) {
+    for (const def of SHAREPOINT_LIST_DEFINITIONS) {
       const resolved = await ensureList(def, digest, health);
       if (!resolved) {
         health.lists.missing.push(def.title);
