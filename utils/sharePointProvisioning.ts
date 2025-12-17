@@ -81,28 +81,46 @@ const ensureField = async (
     health.lists.errors[`${listTitle}.${field.name}`] = message;
     return;
   }
-  const createResp = await clientDataService.sharePointFetch(
-    `/api/sharepoint/_api/web/lists/getByTitle('${encodedList}')/fields/CreateFieldAsXml`,
-    {
+  const endpoint = `/api/sharepoint/_api/web/lists/getByTitle('${encodedList}')/fields/CreateFieldAsXml`;
+  const bodyWithParameters = JSON.stringify({
+    parameters: {
+      __metadata: { type: 'SP.XmlSchemaFieldCreationInformation' },
+      SchemaXml: field.schemaXml,
+      Options: 0,
+    },
+  });
+  const fallbackBody = JSON.stringify({
+    __metadata: { type: 'SP.XmlSchemaFieldCreationInformation' },
+    SchemaXml: field.schemaXml,
+    Options: 0,
+  });
+
+  let createResp = await clientDataService.sharePointFetch(endpoint, {
+    method: 'POST',
+    headers: verboseHeaders(digest),
+    body: bodyWithParameters,
+  });
+
+  if (!createResp.ok) {
+    const primaryError = await readError(createResp);
+    createResp = await clientDataService.sharePointFetch(endpoint, {
       method: 'POST',
       headers: verboseHeaders(digest),
-      body: JSON.stringify({
-        parameters: {
-          __metadata: { type: 'SP.XmlSchemaFieldCreationInformation' },
-          SchemaXml: field.schemaXml,
-          Options: 0,
-        },
-      }),
+      body: fallbackBody,
+    });
+    if (!createResp.ok) {
+      const fallbackError = await readError(createResp);
+      health.lists.errors[`${listTitle}.${field.name}`] =
+        `${primaryError}\n${fallbackError}`.trim();
+      return;
     }
-  );
-  if (createResp.ok) {
-    const listFields = health.lists.fieldsCreated[listTitle] || [];
+  }
+
+  const listFields = health.lists.fieldsCreated[listTitle] || [];
+  if (!listFields.includes(field.name)) {
     listFields.push(field.name);
     health.lists.fieldsCreated[listTitle] = listFields;
-    return;
   }
-  const message = await readError(createResp);
-  health.lists.errors[`${listTitle}.${field.name}`] = message;
 };
 
 const ensureList = async (
