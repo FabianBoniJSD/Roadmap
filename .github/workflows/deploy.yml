@@ -42,6 +42,14 @@ jobs:
         with:
           clean: false
 
+      - name: Reset workspace state
+        run: |
+          Write-Output "Resetting workspace to HEAD commit..."
+          git reset --hard HEAD
+          Write-Output "Removing untracked files and folders..."
+          git clean -fdx
+          Write-Output "Workspace reset complete."
+
       - name: Write environment file from secret
         env:
           ENV_FILE_CONTENT: ${{ secrets.env }}
@@ -93,14 +101,57 @@ jobs:
 
       - name: Free up disk space (caches, logs, artifacts)
         run: |
+          function Remove-PathRobust {
+            param([string]$Target)
+            if (-not (Test-Path $Target)) { return }
+
+            Write-Output "Attempting to remove $Target..."
+            try {
+              Remove-Item -Path $Target -Recurse -Force -ErrorAction Stop
+              Write-Output "Removed $Target via Remove-Item."
+              return
+            } catch {
+              Write-Output "Initial removal failed for $Target: $_"
+            }
+
+            $suffix = [Guid]::NewGuid().ToString('N').Substring(0, 6)
+            $tempName = "${Target}_cleanup_$suffix"
+            try {
+              Move-Item -Path $Target -Destination $tempName -Force -ErrorAction Stop
+              Write-Output "Renamed $Target to $tempName for fallback removal."
+              Remove-Item -Path $tempName -Recurse -Force -ErrorAction Stop
+              Write-Output "Removed $tempName successfully."
+            } catch {
+              Write-Error "Failed to remove $Target even after fallback. Error: $_"
+              throw
+            }
+          }
+
           # Remove PM2 logs if present
           if (Test-Path "$env:USERPROFILE\.pm2\logs") {
             Remove-Item -Path "$env:USERPROFILE\.pm2\logs\*" -Force -ErrorAction SilentlyContinue
           }
-          # Remove previous local artifacts if present
-          if (Test-Path "node_modules") { Remove-Item -Path "node_modules" -Recurse -Force -ErrorAction SilentlyContinue }
-          if (Test-Path ".next") { Remove-Item -Path ".next" -Recurse -Force -ErrorAction SilentlyContinue }
-          Write-Output "Freed space."
+
+          # Ensure previous build artifacts are gone
+          Remove-PathRobust ".next"
+          Remove-PathRobust "node_modules"
+
+          Write-Output "Workspace artifacts removed."
+
+      - name: Verify cleanup
+        run: |
+          $paths = @(".next", "node_modules")
+          $remaining = @()
+          foreach ($path in $paths) {
+            if (Test-Path $path) {
+              $remaining += $path
+            }
+          }
+          if ($remaining.Count -gt 0) {
+            Write-Error "Cleanup failed, remaining paths: $($remaining -join ', ')"
+            exit 1
+          }
+          Write-Output "No stale workspace artifacts detected."
       
       - name: Show disk space (after cleanup)
         run: |
