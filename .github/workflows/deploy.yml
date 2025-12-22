@@ -48,6 +48,30 @@ jobs:
           git reset --hard HEAD
           Write-Output "Removing untracked files and folders..."
           git clean -fdx
+          $cleanExit = $LASTEXITCODE
+          if ($cleanExit -ne 0) {
+            Write-Warning "git clean exited with code $cleanExit. Attempting targeted cleanup and retry."
+            $problemPaths = @(
+              "prisma\prisma\dev.db",
+              "prisma\prisma\dev.db-journal"
+            )
+            foreach ($path in $problemPaths) {
+              if (Test-Path $path) {
+                try {
+                  Write-Warning "Removing locked file: $path"
+                  Remove-Item -Path $path -Force -ErrorAction Stop
+                } catch {
+                  Write-Warning "Failed to remove $path via Remove-Item: $_"
+                }
+              }
+            }
+            git clean -fdx
+            $cleanExit = $LASTEXITCODE
+            if ($cleanExit -ne 0) {
+              Write-Error "git clean failed after retry (exit code $cleanExit)"
+              exit $cleanExit
+            }
+          }
           Write-Output "Workspace reset complete."
 
       - name: Write environment file from secret
