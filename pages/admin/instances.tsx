@@ -407,16 +407,35 @@ const AdminInstancesPage = () => {
     instance: RoadmapInstanceSummary,
     entry: InstanceListOverviewEntry
   ): string | null => {
-    const base = (instance.sharePoint.siteUrlProd || instance.sharePoint.siteUrlDev || '').replace(
-      /\/$/,
-      ''
-    );
+    const rawBase = instance.sharePoint.siteUrlProd || instance.sharePoint.siteUrlDev || '';
+    const base = rawBase.replace(/\/$/, '');
     if (!base) return null;
-    const candidate = entry.defaultViewUrl || entry.serverRelativeUrl;
-    if (!candidate) return null;
-    if (candidate.startsWith('http')) return candidate;
-    if (candidate.startsWith('/')) return `${base}${candidate}`;
-    return `${base}/${candidate}`;
+    const candidateRaw = (entry.defaultViewUrl || entry.serverRelativeUrl || '').trim();
+    if (!candidateRaw) return null;
+    if (candidateRaw.startsWith('http')) return candidateRaw;
+
+    const cleanedCandidate = candidateRaw.replace(/^\/+/, '');
+
+    try {
+      const parsedBase = new URL(base);
+      const origin = parsedBase.origin;
+      const basePath = parsedBase.pathname.replace(/\/$/, '');
+      const normalizedBasePath = basePath.replace(/^\/+/, '').toLowerCase();
+      const normalizedCandidate = cleanedCandidate.toLowerCase();
+
+      if (candidateRaw.startsWith('/')) {
+        return `${origin}/${cleanedCandidate}`;
+      }
+      if (normalizedBasePath && normalizedCandidate.startsWith(normalizedBasePath)) {
+        return `${origin}/${cleanedCandidate}`;
+      }
+      return `${base}/${cleanedCandidate}`;
+    } catch {
+      if (candidateRaw.startsWith('/')) {
+        return `${base}${candidateRaw}`;
+      }
+      return `${base}/${cleanedCandidate}`;
+    }
   };
 
   const ensureListForInstance = async (

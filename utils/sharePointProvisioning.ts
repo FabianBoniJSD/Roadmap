@@ -76,11 +76,29 @@ const ensureField = async (
     { headers: jsonHeaders }
   );
   if (fieldCheck.ok) return;
-  if (fieldCheck.status !== 404) {
+
+  let allowCreation = fieldCheck.status === 404;
+  let lastErrorMessage: string | null = null;
+
+  if (!allowCreation) {
     const message = await readError(fieldCheck);
-    health.lists.errors[`${listTitle}.${field.name}`] = message;
+    lastErrorMessage = message;
+    if (
+      fieldCheck.status === 400 &&
+      /InvalidClientQuery|Invalid argument|does not exist|PropertyNotFound|Could not find a property named/i.test(
+        message
+      )
+    ) {
+      allowCreation = true;
+    } else {
+      health.lists.errors[`${listTitle}.${field.name}`] = message;
+    }
+  }
+
+  if (!allowCreation) {
     return;
   }
+
   const endpoint = `/api/sharepoint/_api/web/lists/getByTitle('${encodedList}')/fields/CreateFieldAsXml`;
   const bodyWithParameters = JSON.stringify({
     parameters: {
@@ -111,7 +129,7 @@ const ensureField = async (
     if (!createResp.ok) {
       const fallbackError = await readError(createResp);
       health.lists.errors[`${listTitle}.${field.name}`] =
-        `${primaryError}\n${fallbackError}`.trim();
+        `${lastErrorMessage ? `${lastErrorMessage}\n` : ''}${primaryError}\n${fallbackError}`.trim();
       return;
     }
   }
