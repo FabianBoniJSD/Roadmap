@@ -272,6 +272,18 @@ jobs:
           $migrateExit = $LASTEXITCODE
           if ($migrateExit -ne 0) {
             $dbUrl = $env:DATABASE_URL
+            if (-not $dbUrl -and (Test-Path ".env")) {
+              $dbLine = Select-String -Path ".env" -Pattern '^\s*DATABASE_URL\s*=\s*(.+)\s*$' | Select-Object -First 1
+              if ($dbLine -and $dbLine.Matches.Count -gt 0) {
+                $rawValue = $dbLine.Matches[0].Groups[1].Value.Trim()
+                if ($rawValue.StartsWith('"') -and $rawValue.EndsWith('"')) {
+                  $rawValue = $rawValue.Trim('"')
+                } elseif ($rawValue.StartsWith("'") -and $rawValue.EndsWith("'")) {
+                  $rawValue = $rawValue.Trim("'")
+                }
+                $dbUrl = $rawValue
+              }
+            }
             if ($dbUrl -and $dbUrl.StartsWith('file:')) {
               Write-Warning "prisma migrate deploy failed with exit code $migrateExit. Attempting prisma db push fallback for SQLite."
               npx prisma db push --force-reset --accept-data-loss
