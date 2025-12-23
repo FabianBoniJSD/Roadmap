@@ -68,6 +68,7 @@ const ALLOWED_LISTS = new Set([
   'RoadmapSettings',
   'Roadmap Settings',
   'RoadmapFieldTypes',
+  'Roadmap FieldTypes',
   'Roadmap Field Types',
   'RoadmapFields',
   'Roadmap Fields',

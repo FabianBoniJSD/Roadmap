@@ -129,7 +129,7 @@ export const SHAREPOINT_LIST_DEFINITIONS: SharePointListDefinition[] = [
     key: 'RoadmapFieldTypes',
     title: 'Roadmap Field Types',
     template: 100,
-    aliases: ['RoadmapFieldTypes', 'Roadmap FieldTypes'],
+    aliases: ['RoadmapFieldTypes', 'Roadmap Field Types'],
     fields: [
       {
         name: 'Type',
