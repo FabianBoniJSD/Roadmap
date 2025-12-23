@@ -59,7 +59,7 @@ jobs:
               pm2 kill 2>$null
               Write-Output "Issued pm2 kill to terminate background daemons."
             } catch {
-              Write-Warning "pm2 kill command failed or pm2 daemon not running: $_"
+              Write-Warning ("pm2 kill command failed or pm2 daemon not running: {0}" -f $_)
             }
           }
           Start-Sleep -Seconds 2
@@ -82,7 +82,7 @@ jobs:
                   Write-Warning "Removing locked file: $path"
                   Remove-Item -Path $path -Force -ErrorAction Stop
                 } catch {
-                  Write-Warning "Failed to remove $path via Remove-Item: $_"
+                  Write-Warning ("Failed to remove {0} via Remove-Item: {1}" -f $path, $_)
                   try {
                     cmd /c "del /f /q `"$path`"" | Out-Null
                     if (Test-Path $path) {
@@ -91,7 +91,7 @@ jobs:
                       Write-Warning "Removed $path via fallback del command."
                     }
                   } catch {
-                    Write-Warning "Fallback del command also failed for $path: $_"
+                    Write-Warning ("Fallback del command also failed for {0}: {1}" -f $path, $_)
                   }
                 }
               }
