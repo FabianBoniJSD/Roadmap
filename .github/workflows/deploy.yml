@@ -167,7 +167,7 @@ jobs:
               Write-Output "Removed $Target via Remove-Item."
               return
             } catch {
-              Write-Output "Initial removal failed for $Target: $_"
+              Write-Output ("Initial removal failed for {0}: {1}" -f $Target, $_)
             }
 
             $suffix = [Guid]::NewGuid().ToString('N').Substring(0, 6)
@@ -178,7 +178,7 @@ jobs:
               Remove-Item -Path $tempName -Recurse -Force -ErrorAction Stop
               Write-Output "Removed $tempName successfully."
             } catch {
-              Write-Error "Failed to remove $Target even after fallback. Error: $_"
+              Write-Error ("Failed to remove {0} even after fallback. Error: {1}" -f $Target, $_)
               throw
             }
           }
