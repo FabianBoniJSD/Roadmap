@@ -44,6 +44,25 @@ jobs:
 
       - name: Reset workspace state
         run: |
+          Write-Output "Ensuring no lingering Node/PM2 processes are locking files..."
+          $processNames = @('node', 'pm2', 'prisma', 'next', 'npm', 'yarn')
+          foreach ($name in $processNames) {
+            try {
+              Get-Process -Name $name -ErrorAction Stop | Stop-Process -Force -ErrorAction Stop
+              Write-Output "Stopped process $name"
+            } catch {
+              # ignore if process not running
+            }
+          }
+          if (Get-Command pm2 -ErrorAction SilentlyContinue) {
+            try {
+              pm2 kill 2>$null
+              Write-Output "Issued pm2 kill to terminate background daemons."
+            } catch {
+              Write-Warning "pm2 kill command failed or pm2 daemon not running: $_"
+            }
+          }
+          Start-Sleep -Seconds 2
           Write-Output "Resetting workspace to HEAD commit..."
           git reset --hard HEAD
           Write-Output "Removing untracked files and folders..."
@@ -53,7 +72,9 @@ jobs:
             Write-Warning "git clean exited with code $cleanExit. Attempting targeted cleanup and retry."
             $problemPaths = @(
               "prisma\prisma\dev.db",
-              "prisma\prisma\dev.db-journal"
+              "prisma\prisma\dev.db-journal",
+              "node_modules\.prisma\client\query_engine-windows.dll.node",
+              "node_modules\bcrypt\lib\binding\napi-v3\bcrypt_lib.node"
             )
             foreach ($path in $problemPaths) {
               if (Test-Path $path) {
@@ -62,9 +83,20 @@ jobs:
                   Remove-Item -Path $path -Force -ErrorAction Stop
                 } catch {
                   Write-Warning "Failed to remove $path via Remove-Item: $_"
+                  try {
+                    cmd /c "del /f /q `"$path`"" | Out-Null
+                    if (Test-Path $path) {
+                      Write-Warning "Fallback delete did not remove $path."
+                    } else {
+                      Write-Warning "Removed $path via fallback del command."
+                    }
+                  } catch {
+                    Write-Warning "Fallback del command also failed for $path: $_"
+                  }
                 }
               }
             }
+            Write-Warning "Retrying git clean after targeted removals..."
             git clean -fdx
             $cleanExit = $LASTEXITCODE
             if ($cleanExit -ne 0) {
