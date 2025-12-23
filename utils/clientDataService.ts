@@ -65,7 +65,7 @@ class ClientDataService {
   // Cache for list metadata types
   private metadataCache: Record<string, string> = {};
   // Cache for request digest
-  private requestDigestCache: { value: string; expiration: number } | null = null;
+  private requestDigestCache: Record<string, { value: string; expiration: number }> = {};
   // Cache for list field internal names
   private listFieldsCache: Record<string, Set<string>> = {};
   // Cache for list field types (InternalName -> TypeAsString)
@@ -161,6 +161,23 @@ class ClientDataService {
     const storage = getInstanceContextStorage();
     if (!storage) return null;
     return storage.getStore() ?? null;
+  }
+
+  private getDigestCacheKey(): string {
+    const slug = this.getActiveInstanceSlug();
+    if (slug) return slug;
+    if (typeof window !== 'undefined') {
+      try {
+        const cookies = document.cookie || '';
+        const match = cookies.match(
+          new RegExp(`(?:^|;\\s*)${INSTANCE_COOKIE_NAME}=([^;\\s]+)`, 'i')
+        );
+        if (match && match[1]) return decodeURIComponent(match[1]);
+      } catch {
+        /* ignore cookie access issues */
+      }
+    }
+    return '__default__';
   }
 
   async withInstance<T>(slug: string | null | undefined, fn: () => Promise<T> | T): Promise<T> {
@@ -274,9 +291,11 @@ class ClientDataService {
 
   private async getRequestDigest(): Promise<string> {
     // Check if we have a cached digest that's still valid
+    const cacheKey = this.getDigestCacheKey();
     const now = Date.now();
-    if (this.requestDigestCache && this.requestDigestCache.expiration > now) {
-      return this.requestDigestCache.value;
+    const cached = this.requestDigestCache[cacheKey];
+    if (cached && cached.expiration > now) {
+      return cached.value;
     }
 
     try {
@@ -308,7 +327,7 @@ class ClientDataService {
       const expiresIn = data.FormDigestTimeoutSeconds * 1000;
 
       // Cache the digest
-      this.requestDigestCache = {
+      this.requestDigestCache[cacheKey] = {
         value: digestValue,
         expiration: now + expiresIn - 60000, // Subtract 1 minute for safety
       };
