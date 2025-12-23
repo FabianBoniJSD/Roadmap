@@ -1,0 +1,47 @@
+[
+  {
+    "slug": "bdm-projekte",
+    "displayName": "Roadmap Bau- und Verkehrsdepartement (BDM)",
+    "department": "Bau- und Verkehrsdepartement",
+    "description": "Digitale und organisatorische Initiativen des BDM transparent koordinieren.",
+    "sharePointSiteUrlDev": "https://spi.intranet.bs.ch/bdm/Projekte",
+    "landingPage": "bdm-projekte",
+    "hosts": []
+  },
+  {
+    "slug": "kapo-projekte",
+    "displayName": "Roadmap Kantonspolizei Basel-Stadt",
+    "department": "Kantonspolizei Basel-Stadt",
+    "description": "Operative Digitalisierung und Infrastrukturprojekte der Kantonspolizei im Ueberblick.",
+    "sharePointSiteUrlDev": "https://spi.intranet.bs.ch/kapo/Projekte",
+    "landingPage": "kapo-projekte",
+    "hosts": []
+  },
+  {
+    "slug": "jsd-projekte",
+    "displayName": "Roadmap Justiz- und Sicherheitsdepartement",
+    "department": "Justiz- und Sicherheitsdepartement",
+    "description": "Strategische Initiativen des Departements inklusive Planungsstaende und Verantwortlichkeiten.",
+    "sharePointSiteUrlDev": "https://spi.intranet.bs.ch/jsd/Projekte",
+    "landingPage": "jsd-projekte",
+    "hosts": []
+  },
+  {
+    "slug": "jsd-it-projekte",
+    "displayName": "Roadmap IT + Digital (JSD)",
+    "department": "IT + Digital JSD",
+    "description": "Technologische Projekte, Plattform-Updates und Integrationen im Ueberblick.",
+    "sharePointSiteUrlDev": "https://spi.intranet.bs.ch/jsd/it/Projekte",
+    "landingPage": "jsd-it-projekte",
+    "hosts": []
+  },
+  {
+    "slug": "jsd-stab-projekte",
+    "displayName": "Roadmap Stab JSD",
+    "department": "Stab Justiz- und Sicherheitsdepartement",
+    "description": "Zentrale Projekte des Stabs mit Meilensteinen und Verantwortlichkeiten.",
+    "sharePointSiteUrlDev": "https://spi.intranet.bs.ch/jsd/Stab/Projekte",
+    "landingPage": "jsd-stab-projekte",
+    "hosts": []
+  }
+]
