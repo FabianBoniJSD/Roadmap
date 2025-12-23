@@ -63,6 +63,86 @@ const readError = async (resp: Response): Promise<string> => {
   }
 };
 
+const decodeDeletedFieldsXml = (raw: string): string => {
+  if (!raw || typeof raw !== 'string') return '';
+  return raw
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x0d;/gi, '')
+    .replace(/&#x0a;/gi, '\n');
+};
+
+const deletedFieldRegex = /gelöscht|deleted/i;
+
+const shouldAttemptDeletedFieldCleanup = (errorMessage: string | null | undefined): boolean =>
+  Boolean(errorMessage && deletedFieldRegex.test(errorMessage));
+
+const extractDeletedFieldId = (xml: string, fieldName: string): string | null => {
+  if (!xml) return null;
+  const nameRegex = new RegExp(`<Field[^>]*Name="?${fieldName}"?[^>]*>`, 'i');
+  const match = xml.match(nameRegex);
+  if (!match) return null;
+  const fieldTag = match[0];
+  const idMatch = fieldTag.match(/ID=["']?({[^"'}]+}|[^"']+)/i);
+  if (!idMatch) return null;
+  const rawId = idMatch[1];
+  return rawId.replace(/[{}]/g, '').trim();
+};
+
+const removeDeletedFieldIfPresent = async (
+  listTitle: string,
+  fieldName: string,
+  digest: string
+): Promise<boolean> => {
+  try {
+    const encodedList = encodeSharePointValue(listTitle);
+    const propsResp = await clientDataService.sharePointFetch(
+      `/api/sharepoint/_api/web/lists/getByTitle('${encodedList}')/RootFolder/Properties?$select=vti_x005f_deletedfields`,
+      { headers: jsonHeaders }
+    );
+    if (!propsResp.ok) return false;
+    const propsData = await propsResp.json();
+    const raw =
+      propsData?.vti_x005f_deletedfields ??
+      propsData?.d?.vti_x005f_deletedfields ??
+      propsData?.value ??
+      '';
+    if (typeof raw !== 'string' || raw.length === 0) return false;
+    const xml = decodeDeletedFieldsXml(raw);
+    const fieldId = extractDeletedFieldId(xml, fieldName);
+    if (!fieldId) return false;
+    const deleteResp = await clientDataService.sharePointFetch(
+      `/api/sharepoint/_api/web/lists/getByTitle('${encodedList}')/fields(guid'${fieldId}')`,
+      {
+        method: 'POST',
+        headers: {
+          ...verboseHeaders(digest),
+          'X-HTTP-Method': 'DELETE',
+          'IF-MATCH': '*',
+        },
+      }
+    );
+    if (!deleteResp.ok) {
+      const message = await readError(deleteResp);
+      console.warn(
+        `[sharePointProvisioning] Failed to purge deleted field ${fieldName} (${fieldId}):`,
+        message
+      );
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.warn(
+      `[sharePointProvisioning] Exception while attempting to purge deleted field ${fieldName}`,
+      error
+    );
+    return false;
+  }
+};
+
 const ensureField = async (
   listTitle: string,
   field: SharePointFieldDefinition,
@@ -113,25 +193,54 @@ const ensureField = async (
     Options: 0,
   });
 
-  let createResp = await clientDataService.sharePointFetch(endpoint, {
-    method: 'POST',
-    headers: verboseHeaders(digest),
-    body: bodyWithParameters,
-  });
-
-  if (!createResp.ok) {
-    const primaryError = await readError(createResp);
-    createResp = await clientDataService.sharePointFetch(endpoint, {
+  const attemptCreate = (body: string) =>
+    clientDataService.sharePointFetch(endpoint, {
       method: 'POST',
       headers: verboseHeaders(digest),
-      body: fallbackBody,
+      body,
     });
-    if (!createResp.ok) {
-      const fallbackError = await readError(createResp);
-      health.lists.errors[`${listTitle}.${field.name}`] =
-        `${lastErrorMessage ? `${lastErrorMessage}\n` : ''}${primaryError}\n${fallbackError}`.trim();
-      return;
+
+  let createResp = await attemptCreate(bodyWithParameters);
+  let primaryError: string | null = null;
+  let cleanupAttempted = false;
+
+  if (!createResp.ok) {
+    primaryError = await readError(createResp);
+    if (shouldAttemptDeletedFieldCleanup(primaryError)) {
+      cleanupAttempted = await removeDeletedFieldIfPresent(listTitle, field.name, digest);
+      if (cleanupAttempted) {
+        createResp = await attemptCreate(bodyWithParameters);
+      }
     }
+  }
+
+  if (!createResp.ok) {
+    if (!primaryError) primaryError = await readError(createResp);
+    let fallbackResp = await attemptCreate(fallbackBody);
+    if (!fallbackResp.ok) {
+      const fallbackError = await readError(fallbackResp);
+      if (
+        shouldAttemptDeletedFieldCleanup(fallbackError) &&
+        !cleanupAttempted &&
+        (await removeDeletedFieldIfPresent(listTitle, field.name, digest))
+      ) {
+        cleanupAttempted = true;
+        fallbackResp = await attemptCreate(fallbackBody);
+      }
+      if (!fallbackResp.ok) {
+        health.lists.errors[`${listTitle}.${field.name}`] = [
+          lastErrorMessage,
+          primaryError,
+          fallbackError,
+          cleanupAttempted ? 'Automatische Bereinigung gelöschter Spalten fehlgeschlagen' : null,
+        ]
+          .filter(Boolean)
+          .join('\n')
+          .trim();
+        return;
+      }
+    }
+    createResp = fallbackResp;
   }
 
   const listFields = health.lists.fieldsCreated[listTitle] || [];
