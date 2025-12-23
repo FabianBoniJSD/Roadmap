@@ -263,12 +263,46 @@ jobs:
         with:
           cmd: install --frozen-lockfile
 
-      - name: Apply Prisma migrations
+      - name: Prepare Prisma database
         env:
           NODE_ENV: production
         run: |
+          Write-Output "Running prisma migrate deploy..."
           npx prisma migrate deploy
+          $migrateExit = $LASTEXITCODE
+          if ($migrateExit -ne 0) {
+            $dbUrl = $env:DATABASE_URL
+            if ($dbUrl -and $dbUrl.StartsWith('file:')) {
+              Write-Warning "prisma migrate deploy failed with exit code $migrateExit. Attempting prisma db push fallback for SQLite."
+              npx prisma db push --force-reset --accept-data-loss
+              if ($LASTEXITCODE -ne 0) {
+                Write-Error "prisma db push fallback failed. Aborting."
+                exit $LASTEXITCODE
+              }
+            } else {
+              Write-Error "prisma migrate deploy failed with exit code $migrateExit and no safe fallback is available."
+              exit $migrateExit
+            }
+          } else {
+            Write-Output "Prisma migrations applied successfully."
+          }
+          Write-Output "Generating Prisma client..."
           npx prisma generate
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "prisma generate failed."
+            exit $LASTEXITCODE
+          }
+
+      - name: Seed Prisma data
+        env:
+          NODE_ENV: production
+        run: |
+          Write-Output "Seeding Prisma database..."
+          npx prisma db seed
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "prisma db seed failed."
+            exit $LASTEXITCODE
+          }
 
       - name: Build application
         env:
