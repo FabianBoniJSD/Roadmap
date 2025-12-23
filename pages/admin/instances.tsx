@@ -101,6 +101,7 @@ type InstanceListPanelState = {
   isOpen: boolean;
   loading: boolean;
   error: string | null;
+  errorDetails: string[] | null;
   lists: InstanceListOverviewEntry[] | null;
   pending: Record<string, boolean>;
 };
@@ -109,9 +110,70 @@ const createListPanelState = (): InstanceListPanelState => ({
   isOpen: false,
   loading: false,
   error: null,
+  errorDetails: null,
   lists: null,
   pending: {},
 });
+
+const extractDetailMessages = (details: unknown): string[] => {
+  const lines: string[] = [];
+  const seen = new Set<string>();
+  const add = (value: unknown, prefix?: string) => {
+    if (value === null || value === undefined) return;
+    const text = String(value).trim();
+    if (!text) return;
+    const line = prefix ? `${prefix}: ${text}` : text;
+    if (!seen.has(line)) {
+      seen.add(line);
+      lines.push(line);
+    }
+  };
+  const walk = (value: unknown) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach((entry) => walk(entry));
+      return;
+    }
+    if (typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      if (typeof record.phase === 'string') add(record.phase, 'Phase');
+      if (typeof record.listKey === 'string') add(record.listKey, 'Liste');
+      if (Array.isArray(record.messages)) record.messages.forEach((msg) => add(msg));
+      const errors = record.errors;
+      if (errors && typeof errors === 'object' && !Array.isArray(errors)) {
+        Object.entries(errors as Record<string, unknown>).forEach(([key, message]) => {
+          add(message, key);
+        });
+      }
+      const permissions = record.permissions;
+      if (permissions && typeof permissions === 'object' && !Array.isArray(permissions)) {
+        const p = permissions as { status?: unknown; message?: unknown };
+        if (p.status) add(p.status, 'Berechtigungen');
+        if (p.message) add(p.message);
+      }
+      const handledKeys = new Set(['phase', 'listKey', 'messages', 'errors', 'permissions']);
+      Object.keys(record).forEach((key) => {
+        if (!handledKeys.has(key)) {
+          walk(record[key]);
+        }
+      });
+      return;
+    }
+    add(value);
+  };
+  walk(details);
+  return lines;
+};
+
+const getErrorDetailLines = (error: unknown): string[] | null => {
+  if (!error || typeof error !== 'object') return null;
+  const candidate = error as { detailLines?: string[]; details?: unknown };
+  if (Array.isArray(candidate.detailLines) && candidate.detailLines.length > 0) {
+    return candidate.detailLines;
+  }
+  const extracted = extractDetailMessages(candidate.details);
+  return extracted.length > 0 ? extracted : null;
+};
 
 const resolveListStatus = (
   health: RoadmapInstanceSummary['health'],
@@ -363,6 +425,7 @@ const AdminInstancesPage = () => {
       isOpen: true,
       loading: true,
       error: null,
+      errorDetails: null,
     }));
     try {
       const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/lists`, {
@@ -370,21 +433,31 @@ const AdminInstancesPage = () => {
       });
       const payload = await resp.json().catch(() => null);
       if (!resp.ok) {
-        throw new Error(payload?.error || 'Fehler beim Laden der Listen');
+        const err = new Error(payload?.error || 'Fehler beim Laden der Listen') as Error & {
+          detailLines?: string[];
+          details?: unknown;
+        };
+        const detailLines = extractDetailMessages(payload?.details);
+        err.detailLines = detailLines.length ? detailLines : undefined;
+        err.details = payload?.details;
+        throw err;
       }
       const lists = (payload?.lists ?? []) as InstanceListOverviewEntry[];
       updateListPanelState(slug, (current) => ({
         ...current,
         loading: false,
         error: null,
+        errorDetails: null,
         lists,
       }));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      const detailLines = getErrorDetailLines(err);
       updateListPanelState(slug, (current) => ({
         ...current,
         loading: false,
         error: message,
+        errorDetails: detailLines,
       }));
     }
   };
@@ -397,6 +470,7 @@ const AdminInstancesPage = () => {
       ...current,
       isOpen: willOpen,
       error: willOpen ? null : current.error,
+      errorDetails: willOpen ? null : current.errorDetails,
     }));
     if (willOpen && !previous.lists && !previous.loading) {
       void fetchListOverview(slug);
@@ -444,7 +518,7 @@ const AdminInstancesPage = () => {
   ) => {
     const slug = instance.slug;
     setListActionPending(slug, entry.key, true);
-    updateListPanelState(slug, (current) => ({ ...current, error: null }));
+    updateListPanelState(slug, (current) => ({ ...current, error: null, errorDetails: null }));
     try {
       const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/lists`, {
         method: 'POST',
@@ -453,13 +527,25 @@ const AdminInstancesPage = () => {
       });
       const payload = await resp.json().catch(() => null);
       if (!resp.ok) {
-        throw new Error(payload?.error || 'Fehler beim Anlegen der Liste');
+        const err = new Error(payload?.error || 'Fehler beim Anlegen der Liste') as Error & {
+          detailLines?: string[];
+          details?: unknown;
+        };
+        const detailLines = extractDetailMessages(payload?.details);
+        err.detailLines = detailLines.length ? detailLines : undefined;
+        err.details = payload?.details;
+        throw err;
       }
       await fetchListOverview(slug);
       await fetchInstances();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
-      updateListPanelState(slug, (current) => ({ ...current, error: message }));
+      const detailLines = getErrorDetailLines(err);
+      updateListPanelState(slug, (current) => ({
+        ...current,
+        error: message,
+        errorDetails: detailLines,
+      }));
     } finally {
       setListActionPending(slug, entry.key, false);
     }
@@ -473,7 +559,7 @@ const AdminInstancesPage = () => {
     const displayName = entry.resolvedTitle || entry.title;
     if (!window.confirm(`Liste "${displayName}" wirklich löschen?`)) return;
     setListActionPending(slug, entry.key, true);
-    updateListPanelState(slug, (current) => ({ ...current, error: null }));
+    updateListPanelState(slug, (current) => ({ ...current, error: null, errorDetails: null }));
     try {
       const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/lists`, {
         method: 'DELETE',
@@ -482,13 +568,25 @@ const AdminInstancesPage = () => {
       });
       const payload = await resp.json().catch(() => null);
       if (!resp.ok) {
-        throw new Error(payload?.error || 'Fehler beim Löschen der Liste');
+        const err = new Error(payload?.error || 'Fehler beim Löschen der Liste') as Error & {
+          detailLines?: string[];
+          details?: unknown;
+        };
+        const detailLines = extractDetailMessages(payload?.details);
+        err.detailLines = detailLines.length ? detailLines : undefined;
+        err.details = payload?.details;
+        throw err;
       }
       await fetchListOverview(slug);
       await fetchInstances();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
-      updateListPanelState(slug, (current) => ({ ...current, error: message }));
+      const detailLines = getErrorDetailLines(err);
+      updateListPanelState(slug, (current) => ({
+        ...current,
+        error: message,
+        errorDetails: detailLines,
+      }));
     } finally {
       setListActionPending(slug, entry.key, false);
     }
@@ -988,7 +1086,14 @@ const AdminInstancesPage = () => {
                         </div>
                         {panelState.error ? (
                           <div className="mb-2 rounded border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-200">
-                            {panelState.error}
+                            <div>{panelState.error}</div>
+                            {panelState.errorDetails?.length ? (
+                              <ul className="mt-1 list-disc space-y-1 pl-4 text-[10px] text-rose-100/90">
+                                {panelState.errorDetails.map((detail, idx) => (
+                                  <li key={`detail-${idx}`}>{detail}</li>
+                                ))}
+                              </ul>
+                            ) : null}
                           </div>
                         ) : null}
                         {panelState.loading ? (

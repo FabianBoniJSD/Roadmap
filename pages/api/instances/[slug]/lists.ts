@@ -60,9 +60,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ result });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      const details = (error as Error & { details?: unknown })?.details;
       // eslint-disable-next-line no-console
       console.error('[instances:lists] ensure failed', error);
-      return res.status(500).json({ error: message });
+      return res.status(500).json({ error: message, details });
     }
   }
 
@@ -76,9 +77,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ result });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      const details = (error as Error & { details?: unknown })?.details;
       // eslint-disable-next-line no-console
       console.error('[instances:lists] delete failed', error);
-      return res.status(500).json({ error: message });
+      return res.status(500).json({ error: message, details });
     }
   }
 

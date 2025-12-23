@@ -334,7 +334,14 @@ export async function ensureSharePointListForInstance(
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
       health.lists.errors.__digest = message;
-      throw new Error(`Digest Fehler: ${message}`);
+      const err = new Error(`Digest Fehler: ${message}`);
+      (err as Error & { details?: unknown }).details = {
+        phase: 'digest',
+        listKey: def.key,
+        errors: { ...health.lists.errors },
+        permissions: health.permissions,
+      };
+      throw err;
     }
 
     resolvedTitle = await ensureList(def, digest, health);
@@ -349,7 +356,16 @@ export async function ensureSharePointListForInstance(
         relevantErrors.length > 0
           ? relevantErrors.join('; ')
           : 'SharePoint Liste konnte nicht erstellt werden';
-      throw new Error(message);
+      const err = new Error(message);
+      (err as Error & { details?: unknown }).details = {
+        phase: 'fields',
+        listKey: def.key,
+        candidates: candidateKeys,
+        messages: relevantErrors,
+        errors: { ...health.lists.errors },
+        permissions: health.permissions,
+      };
+      throw err;
     }
   });
 
