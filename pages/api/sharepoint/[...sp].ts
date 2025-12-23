@@ -123,11 +123,14 @@ interface DigestCacheEntry {
   value: string;
   expires: number;
 }
-let digestCache: DigestCacheEntry | null = null;
+const digestCache: Record<string, DigestCacheEntry> = {};
+const normalizeDigestKey = (site: string) => site.replace(/\/+$/, '').toLowerCase();
 
 async function getDigest(site: string, auth: SharePointAuthContext): Promise<string> {
+  const cacheKey = normalizeDigestKey(site);
   const now = Date.now();
-  if (digestCache && digestCache.expires > now) return digestCache.value;
+  const cached = digestCache[cacheKey];
+  if (cached && cached.expires > now) return cached.value;
   const url = site.replace(/\/$/, '') + '/_api/contextinfo';
   const headers: Record<string, string> = {
     Accept: 'application/json;odata=nometadata',
@@ -156,11 +159,11 @@ async function getDigest(site: string, auth: SharePointAuthContext): Promise<str
     });
     if (gotResp.statusCode !== 200) throw new Error('Failed to get contextinfo');
     const parsed = JSON.parse(gotResp.body as string);
-    digestCache = {
+    digestCache[cacheKey] = {
       value: parsed.FormDigestValue,
       expires: now + parsed.FormDigestTimeoutSeconds * 1000 - 60000,
     };
-    return digestCache.value;
+    return digestCache[cacheKey].value;
   }
   let r: Response;
   try {
@@ -184,11 +187,11 @@ async function getDigest(site: string, auth: SharePointAuthContext): Promise<str
   }
   if (!r.ok) throw new Error('Failed to get contextinfo');
   const j = await r.json();
-  digestCache = {
+  digestCache[cacheKey] = {
     value: j.FormDigestValue,
     expires: now + j.FormDigestTimeoutSeconds * 1000 - 60000,
   };
-  return digestCache.value;
+  return digestCache[cacheKey].value;
 }
 
 const bufferToArrayBuffer = (buf: Buffer): ArrayBuffer => {
