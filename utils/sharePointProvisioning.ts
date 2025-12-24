@@ -101,14 +101,14 @@ const removeDeletedFieldIfPresent = async (
     const encodedList = encodeSharePointValue(listTitle);
     const propsResp = await clientDataService.sharePointFetch(
       `/api/sharepoint/_api/web/lists/getByTitle('${encodedList}')/RootFolder/Properties?$select=vti_x005f_deletedfields`,
-      { headers: jsonHeaders }
+      { headers: verboseHeaders(digest) }
     );
     if (!propsResp.ok) return false;
     const propsData = await propsResp.json();
     const raw =
       propsData?.vti_x005f_deletedfields ??
+      propsData?.d?.vti_x005f_deletedfields?.__text ??
       propsData?.d?.vti_x005f_deletedfields ??
-      propsData?.value ??
       '';
     if (typeof raw !== 'string' || raw.length === 0) return false;
     const xml = decodeDeletedFieldsXml(raw);
@@ -159,6 +159,10 @@ const ensureField = async (
 
   let allowCreation = fieldCheck.status === 404;
   let lastErrorMessage: string | null = null;
+
+  if (allowCreation) {
+    await removeDeletedFieldIfPresent(listTitle, field.name, digest);
+  }
 
   if (!allowCreation) {
     const message = await readError(fieldCheck);
