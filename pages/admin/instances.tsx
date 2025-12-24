@@ -553,7 +553,7 @@ const AdminInstancesPage = () => {
     entry: InstanceListOverviewEntry
   ) => {
     const slug = instance.slug;
-    setListActionPending(slug, entry.key, true);
+    setListActionPending(slug, `ensure:${entry.key}`, true);
     updateListPanelState(slug, (current) => ({ ...current, error: null, errorDetails: null }));
     try {
       const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/lists`, {
@@ -583,7 +583,7 @@ const AdminInstancesPage = () => {
         errorDetails: detailLines,
       }));
     } finally {
-      setListActionPending(slug, entry.key, false);
+      setListActionPending(slug, `ensure:${entry.key}`, false);
     }
   };
 
@@ -594,7 +594,7 @@ const AdminInstancesPage = () => {
     const slug = instance.slug;
     const displayName = entry.resolvedTitle || entry.title;
     if (!window.confirm(`Liste "${displayName}" wirklich löschen?`)) return;
-    setListActionPending(slug, entry.key, true);
+    setListActionPending(slug, `delete:${entry.key}`, true);
     updateListPanelState(slug, (current) => ({ ...current, error: null, errorDetails: null }));
     try {
       const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/lists`, {
@@ -624,7 +624,7 @@ const AdminInstancesPage = () => {
         errorDetails: detailLines,
       }));
     } finally {
-      setListActionPending(slug, entry.key, false);
+      setListActionPending(slug, `delete:${entry.key}`, false);
     }
   };
 
@@ -1155,7 +1155,13 @@ const AdminInstancesPage = () => {
                         ) : panelState.lists && panelState.lists.length > 0 ? (
                           <ul className="space-y-2">
                             {panelState.lists.map((list) => {
-                              const pending = Boolean(panelState.pending[list.key]);
+                              const ensurePending = Boolean(
+                                panelState.pending[`ensure:${list.key}`]
+                              );
+                              const deletePending = Boolean(
+                                panelState.pending[`delete:${list.key}`]
+                              );
+                              const pending = ensurePending || deletePending;
                               const exists = list.exists;
                               const statusClass = exists
                                 ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40'
@@ -1233,6 +1239,20 @@ const AdminInstancesPage = () => {
                                           ) : null}
                                           <button
                                             type="button"
+                                            onClick={() => ensureListForInstance(instance, list)}
+                                            disabled={panelState.loading || pending}
+                                            className={clsx(
+                                              'inline-flex items-center justify-center rounded-md border border-sky-500/40 px-3 py-1 font-semibold text-sky-200 transition hover:border-sky-400 hover:text-white',
+                                              (panelState.loading || pending) &&
+                                                'cursor-not-allowed opacity-60'
+                                            )}
+                                          >
+                                            {ensurePending
+                                              ? 'Aktualisiere …'
+                                              : 'Spalten aktualisieren'}
+                                          </button>
+                                          <button
+                                            type="button"
                                             onClick={() => deleteListForInstance(instance, list)}
                                             disabled={panelState.loading || pending}
                                             className={clsx(
@@ -1241,7 +1261,7 @@ const AdminInstancesPage = () => {
                                                 'cursor-not-allowed opacity-60'
                                             )}
                                           >
-                                            {pending ? 'Lösche …' : 'Liste löschen'}
+                                            {deletePending ? 'Lösche …' : 'Liste löschen'}
                                           </button>
                                         </>
                                       ) : (
@@ -1255,7 +1275,7 @@ const AdminInstancesPage = () => {
                                               'cursor-not-allowed opacity-60'
                                           )}
                                         >
-                                          {pending ? 'Erstelle …' : 'Liste erstellen'}
+                                          {ensurePending ? 'Erstelle …' : 'Liste erstellen'}
                                         </button>
                                       )}
                                     </div>
