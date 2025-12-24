@@ -6,6 +6,7 @@ import {
   deleteSharePointListForInstance,
   ensureSharePointListForInstance,
   getSharePointListOverview,
+  provisionSharePointForInstance,
 } from '@/utils/sharePointProvisioning';
 import { sanitizeSlug } from '../helpers';
 
@@ -55,6 +56,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!key || typeof key !== 'string') {
       return res.status(400).json({ error: 'key is required' });
     }
+
+    if (key === '__all__') {
+      try {
+        const result = await provisionSharePointForInstance(instance);
+        return res.status(200).json({ result, mode: 'all' });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+        const details = (error as Error & { details?: unknown })?.details;
+        // eslint-disable-next-line no-console
+        console.error('[instances:lists] ensure all failed', error);
+        return res.status(500).json({ error: message, details });
+      }
+    }
+
     try {
       const result = await ensureSharePointListForInstance(instance, key);
       return res.status(200).json({ result });

@@ -419,6 +419,42 @@ const AdminInstancesPage = () => {
     });
   };
 
+  const ensureAllListsForInstance = async (instance: RoadmapInstanceSummary) => {
+    const slug = instance.slug;
+    setListActionPending(slug, '__all__', true);
+    updateListPanelState(slug, (current) => ({ ...current, error: null, errorDetails: null }));
+    try {
+      const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/lists`, {
+        method: 'POST',
+        headers: { ...headersWithAuth(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: '__all__' }),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        const err = new Error(payload?.error || 'Fehler beim Anlegen der Listen') as Error & {
+          detailLines?: string[];
+          details?: unknown;
+        };
+        const detailLines = extractDetailMessages(payload?.details);
+        err.detailLines = detailLines.length ? detailLines : undefined;
+        err.details = payload?.details;
+        throw err;
+      }
+      await fetchListOverview(slug);
+      await fetchInstances();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      const detailLines = getErrorDetailLines(err);
+      updateListPanelState(slug, (current) => ({
+        ...current,
+        error: message,
+        errorDetails: detailLines,
+      }));
+    } finally {
+      setListActionPending(slug, '__all__', false);
+    }
+  };
+
   const fetchListOverview = async (slug: string) => {
     updateListPanelState(slug, (current) => ({
       ...current,
@@ -1072,17 +1108,35 @@ const AdminInstancesPage = () => {
                           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Listenverwaltung
                           </h4>
-                          <button
-                            type="button"
-                            onClick={() => fetchListOverview(instance.slug)}
-                            disabled={panelState.loading}
-                            className={clsx(
-                              'text-xs text-slate-400 underline underline-offset-4 hover:text-white',
-                              panelState.loading && 'cursor-not-allowed opacity-60'
-                            )}
-                          >
-                            Aktualisieren
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => ensureAllListsForInstance(instance)}
+                              disabled={
+                                panelState.loading || Boolean(panelState.pending['__all__'])
+                              }
+                              className={clsx(
+                                'rounded-md border border-sky-500/40 px-3 py-1 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:text-white',
+                                (panelState.loading || panelState.pending['__all__']) &&
+                                  'cursor-not-allowed opacity-60'
+                              )}
+                            >
+                              {panelState.pending['__all__']
+                                ? 'Erstelle Listen …'
+                                : 'Alle Listen erstellen'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => fetchListOverview(instance.slug)}
+                              disabled={panelState.loading}
+                              className={clsx(
+                                'text-xs text-slate-400 underline underline-offset-4 hover:text-white',
+                                panelState.loading && 'cursor-not-allowed opacity-60'
+                              )}
+                            >
+                              Aktualisieren
+                            </button>
+                          </div>
                         </div>
                         {panelState.error ? (
                           <div className="mb-2 rounded border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-200">
