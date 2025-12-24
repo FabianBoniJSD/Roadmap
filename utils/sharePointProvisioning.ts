@@ -168,12 +168,12 @@ const ensureField = async (
     const message = await readError(fieldCheck);
     lastErrorMessage = message;
     if (
-      fieldCheck.status === 400 &&
-      /InvalidClientQuery|Invalid argument|does not exist|PropertyNotFound|Could not find a property named/i.test(
+      /InvalidClientQuery|Invalid argument|does not exist|PropertyNotFound|Could not find a property named|is not present|wurde sie von einem anderen Benutzer gelöscht/i.test(
         message
       )
     ) {
       allowCreation = true;
+      await removeDeletedFieldIfPresent(listTitle, field.name, digest);
     } else {
       health.lists.errors[`${listTitle}.${field.name}`] = message;
     }
