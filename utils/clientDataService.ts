@@ -1500,13 +1500,16 @@ class ClientDataService {
   async createCategory(categoryData: Omit<Category, 'id'>): Promise<Category> {
     try {
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.CATEGORIES}')/items`;
+      const resolvedCategories = await this.resolveListTitle(SP_LISTS.CATEGORIES, [
+        'Roadmap Categories',
+      ]);
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedCategories}')/items`;
 
       // Get request digest for write operations
       const requestDigest = await this.getRequestDigest();
 
       // Get the correct metadata type
-      const itemType = await this.getListMetadata(SP_LISTS.CATEGORIES);
+      const itemType = await this.getListMetadata(resolvedCategories);
 
       const response = await this.spFetch(endpoint, {
         method: 'POST',
@@ -1550,13 +1553,16 @@ class ClientDataService {
   async updateCategory(id: string, categoryData: Partial<Category>): Promise<Category> {
     try {
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.CATEGORIES}')/items(${id})`;
+      const resolvedCategories = await this.resolveListTitle(SP_LISTS.CATEGORIES, [
+        'Roadmap Categories',
+      ]);
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedCategories}')/items(${id})`;
 
       // Get request digest for write operations
       const requestDigest = await this.getRequestDigest();
 
       // Get the correct metadata type
-      const itemType = await this.getListMetadata(SP_LISTS.CATEGORIES);
+      const itemType = await this.getListMetadata(resolvedCategories);
 
       const response = await this.spFetch(endpoint, {
         method: 'POST',
