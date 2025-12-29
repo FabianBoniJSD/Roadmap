@@ -54,3 +54,5 @@ prisma/dev.db-journal
 next-env.d.ts
 prisma/prisma/dev.db 
 .pm2/
+
+.husky

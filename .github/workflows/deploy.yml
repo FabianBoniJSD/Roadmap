@@ -1,4 +1,4 @@
-name: Build and Deploy
+﻿name: Build and Deploy
 
 on:
   push:
@@ -302,27 +302,6 @@ jobs:
           npx prisma generate
           if ($LASTEXITCODE -ne 0) {
             Write-Error "prisma generate failed."
-            exit $LASTEXITCODE
-          }
-
-      - name: Seed Prisma data
-        env:
-          NODE_ENV: production
-        run: |
-          Write-Output "Seeding Prisma database..."
-          $seedFile = Join-Path (Get-Location) "prisma\seed.instances.json"
-          if (Test-Path $seedFile) {
-            $env:ROADMAP_SEED_INSTANCES = Get-Content -Path $seedFile -Raw
-            Write-Output "Loaded ROADMAP_SEED_INSTANCES from prisma\seed.instances.json"
-          } else {
-            Write-Output "No prisma\seed.instances.json found. Using default seed configuration."
-          }
-          if (-not $env:DEFAULT_ROADMAP_INSTANCE) {
-            $env:DEFAULT_ROADMAP_INSTANCE = 'bdm-projekte'
-          }
-          npx prisma db seed
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "prisma db seed failed."
             exit $LASTEXITCODE
           }
 
