@@ -39,10 +39,20 @@ jobs:
           # Remove default GITHUB_TOKEN extraheader so we use the PAT in the remote URL
           git config --global --unset-all http.https://github.com/.extraheader || true
 
-      - name: Mirror to target repo
+      - name: Create filtered clone without workflows
         run: |
+          FILTER_DIR="$(mktemp -d)"
+          echo "Using temp dir: ${FILTER_DIR}"
+          git clone --no-local --no-hardlinks . "${FILTER_DIR}"
+          cd "${FILTER_DIR}"
+          # Drop workflow files from history
+          git filter-branch --force --tree-filter 'rm -rf .github/workflows' -- --all
+          # Configure git and push from filtered repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global --unset-all http.https://github.com/.extraheader || true
           TARGET_URL="https://x-access-token:${TARGET_REPO_PAT}@${TARGET_HOST}/${TARGET_REPO}.git"
-          echo "Pushing mirror to https://${TARGET_HOST}/${TARGET_REPO}.git"
+          echo "Pushing filtered mirror to https://${TARGET_HOST}/${TARGET_REPO}.git (workflows removed)"
           git remote add mirror "$TARGET_URL"
           git push --mirror mirror
 
