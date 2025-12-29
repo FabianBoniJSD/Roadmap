@@ -13,11 +13,16 @@ jobs:
       TARGET_REPO: JSD-IT/Roadmap
       TARGET_DEFAULT_BRANCH: main
       TARGET_REPO_PAT: ${{ secrets.TARGET_REPO_PAT }}
+      TARGET_HOST: ${{ secrets.TARGET_HOST != '' && secrets.TARGET_HOST || 'github.com' }}
     steps:
       - name: Fail if PAT is missing
         run: |
           if [ -z "$TARGET_REPO_PAT" ]; then
             echo "TARGET_REPO_PAT secret is missing. Add a PAT with repo access to this repo's secrets." >&2
+            exit 1
+          fi
+          if [ -z "$TARGET_HOST" ]; then
+            echo "TARGET_HOST secret is missing. Set TARGET_HOST to your GitHub Enterprise hostname (no protocol)." >&2
             exit 1
           fi
 
@@ -33,6 +38,14 @@ jobs:
 
       - name: Mirror to target repo
         run: |
-          TARGET_URL="https://x-access-token:${TARGET_REPO_PAT}@github.com/${TARGET_REPO}.git"
+          TARGET_URL="https://x-access-token:${TARGET_REPO_PAT}@${TARGET_HOST}/${TARGET_REPO}.git"
+          echo "Pushing mirror to https://${TARGET_HOST}/${TARGET_REPO}.git"
           git remote add mirror "$TARGET_URL"
           git push --mirror mirror
+
+      - name: Diagnostics (ls-remote)
+        if: failure()
+        run: |
+          TARGET_URL="https://x-access-token:${TARGET_REPO_PAT}@${TARGET_HOST}/${TARGET_REPO}.git"
+          echo "Diagnosing with: git ls-remote https://${TARGET_HOST}/${TARGET_REPO}.git"
+          git ls-remote "$TARGET_URL" || true
