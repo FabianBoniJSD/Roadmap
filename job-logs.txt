@@ -1,0 +1,184 @@
+﻿2025-12-29T16:06:16.5848979Z Current runner version: '2.330.0'
+2025-12-29T16:06:16.5871578Z ##[group]Runner Image Provisioner
+2025-12-29T16:06:16.5872379Z Hosted Compute Agent
+2025-12-29T16:06:16.5872896Z Version: 20251211.462
+2025-12-29T16:06:16.5873446Z Commit: 6cbad8c2bb55d58165063d031ccabf57e2d2db61
+2025-12-29T16:06:16.5874104Z Build Date: 2025-12-11T16:28:49Z
+2025-12-29T16:06:16.5874689Z Worker ID: {bb4c7aa7-a5be-4779-9962-7b3a0b305c5d}
+2025-12-29T16:06:16.5875293Z ##[endgroup]
+2025-12-29T16:06:16.5875798Z ##[group]Operating System
+2025-12-29T16:06:16.5876251Z Ubuntu
+2025-12-29T16:06:16.5876668Z 24.04.3
+2025-12-29T16:06:16.5877090Z LTS
+2025-12-29T16:06:16.5877467Z ##[endgroup]
+2025-12-29T16:06:16.5877932Z ##[group]Runner Image
+2025-12-29T16:06:16.5878392Z Image: ubuntu-24.04
+2025-12-29T16:06:16.5878980Z Version: 20251215.174.1
+2025-12-29T16:06:16.5879878Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20251215.174/images/ubuntu/Ubuntu2404-Readme.md
+2025-12-29T16:06:16.5881250Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20251215.174
+2025-12-29T16:06:16.5882096Z ##[endgroup]
+2025-12-29T16:06:16.5883039Z ##[group]GITHUB_TOKEN Permissions
+2025-12-29T16:06:16.5884876Z Contents: read
+2025-12-29T16:06:16.5885399Z Metadata: read
+2025-12-29T16:06:16.5885884Z Packages: read
+2025-12-29T16:06:16.5886314Z ##[endgroup]
+2025-12-29T16:06:16.5888266Z Secret source: Actions
+2025-12-29T16:06:16.5889185Z Prepare workflow directory
+2025-12-29T16:06:16.6440513Z Prepare all required actions
+2025-12-29T16:06:16.6477199Z Getting action download info
+2025-12-29T16:06:16.9956232Z Download action repository 'actions/checkout@v4' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2025-12-29T16:06:17.1663238Z Complete job name: mirror
+2025-12-29T16:06:17.2139126Z ##[group]Run if [ -z "$TARGET_REPO_PAT" ]; then
+2025-12-29T16:06:17.2139819Z [36;1mif [ -z "$TARGET_REPO_PAT" ]; then[0m
+2025-12-29T16:06:17.2140756Z [36;1m  echo "TARGET_REPO_PAT secret is missing. Add a PAT with repo access to this repo's secrets." >&2[0m
+2025-12-29T16:06:17.2141598Z [36;1m  exit 1[0m
+2025-12-29T16:06:17.2141975Z [36;1mfi[0m
+2025-12-29T16:06:17.2142485Z [36;1mif [ -z "$TARGET_HOST" ]; then[0m
+2025-12-29T16:06:17.2143351Z [36;1m  echo "TARGET_HOST secret is missing. Set TARGET_HOST to your GitHub Enterprise hostname (no protocol)." >&2[0m
+2025-12-29T16:06:17.2144136Z [36;1m  exit 1[0m
+2025-12-29T16:06:17.2144599Z [36;1mfi[0m
+2025-12-29T16:06:17.2167187Z shell: /usr/bin/bash -e {0}
+2025-12-29T16:06:17.2167971Z env:
+2025-12-29T16:06:17.2168413Z   TARGET_REPO: JSD-IT/Roadmap
+2025-12-29T16:06:17.2169160Z   TARGET_DEFAULT_BRANCH: main
+2025-12-29T16:06:17.2169911Z   TARGET_REPO_PAT: ***
+2025-12-29T16:06:17.2170382Z   TARGET_HOST: github.com
+2025-12-29T16:06:17.2170926Z ##[endgroup]
+2025-12-29T16:06:17.2427934Z ##[group]Run actions/checkout@v4
+2025-12-29T16:06:17.2428512Z with:
+2025-12-29T16:06:17.2429233Z   fetch-depth: 0
+2025-12-29T16:06:17.2429738Z   repository: FabianBoniJSD/Roadmap
+2025-12-29T16:06:17.2430422Z   token: ***
+2025-12-29T16:06:17.2430871Z   ssh-strict: true
+2025-12-29T16:06:17.2431304Z   ssh-user: git
+2025-12-29T16:06:17.2431741Z   persist-credentials: true
+2025-12-29T16:06:17.2432180Z   clean: true
+2025-12-29T16:06:17.2432643Z   sparse-checkout-cone-mode: true
+2025-12-29T16:06:17.2433157Z   fetch-tags: false
+2025-12-29T16:06:17.2433588Z   show-progress: true
+2025-12-29T16:06:17.2434056Z   lfs: false
+2025-12-29T16:06:17.2434474Z   submodules: false
+2025-12-29T16:06:17.2434879Z   set-safe-directory: true
+2025-12-29T16:06:17.2435351Z env:
+2025-12-29T16:06:17.2435876Z   TARGET_REPO: JSD-IT/Roadmap
+2025-12-29T16:06:17.2436368Z   TARGET_DEFAULT_BRANCH: main
+2025-12-29T16:06:17.2437032Z   TARGET_REPO_PAT: ***
+2025-12-29T16:06:17.2437493Z   TARGET_HOST: github.com
+2025-12-29T16:06:17.2438035Z ##[endgroup]
+2025-12-29T16:06:17.3395793Z Syncing repository: FabianBoniJSD/Roadmap
+2025-12-29T16:06:17.3397570Z ##[group]Getting Git version info
+2025-12-29T16:06:17.3398250Z Working directory is '/home/runner/work/Roadmap/Roadmap'
+2025-12-29T16:06:17.3399874Z [command]/usr/bin/git version
+2025-12-29T16:06:17.3451404Z git version 2.52.0
+2025-12-29T16:06:17.3474058Z ##[endgroup]
+2025-12-29T16:06:17.3489036Z Temporarily overriding HOME='/home/runner/work/_temp/79f5fd73-59fc-4cea-b21c-44f7ded50d44' before making global git config changes
+2025-12-29T16:06:17.3491379Z Adding repository directory to the temporary git global config as a safe directory
+2025-12-29T16:06:17.3502726Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Roadmap/Roadmap
+2025-12-29T16:06:17.3534925Z Deleting the contents of '/home/runner/work/Roadmap/Roadmap'
+2025-12-29T16:06:17.3538383Z ##[group]Initializing the repository
+2025-12-29T16:06:17.3543149Z [command]/usr/bin/git init /home/runner/work/Roadmap/Roadmap
+2025-12-29T16:06:17.3619627Z hint: Using 'master' as the name for the initial branch. This default branch name
+2025-12-29T16:06:17.3621338Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2025-12-29T16:06:17.3622847Z hint: to use in all of your new repositories, which will suppress this warning,
+2025-12-29T16:06:17.3623559Z hint: call:
+2025-12-29T16:06:17.3623997Z hint:
+2025-12-29T16:06:17.3624479Z hint: 	git config --global init.defaultBranch <name>
+2025-12-29T16:06:17.3625070Z hint:
+2025-12-29T16:06:17.3625580Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2025-12-29T16:06:17.3626603Z hint: 'development'. The just-created branch can be renamed via this command:
+2025-12-29T16:06:17.3627402Z hint:
+2025-12-29T16:06:17.3627766Z hint: 	git branch -m <name>
+2025-12-29T16:06:17.3628278Z hint:
+2025-12-29T16:06:17.3628997Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2025-12-29T16:06:17.3629922Z Initialized empty Git repository in /home/runner/work/Roadmap/Roadmap/.git/
+2025-12-29T16:06:17.3632516Z [command]/usr/bin/git remote add origin https://github.com/FabianBoniJSD/Roadmap
+2025-12-29T16:06:17.3660565Z ##[endgroup]
+2025-12-29T16:06:17.3661903Z ##[group]Disabling automatic garbage collection
+2025-12-29T16:06:17.3664916Z [command]/usr/bin/git config --local gc.auto 0
+2025-12-29T16:06:17.3687542Z ##[endgroup]
+2025-12-29T16:06:17.3688902Z ##[group]Setting up auth
+2025-12-29T16:06:17.3694616Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-12-29T16:06:17.3719629Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-12-29T16:06:17.3984380Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-12-29T16:06:17.4008821Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-12-29T16:06:17.4174696Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2025-12-29T16:06:17.4206029Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2025-12-29T16:06:17.4375253Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2025-12-29T16:06:17.4402215Z ##[endgroup]
+2025-12-29T16:06:17.4402947Z ##[group]Fetching the repository
+2025-12-29T16:06:17.4409634Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/*
+2025-12-29T16:06:19.4259021Z From https://github.com/FabianBoniJSD/Roadmap
+2025-12-29T16:06:19.4259940Z  * [new branch]      latest-change -> origin/latest-change
+2025-12-29T16:06:19.4260621Z  * [new branch]      main          -> origin/main
+2025-12-29T16:06:19.4261101Z  * [new tag]         kerberos      -> kerberos
+2025-12-29T16:06:19.4295437Z [command]/usr/bin/git branch --list --remote origin/main
+2025-12-29T16:06:19.4314982Z   origin/main
+2025-12-29T16:06:19.4322671Z [command]/usr/bin/git rev-parse refs/remotes/origin/main
+2025-12-29T16:06:19.4339456Z f4e74c0b16ebce66365d58ec283343b02eb4c46a
+2025-12-29T16:06:19.4343040Z ##[endgroup]
+2025-12-29T16:06:19.4343786Z ##[group]Determining the checkout info
+2025-12-29T16:06:19.4344590Z ##[endgroup]
+2025-12-29T16:06:19.4349029Z [command]/usr/bin/git sparse-checkout disable
+2025-12-29T16:06:19.4379907Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2025-12-29T16:06:19.4399898Z ##[group]Checking out the ref
+2025-12-29T16:06:19.4404367Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2025-12-29T16:06:19.4524006Z Switched to a new branch 'main'
+2025-12-29T16:06:19.4524918Z branch 'main' set up to track 'origin/main'.
+2025-12-29T16:06:19.4530861Z ##[endgroup]
+2025-12-29T16:06:19.4560163Z [command]/usr/bin/git log -1 --format=%H
+2025-12-29T16:06:19.4578048Z f4e74c0b16ebce66365d58ec283343b02eb4c46a
+2025-12-29T16:06:19.4675403Z ##[group]Run git config user.name "github-actions[bot]"
+2025-12-29T16:06:19.4675829Z [36;1mgit config user.name "github-actions[bot]"[0m
+2025-12-29T16:06:19.4676266Z [36;1mgit config user.email "41898282+github-actions[bot]@users.noreply.github.com"[0m
+2025-12-29T16:06:19.4696320Z shell: /usr/bin/bash -e {0}
+2025-12-29T16:06:19.4696590Z env:
+2025-12-29T16:06:19.4696810Z   TARGET_REPO: JSD-IT/Roadmap
+2025-12-29T16:06:19.4697091Z   TARGET_DEFAULT_BRANCH: main
+2025-12-29T16:06:19.4697685Z   TARGET_REPO_PAT: ***
+2025-12-29T16:06:19.4697925Z   TARGET_HOST: github.com
+2025-12-29T16:06:19.4698183Z ##[endgroup]
+2025-12-29T16:06:19.4783464Z ##[group]Run TARGET_URL="https://x-access-token:${TARGET_REPO_PAT}@${TARGET_HOST}/${TARGET_REPO}.git"
+2025-12-29T16:06:19.4784155Z [36;1mTARGET_URL="https://x-access-token:${TARGET_REPO_PAT}@${TARGET_HOST}/${TARGET_REPO}.git"[0m
+2025-12-29T16:06:19.4784698Z [36;1mecho "Pushing mirror to https://${TARGET_HOST}/${TARGET_REPO}.git"[0m
+2025-12-29T16:06:19.4785107Z [36;1mgit remote add mirror "$TARGET_URL"[0m
+2025-12-29T16:06:19.4785425Z [36;1mgit push --mirror mirror[0m
+2025-12-29T16:06:19.4803397Z shell: /usr/bin/bash -e {0}
+2025-12-29T16:06:19.4803671Z env:
+2025-12-29T16:06:19.4803907Z   TARGET_REPO: JSD-IT/Roadmap
+2025-12-29T16:06:19.4804178Z   TARGET_DEFAULT_BRANCH: main
+2025-12-29T16:06:19.4804669Z   TARGET_REPO_PAT: ***
+2025-12-29T16:06:19.4804930Z   TARGET_HOST: github.com
+2025-12-29T16:06:19.4805171Z ##[endgroup]
+2025-12-29T16:06:19.4839673Z Pushing mirror to https://github.com/JSD-IT/Roadmap.git
+2025-12-29T16:06:19.8060145Z remote: Repository not found.
+2025-12-29T16:06:19.8061431Z fatal: Authentication failed for 'https://github.com/JSD-IT/Roadmap.git/'
+2025-12-29T16:06:19.8084249Z ##[error]Process completed with exit code 128.
+2025-12-29T16:06:19.8132620Z ##[group]Run TARGET_URL="https://x-access-token:${TARGET_REPO_PAT}@${TARGET_HOST}/${TARGET_REPO}.git"
+2025-12-29T16:06:19.8133310Z [36;1mTARGET_URL="https://x-access-token:${TARGET_REPO_PAT}@${TARGET_HOST}/${TARGET_REPO}.git"[0m
+2025-12-29T16:06:19.8133880Z [36;1mecho "Diagnosing with: git ls-remote https://${TARGET_HOST}/${TARGET_REPO}.git"[0m
+2025-12-29T16:06:19.8134287Z [36;1mgit ls-remote "$TARGET_URL" || true[0m
+2025-12-29T16:06:19.8154502Z shell: /usr/bin/bash -e {0}
+2025-12-29T16:06:19.8154778Z env:
+2025-12-29T16:06:19.8155003Z   TARGET_REPO: JSD-IT/Roadmap
+2025-12-29T16:06:19.8155263Z   TARGET_DEFAULT_BRANCH: main
+2025-12-29T16:06:19.8155825Z   TARGET_REPO_PAT: ***
+2025-12-29T16:06:19.8156064Z   TARGET_HOST: github.com
+2025-12-29T16:06:19.8156301Z ##[endgroup]
+2025-12-29T16:06:19.8195124Z Diagnosing with: git ls-remote https://github.com/JSD-IT/Roadmap.git
+2025-12-29T16:06:20.1397984Z remote: Repository not found.
+2025-12-29T16:06:20.1398903Z fatal: Authentication failed for 'https://github.com/JSD-IT/Roadmap.git/'
+2025-12-29T16:06:20.1487191Z Post job cleanup.
+2025-12-29T16:06:20.2339104Z [command]/usr/bin/git version
+2025-12-29T16:06:20.2370685Z git version 2.52.0
+2025-12-29T16:06:20.2409470Z Temporarily overriding HOME='/home/runner/work/_temp/53a7ffc8-ccd2-44d1-92f1-d5c3f79aa5b3' before making global git config changes
+2025-12-29T16:06:20.2411062Z Adding repository directory to the temporary git global config as a safe directory
+2025-12-29T16:06:20.2415772Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Roadmap/Roadmap
+2025-12-29T16:06:20.2446124Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-12-29T16:06:20.2473545Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-12-29T16:06:20.2648565Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-12-29T16:06:20.2665252Z http.https://github.com/.extraheader
+2025-12-29T16:06:20.2675982Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2025-12-29T16:06:20.2702995Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-12-29T16:06:20.2869917Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2025-12-29T16:06:20.2895003Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2025-12-29T16:06:20.3147470Z Cleaning up orphan processes
