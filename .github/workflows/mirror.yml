@@ -1,0 +1,38 @@
+name: Mirror to JSD-IT/REPO-NAME
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_REPO: JSD-IT/Roadmap
+      TARGET_DEFAULT_BRANCH: main
+      TARGET_REPO_PAT: ${{ secrets.TARGET_REPO_PAT }}
+    steps:
+      - name: Fail if PAT is missing
+        run: |
+          if [ -z "$TARGET_REPO_PAT" ]; then
+            echo "TARGET_REPO_PAT secret is missing. Add a PAT with repo access to this repo's secrets." >&2
+            exit 1
+          fi
+
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Mirror to target repo
+        run: |
+          TARGET_URL="https://x-access-token:${TARGET_REPO_PAT}@github.com/${TARGET_REPO}.git"
+          git remote add mirror "$TARGET_URL"
+          git push --mirror mirror
