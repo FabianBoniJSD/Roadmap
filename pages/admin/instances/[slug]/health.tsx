@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import AdminSubpageLayout from '@/components/AdminSubpageLayout';
 import withAdminAuth from '@/components/withAdminAuth';
 import type { RoadmapInstanceSummary } from '@/types/roadmapInstance';
+import { getAdminSessionToken } from '@/utils/auth';
 
 const formatTimestamp = (iso?: string | null) => {
   if (!iso) return '—';
@@ -41,7 +42,11 @@ const InstanceHealthPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`/api/instances/${encodeURIComponent(slugValue)}`);
+      const token = getAdminSessionToken();
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const resp = await fetch(`/api/instances/${encodeURIComponent(slugValue)}`, {
+        headers,
+      });
       if (!resp.ok) {
         const payload = await resp.json().catch(() => null);
         throw new Error(payload?.error || `Fehler ${resp.status}`);
@@ -66,8 +71,11 @@ const InstanceHealthPage = () => {
     setRefreshing(true);
     setError(null);
     try {
+      const token = getAdminSessionToken();
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/health`, {
         method: 'POST',
+        headers,
       });
       if (!resp.ok) {
         const payload = await resp.json().catch(() => null);

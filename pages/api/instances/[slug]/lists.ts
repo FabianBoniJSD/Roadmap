@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { requireAdminSession } from '@/utils/apiAuth';
+import { extractAdminSession } from '@/utils/apiAuth';
+import { clientDataService } from '@/utils/clientDataService';
 import { mapInstanceRecord } from '@/utils/instanceConfig';
 import {
   deleteSharePointListForInstance,
@@ -11,12 +12,6 @@ import {
 import { sanitizeSlug } from '../helpers';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  try {
-    requireAdminSession(req);
-  } catch {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   const slugParam = req.query.slug;
   const slug =
     typeof slugParam === 'string'
@@ -38,6 +33,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const instance = mapInstanceRecord(record);
+
+  const session = extractAdminSession(req);
+  if (!session?.isAdmin) {
+    try {
+      const allowed = await clientDataService.withInstance(instance.slug, () =>
+        clientDataService.isCurrentUserAdmin()
+      );
+      if (!allowed) return res.status(401).json({ error: 'Unauthorized' });
+    } catch (error) {
+      console.error('[instances:lists] service-account admin check failed', error);
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  }
 
   if (req.method === 'GET') {
     try {
