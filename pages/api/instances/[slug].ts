@@ -2,7 +2,11 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { extractAdminSession } from '@/utils/apiAuth';
 import { clientDataService } from '@/utils/clientDataService';
-import { mapInstanceRecord, toInstanceSummary } from '@/utils/instanceConfig';
+import {
+  mapInstanceRecord,
+  toInstanceSummary,
+  type PrismaInstanceWithHosts,
+} from '@/utils/instanceConfig';
 import {
   buildSettingsPayload,
   coerceBool,
@@ -39,9 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = extractAdminSession(req);
 
-  const ensureAdminForInstance = async (
-    record: Awaited<ReturnType<typeof prisma.roadmapInstance.findUnique>> | null
-  ) => {
+  const ensureAdminForInstance = async (record: PrismaInstanceWithHosts | null) => {
     if (session?.isAdmin) return true;
     if (!record) return false;
     try {
@@ -56,10 +58,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   };
 
   if (req.method === 'GET') {
-    const record = await prisma.roadmapInstance.findUnique({
+    const record = (await prisma.roadmapInstance.findUnique({
       where: { slug },
       include: { hosts: true },
-    });
+    })) as PrismaInstanceWithHosts | null;
     if (!record) return res.status(404).json({ error: 'Instance not found' });
     if (!(await ensureAdminForInstance(record)))
       return res.status(401).json({ error: 'Unauthorized' });
@@ -67,10 +69,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === 'PUT') {
-    const existing = await prisma.roadmapInstance.findUnique({
+    const existing = (await prisma.roadmapInstance.findUnique({
       where: { slug },
       include: { hosts: true },
-    });
+    })) as PrismaInstanceWithHosts | null;
     if (!existing) return res.status(404).json({ error: 'Instance not found' });
     if (!(await ensureAdminForInstance(existing)))
       return res.status(401).json({ error: 'Unauthorized' });
@@ -181,19 +183,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data.settingsJson = serializeSettings(settings);
     }
 
-    let updated = await prisma.roadmapInstance.update({
+    let updated = (await prisma.roadmapInstance.update({
       where: { slug },
       data,
       include: { hosts: true },
-    });
+    })) as PrismaInstanceWithHosts;
 
     if (Array.isArray(req.body?.hosts)) {
       const normalizedHosts = normalizeHosts(req.body.hosts);
       await updateHosts(updated.id, normalizedHosts);
-      updated = await prisma.roadmapInstance.findUniqueOrThrow({
+      updated = (await prisma.roadmapInstance.findUniqueOrThrow({
         where: { slug },
         include: { hosts: true },
-      });
+      })) as PrismaInstanceWithHosts;
     }
 
     const mapped = mapInstanceRecord(updated);
@@ -217,23 +219,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.error('[instances] sharepoint provisioning failed', error);
     }
 
-    updated = await prisma.roadmapInstance.update({
+    updated = (await prisma.roadmapInstance.update({
       where: { id: updated.id },
       data: {
         spHealthJson: JSON.stringify(health),
         spHealthCheckedAt: new Date(),
       },
       include: { hosts: true },
-    });
+    })) as PrismaInstanceWithHosts;
 
     return res.status(200).json({ instance: toInstanceSummary(mapInstanceRecord(updated)) });
   }
 
   if (req.method === 'DELETE') {
-    const existing = await prisma.roadmapInstance.findUnique({
+    const existing = (await prisma.roadmapInstance.findUnique({
       where: { slug },
       include: { hosts: true },
-    });
+    })) as PrismaInstanceWithHosts | null;
     if (!existing) return res.status(404).json({ error: 'Instance not found' });
     if (!(await ensureAdminForInstance(existing)))
       return res.status(401).json({ error: 'Unauthorized' });
