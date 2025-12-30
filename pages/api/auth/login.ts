@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { loadUserCredentialsFromSecrets } from '@/utils/userCredentials';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'roadmap-secret-change-in-production';

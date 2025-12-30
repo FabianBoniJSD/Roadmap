@@ -44,6 +44,15 @@ jobs:
 
       - name: Reset workspace state
         run: |
+          # Preserve local SQLite dev DB if present
+          $dbPath = "prisma\prisma\dev.db"
+          $dbBackup = $null
+          if (Test-Path $dbPath) {
+            $dbBackup = Join-Path $env:RUNNER_TEMP "dev.db.backup"
+            Copy-Item -Path $dbPath -Destination $dbBackup -Force
+            Write-Output "Backed up local dev DB to $dbBackup"
+          }
+
           Write-Output "Ensuring no lingering Node/PM2 processes are locking files..."
           $processNames = @('node', 'pm2', 'prisma', 'next', 'npm', 'yarn')
           foreach ($name in $processNames) {
@@ -105,6 +114,14 @@ jobs:
             }
           }
           Write-Output "Workspace reset complete."
+
+            # Restore local SQLite dev DB if it was backed up
+            if ($dbBackup -and (Test-Path $dbBackup)) {
+              $dbDir = Split-Path $dbPath -Parent
+              if (-not (Test-Path $dbDir)) { New-Item -ItemType Directory -Path $dbDir -Force | Out-Null }
+              Copy-Item -Path $dbBackup -Destination $dbPath -Force
+              Write-Output "Restored local dev DB from backup."
+            }
 
       - name: Write environment file from secret
         env:
@@ -268,25 +285,41 @@ jobs:
           NODE_ENV: production
         run: |
           Write-Output "Running prisma migrate deploy..."
+          # Resolve DATABASE_URL (supports file: URLs)
+          $dbUrl = $env:DATABASE_URL
+          if (-not $dbUrl -and (Test-Path ".env")) {
+            $dbLine = Select-String -Path ".env" -Pattern '^\s*DATABASE_URL\s*=\s*(.+)\s*$' | Select-Object -First 1
+            if ($dbLine -and $dbLine.Matches.Count -gt 0) {
+              $rawValue = $dbLine.Matches[0].Groups[1].Value.Trim()
+              if ($rawValue.StartsWith('"') -and $rawValue.EndsWith('"')) { $rawValue = $rawValue.Trim('"') }
+              elseif ($rawValue.StartsWith("'") -and $rawValue.EndsWith("'")) { $rawValue = $rawValue.Trim("'") }
+              $dbUrl = $rawValue
+            }
+          }
+
+          $isFileDb = $false
+          $dbFilePath = $null
+          if ($dbUrl -and $dbUrl.StartsWith('file:')) {
+            $isFileDb = $true
+            $dbFilePath = $dbUrl.Substring(5)
+            if ($dbFilePath.StartsWith('./')) { $dbFilePath = $dbFilePath.Substring(2) }
+            if ($dbFilePath -and -not (Split-Path $dbFilePath -IsAbsolute)) {
+              $dbFilePath = Join-Path (Get-Location) $dbFilePath
+            }
+            $dbDir = Split-Path $dbFilePath -Parent
+            if (-not (Test-Path $dbDir)) { New-Item -ItemType Directory -Path $dbDir -Force | Out-Null }
+            if (-not (Test-Path $dbFilePath)) {
+              Write-Output "SQLite DB file not found. Creating empty DB at $dbFilePath"
+              New-Item -ItemType File -Path $dbFilePath -Force | Out-Null
+            }
+          }
+
           npx prisma migrate deploy
           $migrateExit = $LASTEXITCODE
           if ($migrateExit -ne 0) {
-            $dbUrl = $env:DATABASE_URL
-            if (-not $dbUrl -and (Test-Path ".env")) {
-              $dbLine = Select-String -Path ".env" -Pattern '^\s*DATABASE_URL\s*=\s*(.+)\s*$' | Select-Object -First 1
-              if ($dbLine -and $dbLine.Matches.Count -gt 0) {
-                $rawValue = $dbLine.Matches[0].Groups[1].Value.Trim()
-                if ($rawValue.StartsWith('"') -and $rawValue.EndsWith('"')) {
-                  $rawValue = $rawValue.Trim('"')
-                } elseif ($rawValue.StartsWith("'") -and $rawValue.EndsWith("'")) {
-                  $rawValue = $rawValue.Trim("'")
-                }
-                $dbUrl = $rawValue
-              }
-            }
-            if ($dbUrl -and $dbUrl.StartsWith('file:')) {
-              Write-Warning "prisma migrate deploy failed with exit code $migrateExit. Attempting prisma db push fallback for SQLite."
-              npx prisma db push --force-reset --accept-data-loss
+            if ($isFileDb) {
+              Write-Warning "prisma migrate deploy failed (exit $migrateExit). Trying prisma db push without data loss for existing SQLite DB."
+              npx prisma db push
               if ($LASTEXITCODE -ne 0) {
                 Write-Error "prisma db push fallback failed. Aborting."
                 exit $LASTEXITCODE
