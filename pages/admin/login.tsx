@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
-import { persistAdminSession } from '@/utils/auth';
+import { buildInstanceAwareUrl, persistAdminSession } from '@/utils/auth';
 
 type AdminMode = 'github-secrets' | 'sharepoint-permissions';
 
@@ -27,7 +27,7 @@ const AdminLogin: React.FC = () => {
       setError('');
       setStatus('Prüfe Service Account …');
 
-      const response = await fetch('/api/auth/check-admin');
+      const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin'));
       if (!response.ok) {
         throw new Error('check-admin failed');
       }
@@ -83,7 +83,7 @@ const AdminLogin: React.FC = () => {
       setError('');
       setStatus('Authentifiziere Benutzer …');
 
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(buildInstanceAwareUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),

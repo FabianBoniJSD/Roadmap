@@ -5,6 +5,7 @@
 
 const TOKEN_KEY = 'adminToken';
 const USERNAME_KEY = 'adminUsername';
+const INSTANCE_COOKIE_KEY = 'roadmap-instance';
 
 // Lightweight debug switch for verbose console logs around auth/admin flows
 function debugAuthEnabled(): boolean {
@@ -78,6 +79,31 @@ export function persistAdminSession(token: string, username: string) {
   setStoredSession(token, username);
 }
 
+function getBrowserInstanceSlug(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const fromQuery = new URLSearchParams(window.location.search).get('roadmapInstance');
+    if (fromQuery) return fromQuery.trim().toLowerCase();
+    const cookies = document.cookie.split(';').map((c) => c.trim());
+    for (const cookie of cookies) {
+      if (cookie.toLowerCase().startsWith(`${INSTANCE_COOKIE_KEY}=`)) {
+        return decodeURIComponent(cookie.substring(INSTANCE_COOKIE_KEY.length + 1)).trim();
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+export function buildInstanceAwareUrl(path: string): string {
+  const slug = getBrowserInstanceSlug();
+  if (!slug) return path;
+  const hasQuery = path.includes('?');
+  const separator = hasQuery ? '&' : '?';
+  return `${path}${separator}roadmapInstance=${encodeURIComponent(slug)}`;
+}
+
 export function getAdminSessionToken(): string | null {
   return getStoredToken();
 }
@@ -93,7 +119,7 @@ export async function hasAdminAccess(): Promise<boolean> {
     if (token) {
       log('hasAdminAccess: verifying stored admin session');
       try {
-        const response = await fetch('/api/auth/check-admin-session', {
+        const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin-session'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (response.ok) {
@@ -112,7 +138,7 @@ export async function hasAdminAccess(): Promise<boolean> {
 
     log('hasAdminAccess: falling back to service account metadata');
     try {
-      const response = await fetch('/api/auth/check-admin');
+      const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin'));
       if (response.ok) {
         const data = await response.json();
         if (data.requiresUserSession) {
