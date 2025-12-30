@@ -37,7 +37,8 @@ export default async function handler(
 
   let instance: RoadmapInstanceConfig | null = null;
   try {
-    instance = await getInstanceConfigFromRequest(req);
+    // Do not fallback to a default instance; require explicit slug/host/cookie resolution
+    instance = await getInstanceConfigFromRequest(req, { fallbackToDefault: false });
   } catch (error) {
     console.error('[check-admin] failed to resolve instance', error);
     return res.status(500).json({ error: 'Failed to resolve roadmap instance' });

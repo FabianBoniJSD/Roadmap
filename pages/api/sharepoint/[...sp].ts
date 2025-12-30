@@ -217,7 +217,7 @@ async function readRawBodyBuffer(req: NextApiRequest): Promise<Buffer> {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   let instance: RoadmapInstanceConfig | null = null;
   try {
-    instance = await getInstanceConfigFromRequest(req);
+    instance = await getInstanceConfigFromRequest(req, { fallbackToDefault: false });
   } catch (error) {
     console.error('[sharepoint proxy] failed to resolve roadmap instance', error);
     return res.status(500).json({ error: 'Failed to resolve roadmap instance' });

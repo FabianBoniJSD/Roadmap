@@ -68,7 +68,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const started = Date.now();
   let instance: RoadmapInstanceConfig | null = null;
   try {
-    instance = await getInstanceConfigFromRequest(req as any);
+    instance = await getInstanceConfigFromRequest(req as any, { fallbackToDefault: false });
   } catch (error) {
     console.error('[ntlm-dump] failed to resolve instance', error);
     return res.status(500).json({ error: 'Instance resolution failed' });

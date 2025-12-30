@@ -6,7 +6,7 @@ import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   let instance: RoadmapInstanceConfig | null = null;
   try {
-    instance = await getInstanceConfigFromRequest(req);
+    instance = await getInstanceConfigFromRequest(req, { fallbackToDefault: false });
   } catch (error) {
     console.error('[api/settings/key/[key]] failed to resolve instance', error);
     return res.status(500).json({ message: 'Failed to resolve roadmap instance' });
