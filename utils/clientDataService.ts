@@ -546,9 +546,11 @@ class ClientDataService {
     // Determine the available category field name (supports variants like Bereich/Bereiche)
     const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
     const listFieldNames = await this.getListFieldNames(resolvedProjects);
+    const listFieldTypes = await this.getListFieldTypes(resolvedProjects);
     const categoryFieldCandidates = ['Category', 'Bereich', 'Bereiche'];
     const categoryFieldName =
       categoryFieldCandidates.find((f) => listFieldNames.has(f)) || 'Category';
+    const categoryIsLookup = /^lookup/i.test(String(listFieldTypes[categoryFieldName] || ''));
     const categorySelectFields = Array.from(new Set(['Id', categoryFieldName]));
     const pickCategoryValue = (source: any): any => {
       if (!source || typeof source !== 'object') return undefined;
@@ -617,7 +619,7 @@ class ClientDataService {
       const sel = buildSelect(selectFields);
       const params = new URLSearchParams();
       params.set('$select', sel);
-      if (categoryFieldName) params.set('$expand', categoryFieldName);
+      if (categoryFieldName && categoryIsLookup) params.set('$expand', categoryFieldName);
       params.set('$orderby', 'Id desc');
       params.set('$top', '5000');
       const endpoint = `${baseItemsUrl}?${params.toString()}`;
