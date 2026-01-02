@@ -60,6 +60,18 @@ const SP_LISTS = {
   PROJECT_LINKS: 'RoadmapProjectLinks', // Neue Liste für Projekt-Links
 };
 
+// Space / alias variants per list (SharePoint often has spaced titles)
+const SP_LIST_VARIANTS: Record<string, string[]> = {
+  [SP_LISTS.PROJECTS]: ['Roadmap Projects'],
+  [SP_LISTS.CATEGORIES]: ['Roadmap Categories'],
+  [SP_LISTS.SETTINGS]: ['Roadmap Settings'],
+  [SP_LISTS.FIELD_TYPES]: ['Roadmap Field Types', 'Roadmap FieldTypes'],
+  [SP_LISTS.FIELDS]: ['Roadmap Fields'],
+  [SP_LISTS.TEAM_MEMBERS]: ['Roadmap Team Members'],
+  [SP_LISTS.USERS]: ['Roadmap Users'],
+  [SP_LISTS.PROJECT_LINKS]: ['Roadmap Project Links'],
+};
+
 // Client-side data service using fetch API instead of PnP JS
 class ClientDataService {
   // Cache for list metadata types
@@ -198,7 +210,7 @@ class ClientDataService {
   }
 
   // Resolve actual list title by trying preferred and known variants, cache result
-  private async resolveListTitle(preferred: string, variants: string[] = []): Promise<string> {
+  async resolveListTitle(preferred: string, variants: string[] = []): Promise<string> {
     if (this.listTitleCache[preferred]) return this.listTitleCache[preferred];
     const candidates = [preferred, ...variants].filter(Boolean);
     const webUrl = this.getWebUrl();
@@ -226,7 +238,8 @@ class ClientDataService {
     if (this.listFieldsCache[listName]) return this.listFieldsCache[listName];
     try {
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${listName}')/fields?$select=InternalName`;
+      const resolvedName = await this.resolveListTitle(listName, SP_LIST_VARIANTS[listName] || []);
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedName}')/fields?$select=InternalName`;
       const resp = await this.spFetch(endpoint, {
         headers: { Accept: 'application/json;odata=nometadata' },
       });
@@ -256,8 +269,9 @@ class ClientDataService {
   private async getListFieldTypes(listName: string): Promise<Record<string, string>> {
     if (this.listFieldTypeCache[listName]) return this.listFieldTypeCache[listName];
     try {
+      const resolvedName = await this.resolveListTitle(listName, SP_LIST_VARIANTS[listName] || []);
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${listName}')/fields?$select=InternalName,TypeAsString`;
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedName}')/fields?$select=InternalName,TypeAsString`;
       let resp = await this.spFetch(endpoint, {
         headers: { Accept: 'application/json;odata=nometadata' },
       });
@@ -340,8 +354,9 @@ class ClientDataService {
   }
 
   private async fetchFromSharePoint(listName: string, select: string = '*'): Promise<any[]> {
+    const resolvedName = await this.resolveListTitle(listName, SP_LIST_VARIANTS[listName] || []);
     const webUrl = this.getWebUrl(); // '/api/sharepoint'
-    const endpoint = `${webUrl}/_api/web/lists/getByTitle('${listName}')/items?$select=${select}`;
+    const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedName}')/items?$select=${select}`;
 
     const parseAtom = (xml: string): any[] => {
       try {
@@ -459,8 +474,9 @@ class ClientDataService {
     }
 
     try {
+      const resolvedName = await this.resolveListTitle(listName, SP_LIST_VARIANTS[listName] || []);
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${listName}')?$select=ListItemEntityTypeFullName`;
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedName}')?$select=ListItemEntityTypeFullName`;
 
       const response = await this.spFetch(endpoint, {
         method: 'GET',
