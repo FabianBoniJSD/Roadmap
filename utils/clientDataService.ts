@@ -543,8 +543,13 @@ class ClientDataService {
       const unique = Array.from(new Set(['Id', ...fields]));
       return unique.join(',');
     };
-    const categoryFieldCandidates = ['Category'];
-    const categorySelectFields = Array.from(new Set(['Id', ...categoryFieldCandidates]));
+    // Determine the available category field name (supports variants like Bereich/Bereiche)
+    const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
+    const listFieldNames = await this.getListFields(resolvedProjects);
+    const categoryFieldCandidates = ['Category', 'Bereich', 'Bereiche'];
+    const categoryFieldName =
+      categoryFieldCandidates.find((f) => listFieldNames.has(f)) || 'Category';
+    const categorySelectFields = Array.from(new Set(['Id', categoryFieldName]));
     const pickCategoryValue = (source: any): any => {
       if (!source || typeof source !== 'object') return undefined;
       for (const key of categoryFieldCandidates) {
@@ -604,7 +609,6 @@ class ClientDataService {
       return normalizeCategoryValue(entity?.category);
     };
     const webUrl = this.getWebUrl();
-    const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
     const baseItemsUrl = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items`;
 
     const fetchItems = async (
@@ -613,7 +617,7 @@ class ClientDataService {
       const sel = buildSelect(selectFields);
       const params = new URLSearchParams();
       params.set('$select', sel);
-      params.set('$expand', 'Category');
+      if (categoryFieldName) params.set('$expand', categoryFieldName);
       params.set('$orderby', 'Id desc');
       params.set('$top', '5000');
       const endpoint = `${baseItemsUrl}?${params.toString()}`;
