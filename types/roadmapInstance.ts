@@ -24,6 +24,14 @@ export interface RoadmapInstanceHealth {
     missing: string[];
     fieldsCreated: Record<string, string[]>;
     errors: Record<string, string>;
+    schemaMismatches?: Record<
+      string,
+      {
+        missing: string[];
+        unexpected: string[];
+        typeMismatches: { field: string; expected: string; actual: string }[];
+      }
+    >;
   };
 }
 

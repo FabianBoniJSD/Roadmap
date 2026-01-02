@@ -254,6 +254,57 @@ const ensureField = async (
   }
 };
 
+const extractFieldTypeFromSchema = (schemaXml: string): string => {
+  if (!schemaXml) return '';
+  const match = schemaXml.match(/Type="([^"]+)"/i) || schemaXml.match(/Type='([^']+)'/i);
+  return match?.[1] ? match[1].trim() : '';
+};
+
+const validateListSchema = async (
+  def: SharePointListDefinition,
+  resolvedTitle: string,
+  health: RoadmapInstanceHealth
+) => {
+  try {
+    const fieldNames = await clientDataService.getListFieldNames(resolvedTitle);
+    const fieldTypes = await clientDataService.getListFieldTypes(resolvedTitle);
+    const expected = def.fields.map((f) => ({
+      name: f.name,
+      expectedType: extractFieldTypeFromSchema(f.schemaXml),
+    }));
+    const missing = expected.filter((f) => !fieldNames.has(f.name)).map((f) => f.name);
+    const typeMismatches = expected
+      .filter((f) => fieldNames.has(f.name))
+      .map((f) => {
+        const actual = String(fieldTypes[f.name] || '').trim();
+        return {
+          field: f.name,
+          expected: f.expectedType || '(unspecified)',
+          actual: actual || '(unknown)',
+        };
+      })
+      .filter(
+        (entry) =>
+          entry.expected &&
+          entry.actual &&
+          entry.expected.toLowerCase() !== entry.actual.toLowerCase()
+      );
+    const unexpected = Array.from(fieldNames).filter(
+      (name) => !expected.some((f) => f.name === name)
+    );
+
+    if (!health.lists.schemaMismatches) health.lists.schemaMismatches = {};
+    const hasIssues = missing.length || typeMismatches.length || unexpected.length;
+    if (hasIssues) {
+      health.lists.schemaMismatches[resolvedTitle] = { missing, unexpected, typeMismatches };
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Schema-Validierung fehlgeschlagen';
+    if (!health.lists.errors) health.lists.errors = {};
+    health.lists.errors[`schema:${resolvedTitle}`] = message;
+  }
+};
+
 const ensureList = async (
   def: SharePointListDefinition,
   digest: string,
@@ -434,7 +485,14 @@ export async function ensureSharePointListForInstance(
   const health: RoadmapInstanceHealth = {
     checkedAt: new Date().toISOString(),
     permissions: { status: 'unknown' },
-    lists: { ensured: [], created: [], missing: [], fieldsCreated: {}, errors: {} },
+    lists: {
+      ensured: [],
+      created: [],
+      missing: [],
+      fieldsCreated: {},
+      errors: {},
+      schemaMismatches: {},
+    },
   };
   let resolvedTitle: string | null = null;
 
@@ -458,6 +516,9 @@ export async function ensureSharePointListForInstance(
     }
 
     resolvedTitle = await ensureList(def, digest, health);
+    if (resolvedTitle) {
+      await validateListSchema(def, resolvedTitle, health);
+    }
     if (!resolvedTitle) {
       const relevantErrors = Object.entries(health.lists.errors)
         .filter(([errorKey]) => candidateKeys.some((candidate) => errorKey.startsWith(candidate)))
@@ -560,7 +621,14 @@ export async function provisionSharePointForInstance(
   const health: RoadmapInstanceHealth = {
     checkedAt: new Date().toISOString(),
     permissions: { status: 'unknown' },
-    lists: { ensured: [], created: [], missing: [], fieldsCreated: {}, errors: {} },
+    lists: {
+      ensured: [],
+      created: [],
+      missing: [],
+      fieldsCreated: {},
+      errors: {},
+      schemaMismatches: {},
+    },
   };
 
   await clientDataService.withInstance(instance.slug, async () => {

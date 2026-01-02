@@ -233,9 +233,10 @@ class ClientDataService {
     return preferred;
   }
 
-  // Discover internal field names for a list and cache them
+  // Discover internal field names for a list and cache them (per instance)
   private async getListFieldNames(listName: string): Promise<Set<string>> {
-    if (this.listFieldsCache[listName]) return this.listFieldsCache[listName];
+    const cacheKey = `${this.getActiveInstanceSlug() || 'default'}:${listName}`;
+    if (this.listFieldsCache[cacheKey]) return this.listFieldsCache[cacheKey];
     try {
       const webUrl = this.getWebUrl();
       const resolvedName = await this.resolveListTitle(listName, SP_LIST_VARIANTS[listName] || []);
@@ -251,23 +252,24 @@ class ClientDataService {
         if (!resp2.ok) throw new Error('Failed to read fields');
         const data2 = await resp2.json();
         const results = (data2?.d?.results || []).map((f: any) => f.InternalName).filter(Boolean);
-        this.listFieldsCache[listName] = new Set(results);
-        return this.listFieldsCache[listName];
+        this.listFieldsCache[cacheKey] = new Set(results);
+        return this.listFieldsCache[cacheKey];
       }
       const data = await resp.json();
       const values: string[] = (data.value || []).map((f: any) => f.InternalName).filter(Boolean);
-      this.listFieldsCache[listName] = new Set(values);
-      return this.listFieldsCache[listName];
+      this.listFieldsCache[cacheKey] = new Set(values);
+      return this.listFieldsCache[cacheKey];
     } catch (e) {
       console.warn('[clientDataService] Could not fetch field names for list', listName, e);
-      this.listFieldsCache[listName] = new Set();
-      return this.listFieldsCache[listName];
+      this.listFieldsCache[cacheKey] = new Set();
+      return this.listFieldsCache[cacheKey];
     }
   }
 
   // Discover InternalName -> TypeAsString for a list (cached)
   private async getListFieldTypes(listName: string): Promise<Record<string, string>> {
-    if (this.listFieldTypeCache[listName]) return this.listFieldTypeCache[listName];
+    const cacheKey = `${this.getActiveInstanceSlug() || 'default'}:${listName}`;
+    if (this.listFieldTypeCache[cacheKey]) return this.listFieldTypeCache[cacheKey];
     try {
       const resolvedName = await this.resolveListTitle(listName, SP_LIST_VARIANTS[listName] || []);
       const webUrl = this.getWebUrl();
@@ -286,7 +288,7 @@ class ClientDataService {
         const map: Record<string, string> = {};
         for (const f of arr)
           if (f.InternalName) map[String(f.InternalName)] = String(f.TypeAsString || '');
-        this.listFieldTypeCache[listName] = map;
+        this.listFieldTypeCache[cacheKey] = map;
         return map;
       }
       const data = await resp.json();
@@ -294,11 +296,11 @@ class ClientDataService {
       const map: Record<string, string> = {};
       for (const f of values)
         if (f.InternalName) map[String(f.InternalName)] = String(f.TypeAsString || '');
-      this.listFieldTypeCache[listName] = map;
+      this.listFieldTypeCache[cacheKey] = map;
       return map;
     } catch (e) {
       console.warn('[clientDataService] Could not fetch field types for list', listName, e);
-      this.listFieldTypeCache[listName] = {};
+      this.listFieldTypeCache[cacheKey] = {};
       return {};
     }
   }

@@ -93,6 +93,7 @@ const InstanceHealthPage = () => {
 
   const health = instance?.health;
   const lists = health?.lists;
+  const schema = lists?.schemaMismatches || {};
 
   return (
     <AdminSubpageLayout
@@ -266,6 +267,70 @@ const InstanceHealthPage = () => {
                         <li key={field}>{field}</li>
                       ))}
                     </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {schema && Object.keys(schema).length > 0 && (
+            <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
+              <h3 className="text-sm font-semibold text-white">Schema-Abweichungen</h3>
+              <p className="mt-1 text-xs text-slate-400">
+                Unterschiede zwischen erwartetem und vorhandenem Listen-Schema pro Instanz.
+              </p>
+              <div className="mt-4 space-y-4 text-sm text-slate-200">
+                {Object.entries(schema).map(([listName, details]) => (
+                  <div
+                    key={listName}
+                    className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-50"
+                  >
+                    <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-200">
+                      {listName}
+                    </h4>
+                    {details.missing.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-[11px] font-semibold text-amber-100">
+                          Fehlende Felder
+                        </div>
+                        <ul className="ml-4 list-disc space-y-1 text-amber-50/90">
+                          {details.missing.map((f) => (
+                            <li key={f}>{f}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {details.typeMismatches.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-[11px] font-semibold text-amber-100">
+                          Typ-Abweichungen
+                        </div>
+                        <ul className="ml-4 list-disc space-y-1 text-amber-50/90">
+                          {details.typeMismatches.map((m) => (
+                            <li key={m.field}>
+                              {m.field}: erwartet {m.expected}, vorhanden {m.actual}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {details.unexpected.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-[11px] font-semibold text-amber-100">
+                          Zusätzliche Felder
+                        </div>
+                        <ul className="ml-4 list-disc space-y-1 text-amber-50/90">
+                          {details.unexpected.map((f) => (
+                            <li key={f}>{f}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {details.missing.length === 0 &&
+                      details.unexpected.length === 0 &&
+                      details.typeMismatches.length === 0 && (
+                        <p className="mt-2 text-xs text-emerald-200">Keine Abweichungen.</p>
+                      )}
                   </div>
                 ))}
               </div>
