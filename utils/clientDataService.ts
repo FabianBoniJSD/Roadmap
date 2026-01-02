@@ -545,7 +545,7 @@ class ClientDataService {
     };
     // Determine the available category field name (supports variants like Bereich/Bereiche)
     const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
-    const listFieldNames = await this.getListFields(resolvedProjects);
+    const listFieldNames = await this.getListFieldNames(resolvedProjects);
     const categoryFieldCandidates = ['Category', 'Bereich', 'Bereiche'];
     const categoryFieldName =
       categoryFieldCandidates.find((f) => listFieldNames.has(f)) || 'Category';
