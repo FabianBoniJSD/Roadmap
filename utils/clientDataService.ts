@@ -234,7 +234,7 @@ class ClientDataService {
   }
 
   // Discover internal field names for a list and cache them (per instance)
-  private async getListFieldNames(listName: string): Promise<Set<string>> {
+  async getListFieldNames(listName: string): Promise<Set<string>> {
     const cacheKey = `${this.getActiveInstanceSlug() || 'default'}:${listName}`;
     if (this.listFieldsCache[cacheKey]) return this.listFieldsCache[cacheKey];
     try {
