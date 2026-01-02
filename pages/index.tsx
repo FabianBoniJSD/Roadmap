@@ -137,21 +137,21 @@ const LandingPage = ({ instances }: LandingPageProps) => {
     return `https://${target}`;
   };
 
+  const appendInstanceQuery = (url: string, slug: string) => {
+    if (!slug) return url;
+    const [base, hash] = url.split('#');
+    const separator = base.includes('?') ? '&' : '?';
+    const withQuery = `${base}${separator}roadmapInstance=${encodeURIComponent(slug)}`;
+    return hash ? `${withQuery}#${hash}` : withQuery;
+  };
+
   const openInstance = async (instance?: LandingInstance) => {
     if (typeof window === 'undefined' || !instance?.slug) return;
     setSelectingSlug(instance.slug);
     setErrorMessage(null);
     try {
-      const resp = await fetch('/api/instances/select', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: instance.slug }),
-      });
-      if (!resp.ok) {
-        const payload = await resp.json().catch(() => null);
-        throw new Error(payload?.error || `Fehler ${resp.status}`);
-      }
-      const redirectTarget = buildClientRedirectUrl(instance.frontendTarget) || '/roadmap';
+      const target = buildClientRedirectUrl(instance.frontendTarget) || '/roadmap';
+      const redirectTarget = appendInstanceQuery(target, instance.slug);
       window.location.href = redirectTarget;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler';

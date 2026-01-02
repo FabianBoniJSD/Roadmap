@@ -3,7 +3,6 @@ import type { GetServerSideProps } from 'next';
 import Roadmap from '../components/Roadmap';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
-import InstanceSwitcher from '@/components/InstanceSwitcher';
 import { clientDataService } from '@/utils/clientDataService';
 import { getInstanceConfigFromRequest, setInstanceCookieHeader } from '@/utils/instanceConfig';
 import type { Project } from '../types';
@@ -23,9 +22,6 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects }) => {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteHeader activeRoute="roadmap" />
-      <div className="flex justify-end px-4 pt-4 sm:px-6 lg:px-8">
-        <InstanceSwitcher />
-      </div>
       <main className="flex-1 pt-12">
         <Roadmap initialProjects={projectsState} />
       </main>
