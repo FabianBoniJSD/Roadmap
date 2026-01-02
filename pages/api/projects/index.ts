@@ -52,11 +52,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Server-side minimal category hydration if still all empty
       if (Array.isArray(projects) && projects.length > 0 && projects.every((p) => !p.category)) {
         try {
-          const base =
-            (process.env.INTERNAL_API_BASE_URL || '').replace(/\/$/, '') ||
-            `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
-          const url = `${base}/api/sharepoint/_api/web/lists/getByTitle('RoadmapProjects')/items?$select=Id,Category`;
-          const r = await fetch(url, { headers: { Accept: 'application/json;odata=nometadata' } });
+          const listTitle = await clientDataService.withInstance(instance.slug, () =>
+            clientDataService.resolveListTitle('RoadmapProjects', ['Roadmap Projects'])
+          );
+          const encodedTitle = encodeURIComponent(listTitle);
+          const url = `/_api/web/lists/getByTitle('${encodedTitle}')/items?$select=Id,Category`;
+          const r = await clientDataService.withInstance(instance.slug, () =>
+            clientDataService.sharePointFetch(url, {
+              headers: { Accept: 'application/json;odata=nometadata' },
+            })
+          );
           if (r.ok) {
             const j = await r.json();
             const rawItems = Array.isArray(j?.value)
