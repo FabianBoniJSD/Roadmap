@@ -1,55 +1,29 @@
 import { useEffect, useState } from 'react';
+import type { GetServerSideProps } from 'next';
 import Roadmap from '../components/Roadmap';
-import JSDoITLoader from '../components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
-import { Project } from '../types';
+import { clientDataService } from '@/utils/clientDataService';
+import { getInstanceConfigFromRequest, setInstanceCookieHeader } from '@/utils/instanceConfig';
+import type { Project } from '../types';
 
-const RoadmapPage: React.FC = () => {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+type RoadmapPageProps = {
+  projects: Project[];
+};
+
+const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects }) => {
+  const [projectsState, setProjectsState] = useState<Project[]>(projects);
 
   useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const resp = await fetch('/api/projects', { headers: { Accept: 'application/json' } });
-        if (!resp.ok) {
-          const t = await resp.text();
-          console.error('Error fetching projects (API):', resp.status, resp.statusText, t);
-          setProjects([]);
-        } else {
-          const data: Project[] = await resp.json();
-          const projectArray = Array.isArray(data) ? data : [];
-          setProjects(projectArray);
-        }
-      } catch (error) {
-        console.error('Error fetching projects:', error);
-        setProjects([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProjects();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
-        <SiteHeader activeRoute="roadmap" />
-        <main className="flex flex-1 items-center justify-center pt-12">
-          <JSDoITLoader message="Roadmap wird geladen …" />
-        </main>
-        <SiteFooter />
-      </div>
-    );
-  }
+    // Keep client state in sync if SSR provided data changes (e.g., hot reload)
+    setProjectsState(projects);
+  }, [projects]);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteHeader activeRoute="roadmap" />
       <main className="flex-1 pt-12">
-        <Roadmap initialProjects={projects} />
+        <Roadmap initialProjects={projectsState} />
       </main>
       <SiteFooter />
     </div>
@@ -57,3 +31,36 @@ const RoadmapPage: React.FC = () => {
 };
 
 export default RoadmapPage;
+
+export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (ctx) => {
+  try {
+    const instance = await getInstanceConfigFromRequest(ctx.req, { fallbackToDefault: true });
+    if (!instance) {
+      return {
+        redirect: { destination: '/', permanent: false },
+      };
+    }
+
+    const projects = await clientDataService.withInstance(instance.slug, () =>
+      clientDataService.getAllProjects()
+    );
+
+    // Persist cookie so subsequent client requests carry the active instance
+    if (ctx.res) {
+      ctx.res.setHeader('Set-Cookie', setInstanceCookieHeader(instance.slug));
+    }
+
+    const safeProjects = Array.isArray(projects) ? projects : [];
+
+    return {
+      props: {
+        projects: safeProjects,
+      },
+    };
+  } catch (error) {
+    console.error('[roadmap] getServerSideProps failed', error);
+    return {
+      props: { projects: [] },
+    };
+  }
+};
