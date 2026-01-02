@@ -548,10 +548,13 @@ class ClientDataService {
     const listFieldNames = await this.getListFieldNames(resolvedProjects);
     const listFieldTypes = await this.getListFieldTypes(resolvedProjects);
     const categoryFieldCandidates = ['Category', 'Bereich', 'Bereiche'];
-    const categoryFieldName =
-      categoryFieldCandidates.find((f) => listFieldNames.has(f)) || 'Category';
-    const categoryIsLookup = /^lookup/i.test(String(listFieldTypes[categoryFieldName] || ''));
-    const categorySelectFields = Array.from(new Set(['Id', categoryFieldName]));
+    const categoryFieldName = categoryFieldCandidates.find((f) => listFieldNames.has(f)) || null;
+    const categoryIsLookup = categoryFieldName
+      ? /^lookup/i.test(String(listFieldTypes[categoryFieldName] || ''))
+      : false;
+    const categorySelectFields = Array.from(
+      new Set(['Id', ...(categoryFieldName ? [categoryFieldName] : [])])
+    );
     const pickCategoryValue = (source: any): any => {
       if (!source || typeof source !== 'object') return undefined;
       for (const key of categoryFieldCandidates) {
