@@ -267,7 +267,7 @@ class ClientDataService {
   }
 
   // Discover InternalName -> TypeAsString for a list (cached)
-  private async getListFieldTypes(listName: string): Promise<Record<string, string>> {
+  async getListFieldTypes(listName: string): Promise<Record<string, string>> {
     const cacheKey = `${this.getActiveInstanceSlug() || 'default'}:${listName}`;
     if (this.listFieldTypeCache[cacheKey]) return this.listFieldTypeCache[cacheKey];
     try {
