@@ -220,10 +220,11 @@ class ClientDataService {
     return this.spFetch(url, init);
   }
 
-  // Resolve actual list title by trying preferred and known variants, cache result
+  // Resolve actual list title by trying preferred and known variants, cache per instance slug
   async resolveListTitle(preferred: string, variants: string[] = []): Promise<string> {
-    if (this.listTitleCache[preferred]) return this.listTitleCache[preferred];
-    const candidates = [preferred, ...variants].filter(Boolean);
+    const cacheKey = `${this.getActiveInstanceSlug() || 'default'}:${preferred}`;
+    if (this.listTitleCache[cacheKey]) return this.listTitleCache[cacheKey];
+    const candidates = Array.from(new Set([preferred, ...variants].filter(Boolean)));
     const webUrl = this.getWebUrl();
     for (const name of candidates) {
       try {
@@ -232,15 +233,14 @@ class ClientDataService {
           headers: { Accept: 'application/json;odata=nometadata' },
         });
         if (r.ok) {
-          this.listTitleCache[preferred] = name;
+          this.listTitleCache[cacheKey] = name;
           return name;
         }
       } catch {
         /* ignore and try next */
       }
     }
-    // Fallback to preferred even if not confirmed
-    this.listTitleCache[preferred] = preferred;
+    // No variant confirmed; do not cache fallback to allow re-probing next time
     return preferred;
   }
 
