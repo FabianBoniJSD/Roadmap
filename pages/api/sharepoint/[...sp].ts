@@ -74,8 +74,6 @@ const ALLOWED_LISTS = new Set([
   'Roadmap Fields',
   'RoadmapTeamMembers',
   'Roadmap Team Members',
-  'RoadmapUsers',
-  'Roadmap Users',
   'RoadmapProjectLinks',
   'Roadmap Project Links',
 ]);

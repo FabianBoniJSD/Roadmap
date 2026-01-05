@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-console */
 import type { AsyncLocalStorage } from 'async_hooks';
 import { AppSettings, Category, Project, ProjectLink, TeamMember } from '@/types';
+import { SHAREPOINT_LIST_DEFINITIONS } from '@/utils/sharePointLists';
 import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 
 type NodeRequireFn = typeof require;
@@ -55,7 +56,6 @@ const SP_LISTS = {
   FIELD_TYPES: 'RoadmapFieldTypes',
   FIELDS: 'RoadmapFields',
   TEAM_MEMBERS: 'RoadmapTeamMembers',
-  USERS: 'RoadmapUsers',
   SETTINGS: 'RoadmapSettings',
   PROJECT_LINKS: 'RoadmapProjectLinks', // Neue Liste für Projekt-Links
 };
@@ -68,7 +68,6 @@ const SP_LIST_VARIANTS: Record<string, string[]> = {
   [SP_LISTS.FIELD_TYPES]: ['Roadmap Field Types', 'Roadmap FieldTypes'],
   [SP_LISTS.FIELDS]: ['Roadmap Fields'],
   [SP_LISTS.TEAM_MEMBERS]: ['Roadmap Team Members'],
-  [SP_LISTS.USERS]: ['Roadmap Users'],
   [SP_LISTS.PROJECT_LINKS]: ['Roadmap Project Links'],
 };
 
@@ -225,8 +224,18 @@ class ClientDataService {
     const cacheKey = `${this.getActiveInstanceSlug() || 'default'}:${preferred}`;
     if (this.listTitleCache[cacheKey]) return this.listTitleCache[cacheKey];
 
-    const autoSpaced = preferred.replace(/([a-z])([A-Z])/g, '$1 $2');
-    const candidates = Array.from(new Set([preferred, autoSpaced, ...variants].filter(Boolean)));
+    const normalizedPreferred = preferred.trim();
+    const definition = SHAREPOINT_LIST_DEFINITIONS.find((def) => {
+      const names = [def.key, def.title, ...(def.aliases || [])].filter(Boolean);
+      return names.some((name) => name.trim().toLowerCase() === normalizedPreferred.toLowerCase());
+    });
+    const generatedNames = definition
+      ? [definition.title, definition.key, ...(definition.aliases || [])].filter(Boolean)
+      : [];
+    const autoSpaced = normalizedPreferred.replace(/([a-z])([A-Z])/g, '$1 $2');
+    const candidates = Array.from(
+      new Set([...generatedNames, normalizedPreferred, autoSpaced, ...variants].filter(Boolean))
+    );
     const webUrl = this.getWebUrl();
     for (const name of candidates) {
       try {

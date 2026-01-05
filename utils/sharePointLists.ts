@@ -180,27 +180,6 @@ export const SHAREPOINT_LIST_DEFINITIONS: SharePointListDefinition[] = [
     ],
   },
   {
-    key: 'RoadmapUsers',
-    title: 'Roadmap Users',
-    template: 100,
-    aliases: ['RoadmapUsers'],
-    fields: [
-      {
-        name: 'Email',
-        schemaXml: '<Field DisplayName="Email" Name="Email" Type="Text" MaxLength="150" />',
-      },
-      {
-        name: 'Role',
-        schemaXml: '<Field DisplayName="Role" Name="Role" Type="Text" MaxLength="60" />',
-      },
-      {
-        name: 'HashedPassword',
-        schemaXml:
-          '<Field DisplayName="HashedPassword" Name="HashedPassword" Type="Text" MaxLength="255" />',
-      },
-    ],
-  },
-  {
     key: 'RoadmapProjectLinks',
     title: 'Roadmap Project Links',
     template: 100,
