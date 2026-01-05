@@ -1,14 +1,19 @@
 import { useRouter } from 'next/router';
-import { useEffect, useState, type FC } from 'react';
+import { useEffect, useMemo, useState, type FC } from 'react';
 import AdminSubpageLayout from '@/components/AdminSubpageLayout';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import ProjectForm from '@/components/ProjectForm';
 import withAdminAuth from '@/components/withAdminAuth';
 import { Category, Project } from '@/types';
 import { clientDataService } from '@/utils/clientDataService';
+import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 
 const NewProjectPage: FC = () => {
   const router = useRouter();
+  const instanceSlug = useMemo(() => {
+    const raw = router.query?.[INSTANCE_QUERY_PARAM];
+    return Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
+  }, [router.query]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +34,8 @@ const NewProjectPage: FC = () => {
     };
 
     fetchCategories();
-  }, []);
+    // Refetch when the active instance changes so the category list stays in sync
+  }, [instanceSlug]);
 
   const handleCancel = () => {
     router.push('/admin');

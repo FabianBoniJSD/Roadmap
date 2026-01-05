@@ -7,6 +7,7 @@ import withAdminAuth from '@/components/withAdminAuth';
 import { Category, Project, TeamMember } from '@/types';
 import { clientDataService } from '@/utils/clientDataService';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
+import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 
 type Attachment = {
   FileName: string;
@@ -16,6 +17,10 @@ type Attachment = {
 const EditProjectPage: FC = () => {
   const router = useRouter();
   const { id } = router.query;
+  const instanceSlug = useMemo(() => {
+    const raw = router.query?.[INSTANCE_QUERY_PARAM];
+    return Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
+  }, [router.query]);
 
   const [project, setProject] = useState<Project | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -84,7 +89,8 @@ const EditProjectPage: FC = () => {
     };
 
     fetchData();
-  }, [id]);
+    // Reload project data if the active instance changes to avoid mixing instances
+  }, [id, instanceSlug]);
 
   const handleCancel = () => {
     router.push('/admin');
