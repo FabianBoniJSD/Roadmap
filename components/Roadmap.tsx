@@ -4,6 +4,7 @@ import type { ParsedUrlQuery } from 'querystring';
 import RoadmapYearNavigation from './RoadmapYearNavigation';
 import { Category, Project } from '../types';
 import { clientDataService } from '../utils/clientDataService';
+import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '../utils/instanceConfig';
 import { normalizeCategoryId, UNCATEGORIZED_ID } from '../utils/categoryUtils';
 import CategorySidebar from './CategorySidebar';
 import { FaBars, FaTimes } from 'react-icons/fa';
@@ -84,6 +85,13 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
   // Load filters from URL on mount and whenever query changes
   useEffect(() => {
+    const slugRaw = router.query[INSTANCE_QUERY_PARAM];
+    const slug = Array.isArray(slugRaw) ? slugRaw[0] : slugRaw;
+    if (slug) {
+      // Ensure the active instance cookie matches the current slug when navigating between instances
+      document.cookie = `${INSTANCE_COOKIE_NAME}=${encodeURIComponent(slug)}; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`;
+    }
+
     const { q, status, tags, start, end, running, cats, view } = router.query as Record<
       string,
       string | string[]
