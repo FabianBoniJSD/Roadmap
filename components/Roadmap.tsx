@@ -125,6 +125,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       const rawEnd = q['end'];
       const rawRunning = q['running'];
       const rawQ = q['q'];
+      const rawInstance = q['roadmapInstance'];
       const toScalar = (value: string | string[] | undefined): string =>
         Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
       const status = (rawStatus ? (Array.isArray(rawStatus) ? rawStatus.join(',') : rawStatus) : '')
@@ -145,6 +146,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
         end: Number(toScalar(rawEnd)) || 12,
         running: toScalar(rawRunning) === '1',
         cats,
+        instance: toScalar(rawInstance),
       };
     };
 
@@ -175,6 +177,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
           ? []
           : [...activeCategories],
       view: viewMode,
+      instance: current.instance,
     };
 
     if (JSON.stringify(current) !== JSON.stringify(next)) {
@@ -187,6 +190,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
       if (next.running) query.running = '1';
       if (next.cats.length) query.cats = next.cats.join(',');
       if (next.view && next.view !== 'timeline') query.view = next.view;
+      if (next.instance) query.roadmapInstance = next.instance;
       router.replace({ pathname: router.pathname, query }, undefined, {
         shallow: true,
         scroll: false,

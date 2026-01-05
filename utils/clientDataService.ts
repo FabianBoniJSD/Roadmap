@@ -85,12 +85,32 @@ class ClientDataService {
   // Cache for resolved list titles (handles space/no-space variants)
   private listTitleCache: Record<string, string> = {};
 
+  private getBrowserInstanceSlug(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const paramSlug = params.get(INSTANCE_QUERY_PARAM);
+      if (paramSlug) return paramSlug;
+    } catch {
+      /* ignore */
+    }
+    try {
+      const cookies = document.cookie || '';
+      const match = cookies.match(new RegExp(`(?:^|;\s*)${INSTANCE_COOKIE_NAME}=([^;\s]+)`, 'i'));
+      if (match && match[1]) return decodeURIComponent(match[1]);
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }
+
   private prepareFetch(
     url: string,
     init: RequestInit = {}
   ): { url: string; init: RequestInit & { next?: { revalidate?: number } } } {
     const prepared = { ...init } as RequestInit & { next?: { revalidate?: number } };
     const isServer = typeof window === 'undefined';
+    const activeSlug = isServer ? this.getActiveInstanceSlug() : this.getBrowserInstanceSlug();
     const originalMethod = (prepared.method || 'GET').toString().toUpperCase();
 
     if (isServer) {
@@ -116,8 +136,7 @@ class ClientDataService {
       finalUrl += (finalUrl.includes('?') ? '&' : '?') + cacheBust;
     }
 
-    const activeSlug = isServer ? this.getActiveInstanceSlug() : null;
-    if (isServer && activeSlug) {
+    if (activeSlug) {
       const headers =
         prepared.headers instanceof Headers
           ? prepared.headers
@@ -138,14 +157,6 @@ class ClientDataService {
         headers.set('cookie', cookieValue);
       }
       prepared.headers = headers;
-
-      try {
-        const urlObj = new URL(finalUrl);
-        urlObj.searchParams.set(INSTANCE_QUERY_PARAM, activeSlug);
-        finalUrl = urlObj.toString();
-      } catch {
-        /* ignore invalid URL transforms */
-      }
     }
 
     return { url: finalUrl, init: prepared };

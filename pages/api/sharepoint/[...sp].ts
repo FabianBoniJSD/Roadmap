@@ -227,6 +227,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   res.setHeader('X-Roadmap-Instance', instance.slug);
+  res.setHeader('X-SharePoint-Site', resolveSharePointSiteUrl(instance));
 
   const site = resolveSharePointSiteUrl(instance);
   const segments = (req.query.sp as string[] | undefined) || [];
