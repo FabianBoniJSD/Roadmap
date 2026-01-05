@@ -224,7 +224,9 @@ class ClientDataService {
   async resolveListTitle(preferred: string, variants: string[] = []): Promise<string> {
     const cacheKey = `${this.getActiveInstanceSlug() || 'default'}:${preferred}`;
     if (this.listTitleCache[cacheKey]) return this.listTitleCache[cacheKey];
-    const candidates = Array.from(new Set([preferred, ...variants].filter(Boolean)));
+
+    const autoSpaced = preferred.replace(/([a-z])([A-Z])/g, '$1 $2');
+    const candidates = Array.from(new Set([preferred, autoSpaced, ...variants].filter(Boolean)));
     const webUrl = this.getWebUrl();
     for (const name of candidates) {
       try {
