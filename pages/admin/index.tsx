@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import Link from 'next/link';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
@@ -10,7 +10,6 @@ import { AppSettings, Category, Project } from '@/types';
 import { clientDataService } from '@/utils/clientDataService';
 import { getAdminUsername, hasAdminAccess, logout } from '@/utils/auth';
 import { normalizeCategoryId, resolveCategoryName, UNCATEGORIZED_ID } from '@/utils/categoryUtils';
-import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 
 type AdminTab = 'projects' | 'categories' | 'settings';
 
@@ -40,10 +39,6 @@ const AdminShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 const AdminPage: React.FC = () => {
   const router = useRouter();
-  const instanceSlug = useMemo(() => {
-    const raw = router.query?.[INSTANCE_QUERY_PARAM];
-    return Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
-  }, [router.query]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<AppSettings[]>([]);
@@ -86,8 +81,8 @@ const AdminPage: React.FC = () => {
     };
 
     fetchData();
-    // Refetch whenever the active instance changes so we do not keep stale data
-  }, [instanceSlug]);
+    // Refetch whenever the route (and thus instance query) changes to avoid stale data
+  }, [router.asPath]);
 
   useEffect(() => {
     const verifyAccess = async () => {

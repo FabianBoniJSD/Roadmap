@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router';
-import { useEffect, useMemo, useRef, useState, type FC } from 'react';
+import { useEffect, useRef, useState, type FC } from 'react';
 import AdminSubpageLayout from '@/components/AdminSubpageLayout';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import ProjectForm from '@/components/ProjectForm';
@@ -7,7 +7,6 @@ import withAdminAuth from '@/components/withAdminAuth';
 import { Category, Project, TeamMember } from '@/types';
 import { clientDataService } from '@/utils/clientDataService';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
-import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 
 type Attachment = {
   FileName: string;
@@ -17,10 +16,6 @@ type Attachment = {
 const EditProjectPage: FC = () => {
   const router = useRouter();
   const { id } = router.query;
-  const instanceSlug = useMemo(() => {
-    const raw = router.query?.[INSTANCE_QUERY_PARAM];
-    return Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
-  }, [router.query]);
 
   const [project, setProject] = useState<Project | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -89,8 +84,8 @@ const EditProjectPage: FC = () => {
     };
 
     fetchData();
-    // Reload project data if the active instance changes to avoid mixing instances
-  }, [id, instanceSlug]);
+    // Reload project data when the route (instance) changes to avoid mixing instances
+  }, [id, router.asPath]);
 
   const handleCancel = () => {
     router.push('/admin');

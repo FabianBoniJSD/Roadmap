@@ -1,20 +1,15 @@
 import { useRouter } from 'next/router';
-import { useEffect, useMemo, useState, type FC } from 'react';
+import { useEffect, useState, type FC } from 'react';
 import AdminSubpageLayout from '@/components/AdminSubpageLayout';
 import CategoryForm from '@/components/CategoryForm';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import withAdminAuth from '@/components/withAdminAuth';
 import { Category } from '@/types';
 import { clientDataService } from '@/utils/clientDataService';
-import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 
 const EditCategoryPage: FC = () => {
   const router = useRouter();
   const { id } = router.query;
-  const instanceSlug = useMemo(() => {
-    const raw = router.query?.[INSTANCE_QUERY_PARAM];
-    return Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
-  }, [router.query]);
 
   const [category, setCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,8 +33,8 @@ const EditCategoryPage: FC = () => {
     };
 
     fetchCategory();
-    // Refresh category when switching instance so data stays aligned
-  }, [id, instanceSlug]);
+    // Refresh category when switching instance (route) so data stays aligned
+  }, [id, router.asPath]);
 
   const handleCancel = () => {
     router.push('/admin');
