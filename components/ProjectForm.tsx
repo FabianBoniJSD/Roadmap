@@ -6,6 +6,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { FaTrash, FaPlus } from 'react-icons/fa';
 import { clientDataService } from '@/utils/clientDataService';
 import JSDoITLoader from './JSDoITLoader';
+import { normalizeCategoryId } from '@/utils/categoryUtils';
 
 interface ProjectFormProps {
   initialProject?: Project;
@@ -47,7 +48,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   const [endDate, setEndDate] = useState<Date | null>(
     initialProject?.endDate ? new Date(initialProject.endDate) : null
   );
-  const [selectedCategory, setSelectedCategory] = useState<string>(initialProject?.category || '');
+  const [selectedCategory, setSelectedCategory] = useState<string>(() =>
+    normalizeCategoryId(initialProject?.category || '', categories)
+  );
 
   // Zusätzliche Felder aus dem SharePoint-Schema
   const [projektleitung, setProjektleitung] = useState(initialProject?.projektleitung || '');
@@ -180,7 +183,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     setStatus(initialProject.status || 'planned');
     setStartDate(initialProject.startDate ? new Date(initialProject.startDate) : null);
     setEndDate(initialProject.endDate ? new Date(initialProject.endDate) : null);
-    setSelectedCategory(initialProject.category || '');
+    setSelectedCategory(normalizeCategoryId(initialProject.category || '', categories));
     setProjektleitung(initialProject.projektleitung || '');
     setBisher(initialProject.bisher || '');
     setZukunft(initialProject.zukunft || '');

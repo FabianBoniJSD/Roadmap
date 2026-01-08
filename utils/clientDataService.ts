@@ -120,6 +120,9 @@ class ClientDataService {
         existingHeaders.set('Cache-Control', 'no-cache');
       }
       prepared.headers = existingHeaders;
+    } else {
+      // Avoid browser cache returning data from a previous instance
+      if (!prepared.cache) prepared.cache = 'no-store';
     }
 
     let finalUrl = url;
@@ -130,9 +133,11 @@ class ClientDataService {
       );
       finalUrl = base + finalUrl;
     }
-    if (isServer && (originalMethod === 'GET' || originalMethod === 'HEAD')) {
+    if (originalMethod === 'GET' || originalMethod === 'HEAD') {
       const cacheBust = `cb=${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-      finalUrl += (finalUrl.includes('?') ? '&' : '?') + cacheBust;
+      const instanceTag = activeSlug ? `ri=${encodeURIComponent(activeSlug)}` : null;
+      const params = [instanceTag, cacheBust].filter(Boolean).join('&');
+      finalUrl += (finalUrl.includes('?') ? '&' : '?') + params;
     }
 
     if (activeSlug) {

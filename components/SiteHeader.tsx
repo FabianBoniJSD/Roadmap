@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useMemo } from 'react';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
-import InstanceSwitcher from './InstanceSwitcher';
 
 type RouteKey = 'home' | 'roadmap' | 'help' | 'docs' | 'admin';
 
@@ -74,7 +73,6 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
         </nav>
 
         <div className="flex items-center gap-3">
-          <InstanceSwitcher />
           <Link
             href={maybeQuery ? { pathname: '/admin/login', query: maybeQuery } : '/admin/login'}
             className={clsx(
