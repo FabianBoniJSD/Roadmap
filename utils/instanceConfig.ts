@@ -255,6 +255,10 @@ const extractSlugFromRequest = (req: ApiRequestLike): string | null => {
     if (Array.isArray(queryValue) && queryValue.length > 0) {
       return normalizeSlug(queryValue[0]);
     }
+    // Also accept shorthand ?ri=<slug> to align with cache-busting param appended by clientDataService
+    const alt = (req.query as Record<string, unknown>)['ri'];
+    if (typeof alt === 'string') return normalizeSlug(alt);
+    if (Array.isArray(alt) && alt.length > 0) return normalizeSlug(alt[0]);
   }
   const headerSlug = normalizeSlug(getHeaderValue(req, INSTANCE_HEADER));
   if (headerSlug) return headerSlug;
