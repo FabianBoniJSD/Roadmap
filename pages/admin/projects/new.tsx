@@ -33,13 +33,13 @@ const NewProjectPage: FC = () => {
   }, [router.asPath]);
 
   const handleCancel = () => {
-    router.push('/admin');
+    router.push({ pathname: '/admin', query: router.query });
   };
 
   const handleSubmit = async (project: Project) => {
     try {
       await clientDataService.saveProject(project);
-      router.push('/admin');
+      router.push({ pathname: '/admin', query: router.query });
     } catch (err) {
       console.error('Error saving project:', err);
       setError('Projekt konnte nicht gespeichert werden. Bitte prüfen Sie die Eingaben.');

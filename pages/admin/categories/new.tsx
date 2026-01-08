@@ -8,11 +8,11 @@ const NewCategoryPage: FC = () => {
   const router = useRouter();
 
   const handleCancel = () => {
-    router.push('/admin');
+    router.push({ pathname: '/admin', query: router.query });
   };
 
   const handleSave = () => {
-    router.push('/admin');
+    router.push({ pathname: '/admin', query: router.query });
   };
 
   return (

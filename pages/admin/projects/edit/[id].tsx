@@ -88,7 +88,7 @@ const EditProjectPage: FC = () => {
   }, [id, router.asPath]);
 
   const handleCancel = () => {
-    router.push('/admin');
+    router.push({ pathname: '/admin', query: router.query });
   };
 
   const handleFileSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -256,7 +256,7 @@ const EditProjectPage: FC = () => {
         }
       }
 
-      router.push('/admin');
+      router.push({ pathname: '/admin', query: router.query });
     } catch (err) {
       console.error('Error saving project:', err);
       setError('Projekt konnte nicht gespeichert werden. Bitte prüfen Sie die Eingaben.');
@@ -361,7 +361,7 @@ const EditProjectPage: FC = () => {
       actions={
         <button
           type="button"
-          onClick={() => router.push('/admin')}
+          onClick={() => router.push({ pathname: '/admin', query: router.query })}
           className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-300 transition hover:border-sky-400 hover:text-white"
         >
           Zur Übersicht
@@ -382,7 +382,7 @@ const EditProjectPage: FC = () => {
             </p>
             <button
               type="button"
-              onClick={() => router.push('/admin')}
+              onClick={() => router.push({ pathname: '/admin', query: router.query })}
               className="rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
             >
               Zurück zum Dashboard

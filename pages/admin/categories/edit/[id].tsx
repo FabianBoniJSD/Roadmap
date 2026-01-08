@@ -37,11 +37,11 @@ const EditCategoryPage: FC = () => {
   }, [id, router.asPath]);
 
   const handleCancel = () => {
-    router.push('/admin');
+    router.push({ pathname: '/admin', query: router.query });
   };
 
   const handleSave = () => {
-    router.push('/admin');
+    router.push({ pathname: '/admin', query: router.query });
   };
 
   return (
@@ -65,7 +65,7 @@ const EditCategoryPage: FC = () => {
           </p>
           <button
             type="button"
-            onClick={() => router.push('/admin')}
+            onClick={() => router.push({ pathname: '/admin', query: router.query })}
             className="mt-4 rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
           >
             Zurück zum Dashboard

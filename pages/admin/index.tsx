@@ -39,6 +39,7 @@ const AdminShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 const AdminPage: React.FC = () => {
   const router = useRouter();
+  const pushWithInstance = (pathname: string) => router.push({ pathname, query: router.query });
   const [projects, setProjects] = useState<Project[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<AppSettings[]>([]);
@@ -118,8 +119,9 @@ const AdminPage: React.FC = () => {
     );
   }, [categories]);
 
-  const handleAddProject = () => router.push('/admin/projects/new');
-  const handleEditProject = (projectId: string) => router.push(`/admin/projects/edit/${projectId}`);
+  const handleAddProject = () => pushWithInstance('/admin/projects/new');
+  const handleEditProject = (projectId: string) =>
+    pushWithInstance(`/admin/projects/edit/${projectId}`);
 
   const handleDeleteProject = async (id: string) => {
     if (!window.confirm('Möchten Sie dieses Projekt wirklich löschen?')) return;
@@ -132,9 +134,9 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const handleAddCategory = () => router.push('/admin/categories/new');
+  const handleAddCategory = () => pushWithInstance('/admin/categories/new');
   const handleEditCategory = (categoryId: string) =>
-    router.push(`/admin/categories/edit/${categoryId}`);
+    pushWithInstance(`/admin/categories/edit/${categoryId}`);
 
   const handleDeleteCategory = async (categoryId: string) => {
     if (deleteConfirmation !== categoryId) {
