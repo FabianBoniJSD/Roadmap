@@ -1,8 +1,8 @@
 import clsx from 'clsx';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useMemo } from 'react';
-import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
+import { useMemo, useEffect, useState } from 'react';
+import { INSTANCE_QUERY_PARAM, INSTANCE_COOKIE_NAME } from '@/utils/instanceConfig';
 
 type RouteKey = 'home' | 'roadmap' | 'help' | 'docs' | 'admin';
 
