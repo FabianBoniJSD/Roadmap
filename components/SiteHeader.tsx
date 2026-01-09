@@ -33,10 +33,25 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
   const router = useRouter();
   const pathname = router.pathname || '';
   const currentRoute = activeRoute ?? deriveRouteKey(pathname);
-  const instanceSlug = useMemo(() => {
+  const querySlug = useMemo(() => {
     const raw = router.query?.[INSTANCE_QUERY_PARAM];
     return Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
   }, [router.query]);
+
+  const [cookieSlug, setCookieSlug] = useState<string>('');
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    try {
+      const cookies = document.cookie || '';
+      const match = cookies.match(new RegExp(`(?:^|;\\s*)${INSTANCE_COOKIE_NAME}=([^;\\s]+)`, 'i'));
+      if (match && match[1]) setCookieSlug(decodeURIComponent(match[1]));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const instanceSlug = querySlug || cookieSlug || '';
   const maybeQuery = instanceSlug ? { [INSTANCE_QUERY_PARAM]: instanceSlug } : undefined;
 
   return (
