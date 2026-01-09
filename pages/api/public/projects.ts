@@ -15,7 +15,7 @@ const disableCache = (res: NextApiResponse) => {
 };
 
 const getAllowedApiKeys = (): Set<string> => {
-  const raw = process.env.PUBLIC_PROJECTS_API_KEYS || process.env.PUBLIC_API_KEYS || '';
+  const raw = process.env.PUBLIC_PROJECTS_API_KEYS || '';
   const keys = raw
     .split(',')
     .map((k) => k.trim())
