@@ -15,6 +15,7 @@ jobs:
     runs-on: [self-hosted, windows]
     env:
       NEXT_TELEMETRY_DISABLED: '1'
+      PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
 
     steps:
       - name: Check runner permissions
@@ -129,6 +130,7 @@ jobs:
           USER_FABIAN: ${{ secrets.USER_FABIAN }}
           USER_STEFAN: ${{ secrets.USER_STEFAN }}
           USER_ADMIN: ${{ secrets.USER_ADMIN }}
+          PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
         run: |
           if (-not $env:ENV_FILE_CONTENT) {
             Write-Error "Secret 'env' is not set or empty."
@@ -144,6 +146,11 @@ jobs:
             foreach ($secret in $userSecrets) {
               Add-Content -Path $envPath -Value ("{0}={1}" -f $secret.Name, $secret.Value)
             }
+          }
+
+          if ($env:PUBLIC_PROJECTS_API_KEYS) {
+            Add-Content -Path $envPath -Value "`n# Public projects API keys injected from GH Actions"
+            Add-Content -Path $envPath -Value ("PUBLIC_PROJECTS_API_KEYS={0}" -f $env:PUBLIC_PROJECTS_API_KEYS)
           }
 
       - name: Setup Node.js
