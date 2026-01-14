@@ -119,7 +119,7 @@ jobs:
         env:
           ENV_FILE_CONTENT: ${{ secrets.env }}
           USER_FABIAN: ${{ secrets.USER_FABIAN }}
-          USER_STEFAN: ${{ secrets.USER_STEFAN }}
+          USER_STEFAN: ${{ secrets.USER_MARTIN }}
           USER_ADMIN: ${{ secrets.USER_ADMIN }}
           PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
         run: |
