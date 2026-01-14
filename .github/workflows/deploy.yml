@@ -13,6 +13,9 @@ jobs:
   deploy:
     name: Build and deploy on self-hosted
     runs-on: [self-hosted, linux, roadmap]
+    defaults:
+      run:
+        shell: bash
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
@@ -20,23 +23,17 @@ jobs:
     steps:
       - name: Check runner permissions
         run: |
-          Write-Output "=== RUNNER ENVIRONMENT ==="
-          Write-Output "Current user: $env:USERNAME"
-          Write-Output "User domain: $env:USERDOMAIN"
-          Write-Output "Computer name: $env:COMPUTERNAME"
-          
-          # Check if running as administrator
-          $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-          Write-Output "Running as Administrator: $isAdmin"
-          
-          if (-not $isAdmin) {
-            Write-Output "[WARN] Runner is not running with Administrator privileges!"
-            Write-Output "[WARN] Process termination may fail due to insufficient permissions."
-            Write-Output "[WARN] See docs/RUNNER_ADMIN_SETUP.md for instructions to fix this."
-          } else {
-            Write-Output "[OK] Runner has Administrator privileges"
-          }
-          Write-Output "=========================="
+          set -euo pipefail
+          echo "=== RUNNER ENVIRONMENT ==="
+          echo "User: $(id -un) (uid=$(id -u))"
+          echo "Groups: $(id -Gn)"
+          echo "Hostname: $(hostname)"
+          if [ "$(id -u)" -ne 0 ]; then
+            echo "[WARN] Runner is not root. Killing system processes/ports may fail if owned by other users."
+          else
+            echo "[OK] Runner is running as root."
+          fi
+          echo "=========================="
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,84 +42,34 @@ jobs:
 
       - name: Reset workspace state
         run: |
-          # Preserve local SQLite dev DB if present
-          $dbPath = "prisma\prisma\dev.db"
-          $dbBackup = $null
-          if (Test-Path $dbPath) {
-            $dbBackup = Join-Path $env:RUNNER_TEMP "dev.db.backup"
-            Copy-Item -Path $dbPath -Destination $dbBackup -Force
-            Write-Output "Backed up local dev DB to $dbBackup"
-          }
+          set -euo pipefail
 
-          Write-Output "Ensuring no lingering Node/PM2 processes are locking files..."
-          $processNames = @('node', 'pm2', 'prisma', 'next', 'npm', 'yarn')
-          foreach ($name in $processNames) {
-            try {
-              Get-Process -Name $name -ErrorAction Stop | Stop-Process -Force -ErrorAction Stop
-              Write-Output "Stopped process $name"
-            } catch {
-              # ignore if process not running
-            }
-          }
-          if (Get-Command pm2 -ErrorAction SilentlyContinue) {
-            try {
-              pm2 kill 2>$null
-              Write-Output "Issued pm2 kill to terminate background daemons."
-            } catch {
-              Write-Warning ("pm2 kill command failed or pm2 daemon not running: {0}" -f $_)
-            }
-          }
-          Start-Sleep -Seconds 2
-          Write-Output "Resetting workspace to HEAD commit..."
+          dbPath="prisma/prisma/dev.db"
+          dbBackup=""
+          if [ -f "$dbPath" ]; then
+            dbBackup="${RUNNER_TEMP:-/tmp}/dev.db.backup"
+            cp -f "$dbPath" "$dbBackup"
+            echo "Backed up local dev DB to $dbBackup"
+          fi
+
+          echo "Ensuring no lingering PM2 daemon is running..."
+          if command -v pm2 >/dev/null 2>&1; then
+            pm2 kill || true
+          fi
+
+          echo "Resetting workspace to HEAD commit..."
           git reset --hard HEAD
-          Write-Output "Removing untracked files and folders..."
-          git clean -fdx
-          $cleanExit = $LASTEXITCODE
-          if ($cleanExit -ne 0) {
-            Write-Warning "git clean exited with code $cleanExit. Attempting targeted cleanup and retry."
-            $problemPaths = @(
-              "prisma\prisma\dev.db",
-              "prisma\prisma\dev.db-journal",
-              "node_modules\.prisma\client\query_engine-windows.dll.node",
-              "node_modules\bcrypt\lib\binding\napi-v3\bcrypt_lib.node"
-            )
-            foreach ($path in $problemPaths) {
-              if (Test-Path $path) {
-                try {
-                  Write-Warning "Removing locked file: $path"
-                  Remove-Item -Path $path -Force -ErrorAction Stop
-                } catch {
-                  Write-Warning ("Failed to remove {0} via Remove-Item: {1}" -f $path, $_)
-                  try {
-                    cmd /c "del /f /q `"$path`"" | Out-Null
-                    if (Test-Path $path) {
-                      Write-Warning "Fallback delete did not remove $path."
-                    } else {
-                      Write-Warning "Removed $path via fallback del command."
-                    }
-                  } catch {
-                    Write-Warning ("Fallback del command also failed for {0}: {1}" -f $path, $_)
-                  }
-                }
-              }
-            }
-            Write-Warning "Retrying git clean after targeted removals..."
-            git clean -fdx
-            $cleanExit = $LASTEXITCODE
-            if ($cleanExit -ne 0) {
-              Write-Error "git clean failed after retry (exit code $cleanExit)"
-              exit $cleanExit
-            }
-          }
-          Write-Output "Workspace reset complete."
+          chmod -R u+rwX . || true
 
-            # Restore local SQLite dev DB if it was backed up
-            if ($dbBackup -and (Test-Path $dbBackup)) {
-              $dbDir = Split-Path $dbPath -Parent
-              if (-not (Test-Path $dbDir)) { New-Item -ItemType Directory -Path $dbDir -Force | Out-Null }
-              Copy-Item -Path $dbBackup -Destination $dbPath -Force
-              Write-Output "Restored local dev DB from backup."
-            }
+          echo "Removing untracked files and folders..."
+          git clean -fdx
+          echo "Workspace reset complete."
+
+          if [ -n "$dbBackup" ] && [ -f "$dbBackup" ]; then
+            mkdir -p "$(dirname "$dbPath")"
+            cp -f "$dbBackup" "$dbPath"
+            echo "Restored local dev DB from backup."
+          fi
 
       - name: Write environment file from secret
         env:
@@ -132,26 +79,26 @@ jobs:
           USER_ADMIN: ${{ secrets.USER_ADMIN }}
           PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
         run: |
-          if (-not $env:ENV_FILE_CONTENT) {
-            Write-Error "Secret 'env' is not set or empty."
+          set -euo pipefail
+
+          if [ -z "${ENV_FILE_CONTENT:-}" ]; then
+            echo "Secret 'env' is not set or empty." >&2
             exit 1
-          }
-          Write-Output "Writing .env file to workspace root..."
-          $envPath = Join-Path (Get-Location) ".env"
-          $env:ENV_FILE_CONTENT | Out-File -FilePath $envPath -Encoding utf8NoBOM
+          fi
 
-          $userSecrets = Get-ChildItem Env: | Where-Object { $_.Name -like 'USER_*' -and $_.Value }
-          if ($userSecrets) {
-            Add-Content -Path $envPath -Value "`n# Admin users injected from GitHub Actions secrets"
-            foreach ($secret in $userSecrets) {
-              Add-Content -Path $envPath -Value ("{0}={1}" -f $secret.Name, $secret.Value)
-            }
-          }
+          echo "Writing .env file to workspace root..."
+          printf "%s" "$ENV_FILE_CONTENT" > .env
 
-          if ($env:PUBLIC_PROJECTS_API_KEYS) {
-            Add-Content -Path $envPath -Value "`n# Public projects API keys injected from GH Actions"
-            Add-Content -Path $envPath -Value ("PUBLIC_PROJECTS_API_KEYS={0}" -f $env:PUBLIC_PROJECTS_API_KEYS)
-          }
+          userLines="$(env | grep -E '^USER_[A-Z0-9_]+=' || true)"
+          if [ -n "$userLines" ]; then
+            printf "\n# Admin users injected from GitHub Actions secrets\n" >> .env
+            printf "%s\n" "$userLines" >> .env
+          fi
+
+          if [ -n "${PUBLIC_PROJECTS_API_KEYS:-}" ]; then
+            printf "\n# Public projects API keys injected from GH Actions\n" >> .env
+            printf "PUBLIC_PROJECTS_API_KEYS=%s\n" "$PUBLIC_PROJECTS_API_KEYS" >> .env
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -160,190 +107,171 @@ jobs:
 
       - name: Verify Node.js runtime
         run: |
+          set -euo pipefail
           node -p "process.versions.node"
           node -e "require('async_hooks'); console.log('async_hooks module available')"
 
       - name: Pin Yarn Classic (1.22.22)
         run: |
+          set -euo pipefail
           corepack enable
           corepack prepare yarn@1.22.22 --activate
           yarn --version
 
+      - name: Install Linux prerequisites (RHEL)
+        run: |
+          set -euo pipefail
+
+          needPkgs=()
+          command -v curl >/dev/null 2>&1 || needPkgs+=(curl)
+          command -v lsof >/dev/null 2>&1 || needPkgs+=(lsof)
+          command -v ss   >/dev/null 2>&1 || needPkgs+=(iproute)
+
+          if [ ${#needPkgs[@]} -eq 0 ]; then
+            echo "All prerequisites already installed."
+            exit 0
+          fi
+
+          echo "Missing tools detected; will try to install: ${needPkgs[*]}"
+
+          installer=""
+          if command -v dnf >/dev/null 2>&1; then
+            installer="dnf"
+          elif command -v yum >/dev/null 2>&1; then
+            installer="yum"
+          else
+            echo "[WARN] Neither dnf nor yum found; cannot auto-install packages." >&2
+            exit 0
+          fi
+
+          if command -v sudo >/dev/null 2>&1; then
+            if ! sudo -n true 2>/dev/null; then
+              echo "[FAIL] sudo is present but not passwordless/non-interactive for this runner." >&2
+              echo "[FAIL] Configure passwordless sudo for the runner user, or run the runner as root." >&2
+              exit 1
+            fi
+            sudo -n "$installer" -y install "${needPkgs[@]}"
+          elif [ "$(id -u)" -eq 0 ]; then
+            "$installer" -y install "${needPkgs[@]}"
+          else
+            echo "[FAIL] No sudo/root available; cannot install required packages." >&2
+            echo "[FAIL] Please install manually on the runner and re-run: ${needPkgs[*]}" >&2
+            exit 1
+          fi
+
+          # Verify after install
+          missingAfter=()
+          command -v curl >/dev/null 2>&1 || missingAfter+=(curl)
+          command -v lsof >/dev/null 2>&1 || missingAfter+=(lsof)
+          command -v ss   >/dev/null 2>&1 || missingAfter+=(ss)
+          if [ ${#missingAfter[@]} -ne 0 ]; then
+            echo "[FAIL] Required tools still missing after install attempt: ${missingAfter[*]}" >&2
+            exit 1
+          fi
+
       - name: Show disk space (before)
         run: |
-          Write-Output "Disk space before:"
-          Get-PSDrive C | Select-Object Used,Free
+          set -euo pipefail
+          echo "Disk space before:"
+          df -h .
 
       - name: Clean Yarn cache
-        uses: Borales/actions-yarn@v5.0.0
-        with:
-          cmd: cache clean
+        run: |
+          set -euo pipefail
+          yarn cache clean || true
 
       - name: Free up disk space (caches, logs, artifacts)
         run: |
-          function Remove-PathRobust {
-            param([string]$Target)
-            if (-not (Test-Path $Target)) { return }
+          set -euo pipefail
 
-            Write-Output "Attempting to remove $Target..."
-            try {
-              Remove-Item -Path $Target -Recurse -Force -ErrorAction Stop
-              Write-Output "Removed $Target via Remove-Item."
-              return
-            } catch {
-              Write-Output ("Initial removal failed for {0}: {1}" -f $Target, $_)
-            }
+          if [ -d "$HOME/.pm2/logs" ]; then
+            rm -f "$HOME/.pm2/logs"/* || true
+          fi
 
-            $suffix = [Guid]::NewGuid().ToString('N').Substring(0, 6)
-            $tempName = "${Target}_cleanup_$suffix"
-            try {
-              Move-Item -Path $Target -Destination $tempName -Force -ErrorAction Stop
-              Write-Output "Renamed $Target to $tempName for fallback removal."
-              Remove-Item -Path $tempName -Recurse -Force -ErrorAction Stop
-              Write-Output "Removed $tempName successfully."
-            } catch {
-              Write-Error ("Failed to remove {0} even after fallback. Error: {1}" -f $Target, $_)
-              throw
-            }
-          }
-
-          # Remove PM2 logs if present
-          if (Test-Path "$env:USERPROFILE\.pm2\logs") {
-            Remove-Item -Path "$env:USERPROFILE\.pm2\logs\*" -Force -ErrorAction SilentlyContinue
-          }
-
-          # Ensure previous build artifacts are gone
-          Remove-PathRobust ".next"
-          Remove-PathRobust "node_modules"
-
-          Write-Output "Workspace artifacts removed."
+          rm -rf .next node_modules
+          echo "Workspace artifacts removed."
 
       - name: Verify cleanup
         run: |
-          $paths = @(".next", "node_modules")
-          $remaining = @()
-          foreach ($path in $paths) {
-            if (Test-Path $path) {
-              $remaining += $path
-            }
-          }
-          if ($remaining.Count -gt 0) {
-            Write-Error "Cleanup failed, remaining paths: $($remaining -join ', ')"
+          set -euo pipefail
+          remaining=""
+          [ -e .next ] && remaining="$remaining .next"
+          [ -e node_modules ] && remaining="$remaining node_modules"
+          if [ -n "$remaining" ]; then
+            echo "Cleanup failed, remaining paths:$remaining" >&2
             exit 1
-          }
-          Write-Output "No stale workspace artifacts detected."
+          fi
+          echo "No stale workspace artifacts detected."
       
       - name: Show disk space (after cleanup)
         run: |
-          Write-Output "Disk space after cleanup:"
-          Get-PSDrive C | Select-Object Used,Free
+          set -euo pipefail
+          echo "Disk space after cleanup:"
+          df -h .
 
       - name: Force remove stale node_modules directory
         run: |
-          if (Test-Path "node_modules") {
-            Write-Output "Attempting to remove existing node_modules..."
-            Write-Output "Stopping potential Node/Prisma processes..."
-            $processNames = @('node', 'prisma', 'next', 'npm', 'yarn')
-            foreach ($name in $processNames) {
-              try {
-                Get-Process -Name $name -ErrorAction Stop | Stop-Process -Force -ErrorAction Stop
-                Write-Output "Stopped process $name"
-              } catch {
-                # ignore if process not running
-              }
-            }
-            Start-Sleep -Seconds 2
-            $targetPath = "node_modules"
-            try {
-              $tempName = "node_modules_to_delete_$(([Guid]::NewGuid().ToString('N')).Substring(0,8))"
-              Move-Item -Path "node_modules" -Destination $tempName -Force
-              $targetPath = $tempName
-              Write-Output "Renamed node_modules to $targetPath for removal."
-            } catch {
-              Write-Output "Rename step failed, continuing with original directory."
-            }
-            try {
-              Remove-Item -Path $targetPath -Recurse -Force -ErrorAction Stop
-              Write-Output "Removed $targetPath with Remove-Item."
-            } catch {
-              Write-Output "Remove-Item failed, falling back to takeown/icacls + rd."
-              cmd /c "takeown /f `"$targetPath`" /r /d y" | Out-Null
-              cmd /c "icacls `"$targetPath`" /grant %USERNAME%:(OI)(CI)F /T /C" | Out-Null
-              cmd /c "icacls `"$targetPath`" /grant Administrators:(OI)(CI)F /T /C" | Out-Null
-              cmd /c "rmdir /s /q `"$targetPath`""
-              if (Test-Path $targetPath) {
-                Write-Error "Failed to remove $targetPath directory even after fallback."
-                exit 1
-              } else {
-                Write-Output "Fallback removal succeeded."
-              }
-            }
-          } else {
-            Write-Output "node_modules directory not present."
-          }
+          set -euo pipefail
+          if [ -d node_modules ]; then
+            echo "Removing existing node_modules..."
+            rm -rf node_modules
+          else
+            echo "node_modules directory not present."
+          fi
 
       - name: Install dependencies
-        uses: Borales/actions-yarn@v5.0.0
-        with:
-          cmd: install --frozen-lockfile
+        run: |
+          set -euo pipefail
+          yarn install --frozen-lockfile
 
       - name: Prepare Prisma database
         env:
           NODE_ENV: production
         run: |
-          Write-Output "Running prisma migrate deploy..."
-          # Resolve DATABASE_URL (supports file: URLs)
-          $dbUrl = $env:DATABASE_URL
-          if (-not $dbUrl -and (Test-Path ".env")) {
-            $dbLine = Select-String -Path ".env" -Pattern '^\s*DATABASE_URL\s*=\s*(.+)\s*$' | Select-Object -First 1
-            if ($dbLine -and $dbLine.Matches.Count -gt 0) {
-              $rawValue = $dbLine.Matches[0].Groups[1].Value.Trim()
-              if ($rawValue.StartsWith('"') -and $rawValue.EndsWith('"')) { $rawValue = $rawValue.Trim('"') }
-              elseif ($rawValue.StartsWith("'") -and $rawValue.EndsWith("'")) { $rawValue = $rawValue.Trim("'") }
-              $dbUrl = $rawValue
-            }
-          }
+          set -euo pipefail
 
-          $isFileDb = $false
-          $dbFilePath = $null
-          if ($dbUrl -and $dbUrl.StartsWith('file:')) {
-            $isFileDb = $true
-            $dbFilePath = $dbUrl.Substring(5)
-            if ($dbFilePath.StartsWith('./')) { $dbFilePath = $dbFilePath.Substring(2) }
-            if ($dbFilePath -and -not (Split-Path $dbFilePath -IsAbsolute)) {
-              $dbFilePath = Join-Path (Get-Location) $dbFilePath
-            }
-            $dbDir = Split-Path $dbFilePath -Parent
-            if (-not (Test-Path $dbDir)) { New-Item -ItemType Directory -Path $dbDir -Force | Out-Null }
-            if (-not (Test-Path $dbFilePath)) {
-              Write-Output "SQLite DB file not found. Creating empty DB at $dbFilePath"
-              New-Item -ItemType File -Path $dbFilePath -Force | Out-Null
-            }
-          }
+          echo "Running prisma migrate deploy..."
 
-          npx prisma migrate deploy
-          $migrateExit = $LASTEXITCODE
-          if ($migrateExit -ne 0) {
-            if ($isFileDb) {
-              Write-Warning "prisma migrate deploy failed (exit $migrateExit). Trying prisma db push without data loss for existing SQLite DB."
+          dbUrl="${DATABASE_URL:-}"
+          if [ -z "$dbUrl" ] && [ -f .env ]; then
+            dbUrl="$(grep -E '^\s*DATABASE_URL\s*=' .env | head -n 1 | sed -E 's/^\s*DATABASE_URL\s*=\s*//')"
+            dbUrl="${dbUrl%$'\r'}"
+            dbUrl="${dbUrl#\"}"
+            dbUrl="${dbUrl%\"}"
+            dbUrl="${dbUrl#\'}"
+            dbUrl="${dbUrl%\'}"
+          fi
+
+          isFileDb="false"
+          dbFilePath=""
+          if [[ "$dbUrl" == file:* ]]; then
+            isFileDb="true"
+            dbFilePath="${dbUrl#file:}"
+            dbFilePath="${dbFilePath#./}"
+            if [[ "$dbFilePath" != /* ]]; then
+              dbFilePath="${GITHUB_WORKSPACE:-$(pwd)}/$dbFilePath"
+            fi
+            mkdir -p "$(dirname "$dbFilePath")"
+            if [ ! -f "$dbFilePath" ]; then
+              echo "SQLite DB file not found. Creating empty DB at $dbFilePath"
+              : > "$dbFilePath"
+            fi
+          fi
+
+          if ! npx prisma migrate deploy; then
+            if [ "$isFileDb" = "true" ]; then
+              echo "[WARN] prisma migrate deploy failed. Trying prisma db push (SQLite fallback)." >&2
               npx prisma db push
-              if ($LASTEXITCODE -ne 0) {
-                Write-Error "prisma db push fallback failed. Aborting."
-                exit $LASTEXITCODE
-              }
-            } else {
-              Write-Error "prisma migrate deploy failed with exit code $migrateExit and no safe fallback is available."
-              exit $migrateExit
-            }
-          } else {
-            Write-Output "Prisma migrations applied successfully."
-          }
-          Write-Output "Generating Prisma client..."
+            else
+              echo "prisma migrate deploy failed and no safe fallback is available." >&2
+              exit 1
+            fi
+          else
+            echo "Prisma migrations applied successfully."
+          fi
+
+          echo "Generating Prisma client..."
           npx prisma generate
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "prisma generate failed."
-            exit $LASTEXITCODE
-          }
 
       - name: Build application
         env:
@@ -355,177 +283,104 @@ jobs:
           USER_STEFAN: ${{ secrets.USER_STEFAN }}
           USER_ADMIN: ${{ secrets.USER_ADMIN }}
           # Add more USER_* secrets as needed
-        uses: Borales/actions-yarn@v5.0.0
-        with:
-          cmd: build
+        run: |
+          set -euo pipefail
+          yarn build
 
       - name: Verify Next.js build output exists
         run: |
-          if (-not (Test-Path ".next")) {
-            Write-Error "Error: .next build directory not found. Build likely failed."
+          set -euo pipefail
+          if [ ! -d .next ]; then
+            echo "Error: .next build directory not found. Build likely failed." >&2
             exit 1
-          }
-          Write-Output "Found .next directory."
+          fi
+          echo "Found .next directory."
 
       - name: Set PM2 HOME and environment
         run: |
-          # Use workspace directory for PM2 home to avoid permission issues
-          $pm2Home = "${{ github.workspace }}\.pm2"
-          Write-Output "Setting PM2_HOME to: $pm2Home"
-          
-          # Create directory if it doesn't exist
-          if (-not (Test-Path $pm2Home)) {
-            New-Item -ItemType Directory -Path $pm2Home -Force | Out-Null
-          }
-          
-          # Set for current session and persist to GitHub env
-          $env:PM2_HOME = $pm2Home
-          echo "PM2_HOME=$pm2Home" >> $env:GITHUB_ENV
-          
-          # Also set HOME if not set (PM2 fallback)
-          if (-not $env:HOME) {
-            $env:HOME = $env:USERPROFILE
-            echo "HOME=$env:USERPROFILE" >> $env:GITHUB_ENV
-          }
+          set -euo pipefail
+          pm2Home="${GITHUB_WORKSPACE:-$(pwd)}/.pm2"
+          echo "Setting PM2_HOME to: $pm2Home"
+          mkdir -p "$pm2Home"
+          echo "PM2_HOME=$pm2Home" >> "$GITHUB_ENV"
+          if [ -z "${HOME:-}" ]; then
+            echo "HOME=$pm2Home" >> "$GITHUB_ENV"
+          fi
 
       - name: Install PM2 (process manager)
-        uses: Borales/actions-yarn@v5.0.0
-        with:
-          cmd: global add pm2
+        run: |
+          set -euo pipefail
+          npm install -g pm2
 
       - name: Stop existing instance and free port 3000
         run: |
-          Write-Output "=== STOPPING ALL PROCESSES ==="
-          
-          # Stop PM2 completely
-          Write-Output "Killing PM2 daemon..."
-          pm2 kill 2>$null
-          Start-Sleep -Seconds 3
-          
-          # Aggressive port cleanup
-          Write-Output "Forcefully freeing port 3000..."
-          $maxAttempts = 5
-          $portFreed = $false
-          
-          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-            Write-Output "Port cleanup attempt $attempt/$maxAttempts..."
-            
-            # Get all processes on port 3000
-            $connections = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
-            
-            if (-not $connections) {
-              Write-Output "[OK] Port 3000 is free!"
-              $portFreed = $true
+          set -euo pipefail
+
+          echo "=== STOPPING ALL PROCESSES ==="
+          if command -v pm2 >/dev/null 2>&1; then
+            pm2 kill || true
+          fi
+          sleep 3
+
+          echo "Forcefully freeing port 3000..."
+          maxAttempts=5
+          portFreed=false
+          for attempt in $(seq 1 "$maxAttempts"); do
+            echo "Port cleanup attempt $attempt/$maxAttempts..."
+
+            pids=""
+            if command -v lsof >/dev/null 2>&1; then
+              pids="$(lsof -tiTCP:3000 -sTCP:LISTEN 2>/dev/null || true)"
+            fi
+
+            if [ -z "$pids" ]; then
+              pids="$(ss -ltnp 2>/dev/null | awk '/:3000/ && /LISTEN/ {print $0}' | awk -F'pid=' '{print $2}' | awk -F',' '{print $1}' | sort -u | tr '\n' ' ' | xargs || true)"
+            fi
+
+            if [ -z "$pids" ]; then
+              echo "[OK] Port 3000 is free!"
+              portFreed=true
               break
-            }
-            
-            # Kill each process using multiple methods
-            $processes = $connections | Select-Object -ExpandProperty OwningProcess -Unique
-            foreach ($processId in $processes) {
-              Write-Output "  Attempting to kill process $processId..."
-              
-              # Get process info
-              try {
-                $proc = Get-Process -Id $processId -ErrorAction SilentlyContinue
-                if ($proc) {
-                  Write-Output "    Process: $($proc.ProcessName) (User: $($proc.UserName))"
-                }
-              } catch {
-                Write-Output "    Could not get process details"
-              }
-              
-              # Method 1: taskkill with force and tree
-              Write-Output "    Try 1: taskkill /F /T"
-              $result = taskkill /F /T /PID $processId 2>&1
-              if ($LASTEXITCODE -eq 0) {
-                Write-Output "    [OK] Killed with taskkill"
-                Start-Sleep -Milliseconds 500
-                continue
-              }
-              
-              # Method 2: PowerShell Stop-Process
-              Write-Output "    Try 2: Stop-Process"
-              try {
-                Stop-Process -Id $processId -Force -ErrorAction Stop
-                Write-Output "    [OK] Killed with Stop-Process"
-                Start-Sleep -Milliseconds 500
-                continue
-              } catch {
-                Write-Output "    [FAIL] Stop-Process failed: $_"
-              }
-              
-              # Method 3: wmic (runs with system privileges)
-              Write-Output "    Try 3: wmic"
-              $wmicResult = wmic process where "ProcessId=$processId" delete 2>&1
-              if ($LASTEXITCODE -eq 0) {
-                Write-Output "    [OK] Killed with wmic"
-                Start-Sleep -Milliseconds 500
-                continue
-              }
-              
-              Write-Output "    [WARN] All kill methods failed for process $processId"
-            }
-            
-            Start-Sleep -Seconds 2
-            
-            # Verify
-            $stillThere = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
-            if (-not $stillThere) {
-              Write-Output "[OK] Port 3000 is now free!"
-              $portFreed = $true
-              break
-            }
-          }
-          
-          if (-not $portFreed) {
-            Write-Output "[WARN] Could not free port 3000"
-            Write-Output "Current port status:"
-            netstat -ano | Select-String ":3000"
-            
-            Write-Output "`nProcess details:"
-            $connections = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
-            if ($connections) {
-              $pids = $connections | Select-Object -ExpandProperty OwningProcess -Unique
-              foreach ($p in $pids) {
-                $proc = Get-Process -Id $p -ErrorAction SilentlyContinue
-                if ($proc) {
-                  Write-Output "  PID $p - $($proc.ProcessName) - Started: $($proc.StartTime)"
-                  Write-Output "  Command: $($proc.Path)"
-                }
-              }
-            }
-            
-            Write-Output "`nChecking if existing process is healthy..."
-            try {
-              $response = Invoke-WebRequest -Uri "http://localhost:3000" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
-              if ($response.StatusCode -eq 200) {
-                Write-Output "[OK] Existing app on port 3000 is responding!"
-                Write-Output "[OK] HTTP Status: $($response.StatusCode)"
-                Write-Output "Skipping PM2 start - will update via PM2 reload instead"
-                $env:SKIP_PM2_START = "true"
-                echo "SKIP_PM2_START=true" >> $env:GITHUB_ENV
-              }
-            } catch {
-              Write-Output "[FAIL] Existing process not responding properly: $_"
-              Write-Output "Will attempt to start PM2 anyway (it may fail with EADDRINUSE)"
-            }
-          }
-          
-          Write-Output "=== CLEANUP COMPLETE ==="
+            fi
+
+            echo "Killing PIDs on port 3000: $pids"
+            kill -9 $pids || true
+            sleep 2
+          done
+
+          if [ "$portFreed" != "true" ]; then
+            echo "[WARN] Could not free port 3000"
+            ss -ltnp 2>/dev/null | grep ':3000' || true
+
+            echo "Checking if existing process is healthy..."
+            if command -v curl >/dev/null 2>&1; then
+              if curl -fsS --max-time 5 "http://localhost:3000" >/dev/null 2>&1; then
+                echo "[OK] Existing app on port 3000 is responding (curl)."
+                echo "SKIP_PM2_START=true" >> "$GITHUB_ENV"
+              else
+                echo "[FAIL] Existing process not responding properly."
+              fi
+            else
+              echo "[WARN] curl not available; skipping HTTP health probe."
+            fi
+          fi
+
+          echo "=== CLEANUP COMPLETE ==="
         continue-on-error: true
 
       - name: Verify PM2 environment
         run: |
-          Write-Output "PM2_HOME: $env:PM2_HOME"
-          Write-Output "HOME: $env:HOME"
-          Write-Output "Checking PM2 home directory..."
-          if (Test-Path $env:PM2_HOME) {
-            Write-Output "[OK] PM2_HOME exists: $env:PM2_HOME"
-            Get-ChildItem $env:PM2_HOME -ErrorAction SilentlyContinue | Select-Object Name, Length, LastWriteTime
-          } else {
-            Write-Output "Creating PM2_HOME: $env:PM2_HOME"
-            New-Item -ItemType Directory -Path $env:PM2_HOME -Force | Out-Null
-          }
+          set -euo pipefail
+          echo "PM2_HOME: ${PM2_HOME:-}"
+          echo "HOME: ${HOME:-}"
+          echo "Checking PM2 home directory..."
+          if [ -n "${PM2_HOME:-}" ] && [ -d "$PM2_HOME" ]; then
+            echo "[OK] PM2_HOME exists: $PM2_HOME"
+            ls -la "$PM2_HOME" || true
+          else
+            echo "Creating PM2_HOME: ${PM2_HOME:-.pm2}"
+            mkdir -p "${PM2_HOME:-.pm2}"
+          fi
 
       - name: Start app on port 3000 with PM2
         env:
@@ -536,17 +391,21 @@ jobs:
           USER_FABIAN: ${{ secrets.USER_FABIAN }}
           USER_MARTIN: ${{ secrets.USER_MARTIN }}
         run: |
-          Write-Output "=== STARTING APPLICATION ==="
-          Write-Output "PM2_HOME: $env:PM2_HOME"
-          
-          # Always do fresh start after pm2 kill
-          Write-Output "Starting fresh PM2 instance..."
-          pm2 start ecosystem.config.js
-          
-          Write-Output "Waiting 10 seconds for app to initialize..."
-          Start-Sleep -Seconds 10
-          
-          Write-Output "=== START COMPLETE ==="
+          set -euo pipefail
+          echo "=== STARTING APPLICATION ==="
+          echo "PM2_HOME: ${PM2_HOME:-}"
+
+          if [ "${SKIP_PM2_START:-}" = "true" ]; then
+            echo "Skipping PM2 start (existing app responding). Trying PM2 reload/update-env." 
+            pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js --update-env
+          else
+            echo "Starting PM2 instance..."
+            pm2 start ecosystem.config.js --update-env
+          fi
+
+          echo "Waiting 10 seconds for app to initialize..."
+          sleep 10
+          echo "=== START COMPLETE ==="
 
       - name: Save PM2 process list
         run: pm2 save
@@ -555,73 +414,67 @@ jobs:
         run: |
           pm2 status
           pm2 describe roadmap-app
-          Write-Output "`nRecent logs:"
+          echo -e "\nRecent logs:"
           pm2 logs roadmap-app --lines 100 --nostream
-          Write-Output "`nChecking port 3000..."
-          netstat -ano | Select-String ":3000"
+          echo -e "\nChecking port 3000..."
+          ss -ltnp 2>/dev/null | grep ':3000' || true
 
       - name: Ensure app is online
         run: |
-          Write-Output "Checking if app is online..."
-          
-          # Wait up to 60 seconds for app to be online
-          $maxAttempts = 12
-          $attempt = 0
-          $isOnline = $false
-          
-          while ($attempt -lt $maxAttempts -and -not $isOnline) {
-            $attempt++
-            Write-Output "Health check attempt $attempt/$maxAttempts..."
-            
-            # Show current PM2 status
-            pm2 list
-            
-            $pmStatus = pm2 list | Out-String
-            if ($pmStatus -match "roadmap-app.*online") {
-              $isOnline = $true
-              Write-Output "[OK] App is online under PM2!"
+          set -euo pipefail
+          echo "Checking if app is online..."
+
+          maxAttempts=12
+          attempt=0
+          isOnline=false
+
+          while [ "$attempt" -lt "$maxAttempts" ] && [ "$isOnline" != "true" ]; do
+            attempt=$((attempt + 1))
+            echo "Health check attempt $attempt/$maxAttempts..."
+
+            pm2 list || true
+            if pm2 describe roadmap-app 2>/dev/null | grep -qiE '^\s*status\s*:\s*online\s*$'; then
+              isOnline=true
+              echo "[OK] App is online under PM2!"
               break
-            }
-            
-            # Check for error states
-            if ($pmStatus -match "roadmap-app.*(errored|stopped|stopping)") {
-              Write-Output "[WARN] App is in error state, showing logs..."
-              pm2 logs roadmap-app --lines 50 --nostream
-            }
-            
-            if ($attempt -lt $maxAttempts) {
-              Write-Output "App not online yet, waiting 5 seconds..."
-              Start-Sleep -Seconds 5
-            }
-          }
-          
-          if (-not $isOnline) {
-            Write-Output "[WARN] PM2 reports app is not 'online', checking HTTP endpoint..."
-            
-            # Try HTTP health check
-            try {
-              $response = Invoke-WebRequest -Uri "http://localhost:3000" -TimeoutSec 5 -UseBasicParsing
-              if ($response.StatusCode -eq 200) {
-                Write-Output "[OK] HTTP endpoint is responding (status 200)!"
-                Write-Output "PM2 may be showing a different status, but app is working."
-                $isOnline = $true
-              }
-            } catch {
-              Write-Output "[FAIL] HTTP endpoint also not responding: $_"
-            }
-          }
-          
-          if (-not $isOnline) {
-            Write-Error "[FAIL] App failed to come online after $maxAttempts attempts"
-            Write-Output "`nFinal PM2 status:"
-            pm2 status
-            Write-Output "`nFull PM2 describe:"
-            pm2 describe roadmap-app
-            Write-Output "`nRecent logs:"
-            pm2 logs roadmap-app --lines 200 --nostream
-            Write-Output "`nPort check:"
-            netstat -ano | Select-String ":3000"
+            fi
+
+            if pm2 describe roadmap-app 2>/dev/null | grep -qiE '^\s*status\s*:\s*(stopped|stopping|errored)\s*$'; then
+              echo "[WARN] App is in error state, showing logs..."
+              pm2 logs roadmap-app --lines 50 --nostream || true
+            fi
+
+            if [ "$attempt" -lt "$maxAttempts" ]; then
+              echo "App not online yet, waiting 5 seconds..."
+              sleep 5
+            fi
+          done
+
+          if [ "$isOnline" != "true" ]; then
+            echo "[WARN] PM2 does not report 'online', checking HTTP endpoint..."
+            if command -v curl >/dev/null 2>&1; then
+              if curl -fsS --max-time 5 "http://localhost:3000" >/dev/null 2>&1; then
+                echo "[OK] HTTP endpoint is responding (status 2xx)!"
+                isOnline=true
+              else
+                echo "[FAIL] HTTP endpoint not responding."
+              fi
+            else
+              echo "[WARN] curl not available; skipping HTTP health check."
+            fi
+          fi
+
+          if [ "$isOnline" != "true" ]; then
+            echo "[FAIL] App failed to come online after $maxAttempts attempts" >&2
+            echo -e "\nFinal PM2 status:"
+            pm2 status || true
+            echo -e "\nFull PM2 describe:"
+            pm2 describe roadmap-app || true
+            echo -e "\nRecent logs:"
+            pm2 logs roadmap-app --lines 200 --nostream || true
+            echo -e "\nPort check:"
+            ss -ltnp 2>/dev/null | grep ':3000' || true
             exit 1
-          } else {
-            Write-Output "`n[OK] Deployment successful!"
-          }
+          fi
+
+          echo -e "\n[OK] Deployment successful!"
