@@ -12,7 +12,7 @@ concurrency:
 jobs:
   deploy:
     name: Build and deploy on self-hosted
-    runs-on: [self-hosted, windows]
+    runs-on: [self-hosted, linux, roadmap]
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
