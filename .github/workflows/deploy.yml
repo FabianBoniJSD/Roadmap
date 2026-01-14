@@ -71,6 +71,48 @@ jobs:
             echo "Restored local dev DB from backup."
           fi
 
+      - name: Configure caches/tmp (avoid small /home)
+        run: |
+          set -euo pipefail
+
+          candidates=("${GITHUB_WORKSPACE:-}" "/opt/NextJS" "/data" "/var/tmp" "/tmp")
+          best=""
+          bestAvail=0
+
+          for d in "${candidates[@]}"; do
+            [ -n "$d" ] || continue
+            [ -d "$d" ] || continue
+            avail=$(df -Pk "$d" | awk 'NR==2{print $4}')
+            avail=${avail:-0}
+            if [ "$avail" -gt "$bestAvail" ]; then
+              bestAvail="$avail"
+              best="$d"
+            fi
+          done
+
+          if [ -z "$best" ]; then
+            echo "[FAIL] Could not determine a cache root directory." >&2
+            exit 1
+          fi
+
+          cacheRoot="$best/.ci-cache"
+          echo "Selected cache root: $cacheRoot (avail_kb=$bestAvail)"
+
+          mkdir -p "$cacheRoot/yarn" "$cacheRoot/npm" "$cacheRoot/xdg" "$cacheRoot/tmp"
+
+          # Clean old caches to prevent accumulation on long-lived runners
+          rm -rf "$cacheRoot/yarn" "$cacheRoot/npm" "$cacheRoot/xdg" "$cacheRoot/tmp"
+          mkdir -p "$cacheRoot/yarn" "$cacheRoot/npm" "$cacheRoot/xdg" "$cacheRoot/tmp"
+
+          echo "CI_CACHE_ROOT=$cacheRoot" >> "$GITHUB_ENV"
+          echo "YARN_CACHE_FOLDER=$cacheRoot/yarn" >> "$GITHUB_ENV"
+          echo "npm_config_cache=$cacheRoot/npm" >> "$GITHUB_ENV"
+          echo "XDG_CACHE_HOME=$cacheRoot/xdg" >> "$GITHUB_ENV"
+          echo "TMPDIR=$cacheRoot/tmp" >> "$GITHUB_ENV"
+
+          echo "Disk space at cache root:" 
+          df -h "$best" || true
+
       - name: Write environment file from secret
         env:
           ENV_FILE_CONTENT: ${{ secrets.env }}
