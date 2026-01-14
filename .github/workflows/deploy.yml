@@ -376,15 +376,24 @@ jobs:
           set -euo pipefail
           npm install -g pm2
 
+          # Pin absolute pm2 path so sudo/root can execute it even if PATH differs.
+          pm2Bin="$(command -v pm2 || true)"
+          if [ -z "$pm2Bin" ]; then
+            echo "[FAIL] pm2 binary not found after install." >&2
+            exit 1
+          fi
+          echo "PM2_BIN=$pm2Bin" >> "$GITHUB_ENV"
+
       - name: Stop existing instance and free port 3000
         run: |
           set -euo pipefail
 
           pm2cmd() {
+            pm2Bin="${PM2_BIN:-pm2}"
             if [ -n "${PM2_RUN_AS_USER:-}" ]; then
-              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" pm2 "$@"
+              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" "$@"
             else
-              pm2 "$@"
+              "$pm2Bin" "$@"
             fi
           }
 
@@ -447,12 +456,29 @@ jobs:
           echo "HOME: ${HOME:-}"
           echo "PM2_RUN_AS_USER: ${PM2_RUN_AS_USER:-}"
           echo "Checking PM2 home directory..."
-          if [ -n "${PM2_HOME:-}" ] && [ -d "$PM2_HOME" ]; then
-            echo "[OK] PM2_HOME exists: $PM2_HOME"
-            ls -la "$PM2_HOME" || true
+          if [ -z "${PM2_HOME:-}" ]; then
+            echo "[FAIL] PM2_HOME is not set." >&2
+            exit 1
+          fi
+
+          # /root is typically 0700, so non-root cannot even stat it.
+          if [ "${PM2_RUN_AS_USER:-}" = "root" ] && [ "$(id -u)" -ne 0 ]; then
+            if sudo -n test -d "$PM2_HOME" 2>/dev/null; then
+              echo "[OK] PM2_HOME exists (via sudo): $PM2_HOME"
+              sudo -n ls -la "$PM2_HOME" || true
+            else
+              echo "Creating PM2_HOME (via sudo): $PM2_HOME"
+              sudo -n mkdir -p "$PM2_HOME"
+              sudo -n ls -la "$PM2_HOME" || true
+            fi
           else
-            echo "Creating PM2_HOME: ${PM2_HOME:-.pm2}"
-            mkdir -p "${PM2_HOME:-.pm2}"
+            if [ -d "$PM2_HOME" ]; then
+              echo "[OK] PM2_HOME exists: $PM2_HOME"
+              ls -la "$PM2_HOME" || true
+            else
+              echo "Creating PM2_HOME: $PM2_HOME"
+              mkdir -p "$PM2_HOME"
+            fi
           fi
 
       - name: Start app on port 3000 with PM2
@@ -466,10 +492,11 @@ jobs:
         run: |
           set -euo pipefail
           pm2cmd() {
+            pm2Bin="${PM2_BIN:-pm2}"
             if [ -n "${PM2_RUN_AS_USER:-}" ]; then
-              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" pm2 "$@"
+              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" "$@"
             else
-              pm2 "$@"
+              "$pm2Bin" "$@"
             fi
           }
           echo "=== STARTING APPLICATION ==="
@@ -491,19 +518,22 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${PM2_RUN_AS_USER:-}" ]; then
-            sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" pm2 save
+            pm2Bin="${PM2_BIN:-pm2}"
+            sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" save
           else
-            pm2 save
+            pm2Bin="${PM2_BIN:-pm2}"
+            "$pm2Bin" save
           fi
 
       - name: Show PM2 status and recent logs
         run: |
           set -euo pipefail
           pm2cmd() {
+            pm2Bin="${PM2_BIN:-pm2}"
             if [ -n "${PM2_RUN_AS_USER:-}" ]; then
-              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" pm2 "$@"
+              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" "$@"
             else
-              pm2 "$@"
+              "$pm2Bin" "$@"
             fi
           }
 
@@ -518,10 +548,11 @@ jobs:
         run: |
           set -euo pipefail
           pm2cmd() {
+            pm2Bin="${PM2_BIN:-pm2}"
             if [ -n "${PM2_RUN_AS_USER:-}" ]; then
-              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" pm2 "$@"
+              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" "$@"
             else
-              pm2 "$@"
+              "$pm2Bin" "$@"
             fi
           }
           echo "Checking if app is online..."
