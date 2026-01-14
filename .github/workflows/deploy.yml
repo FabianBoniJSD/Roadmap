@@ -19,6 +19,8 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
+      # Run PM2 as root so the process list is visible under root SSH sessions.
+      PM2_RUN_AS_USER: root
 
     steps:
       - name: Check runner permissions
@@ -341,13 +343,33 @@ jobs:
       - name: Set PM2 HOME and environment
         run: |
           set -euo pipefail
-          pm2Home="${GITHUB_WORKSPACE:-$(pwd)}/.pm2"
-          echo "Setting PM2_HOME to: $pm2Home"
-          mkdir -p "$pm2Home"
-          echo "PM2_HOME=$pm2Home" >> "$GITHUB_ENV"
-          if [ -z "${HOME:-}" ]; then
-            echo "HOME=$pm2Home" >> "$GITHUB_ENV"
+          pm2User="${PM2_RUN_AS_USER:-}"
+          if [ -n "$pm2User" ]; then
+            pm2Home="/home/$pm2User/.pm2"
+          else
+            pm2Home="${GITHUB_WORKSPACE:-$(pwd)}/.pm2"
           fi
+
+          # Root special-case
+          if [ "$pm2User" = "root" ]; then
+            pm2Home="/root/.pm2"
+          fi
+
+          echo "PM2_RUN_AS_USER=$pm2User" >> "$GITHUB_ENV"
+          echo "Setting PM2_HOME to: $pm2Home"
+
+          if [ -n "$pm2User" ] && [ "$(id -u)" -ne 0 ]; then
+            sudo -n mkdir -p "$pm2Home"
+            if [ "$pm2User" != "root" ]; then
+              sudo -n chown -R "$pm2User":"$pm2User" "$pm2Home" || true
+            fi
+          else
+            mkdir -p "$pm2Home"
+            if [ -n "$pm2User" ] && [ "$pm2User" != "root" ]; then
+              chown -R "$pm2User":"$pm2User" "$pm2Home" || true
+            fi
+          fi
+          echo "PM2_HOME=$pm2Home" >> "$GITHUB_ENV"
 
       - name: Install PM2 (process manager)
         run: |
@@ -358,9 +380,17 @@ jobs:
         run: |
           set -euo pipefail
 
+          pm2cmd() {
+            if [ -n "${PM2_RUN_AS_USER:-}" ]; then
+              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" pm2 "$@"
+            else
+              pm2 "$@"
+            fi
+          }
+
           echo "=== STOPPING ALL PROCESSES ==="
           if command -v pm2 >/dev/null 2>&1; then
-            pm2 kill || true
+            pm2cmd kill || true
           fi
           sleep 3
 
@@ -415,6 +445,7 @@ jobs:
           set -euo pipefail
           echo "PM2_HOME: ${PM2_HOME:-}"
           echo "HOME: ${HOME:-}"
+          echo "PM2_RUN_AS_USER: ${PM2_RUN_AS_USER:-}"
           echo "Checking PM2 home directory..."
           if [ -n "${PM2_HOME:-}" ] && [ -d "$PM2_HOME" ]; then
             echo "[OK] PM2_HOME exists: $PM2_HOME"
@@ -434,15 +465,22 @@ jobs:
           USER_MARTIN: ${{ secrets.USER_MARTIN }}
         run: |
           set -euo pipefail
+          pm2cmd() {
+            if [ -n "${PM2_RUN_AS_USER:-}" ]; then
+              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" pm2 "$@"
+            else
+              pm2 "$@"
+            fi
+          }
           echo "=== STARTING APPLICATION ==="
           echo "PM2_HOME: ${PM2_HOME:-}"
 
           if [ "${SKIP_PM2_START:-}" = "true" ]; then
             echo "Skipping PM2 start (existing app responding). Trying PM2 reload/update-env." 
-            pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js --update-env
+            pm2cmd reload ecosystem.config.js --update-env || pm2cmd start ecosystem.config.js --update-env
           else
             echo "Starting PM2 instance..."
-            pm2 start ecosystem.config.js --update-env
+            pm2cmd start ecosystem.config.js --update-env
           fi
 
           echo "Waiting 10 seconds for app to initialize..."
@@ -450,20 +488,42 @@ jobs:
           echo "=== START COMPLETE ==="
 
       - name: Save PM2 process list
-        run: pm2 save
+        run: |
+          set -euo pipefail
+          if [ -n "${PM2_RUN_AS_USER:-}" ]; then
+            sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" pm2 save
+          else
+            pm2 save
+          fi
 
       - name: Show PM2 status and recent logs
         run: |
-          pm2 status
-          pm2 describe roadmap-app
+          set -euo pipefail
+          pm2cmd() {
+            if [ -n "${PM2_RUN_AS_USER:-}" ]; then
+              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" pm2 "$@"
+            else
+              pm2 "$@"
+            fi
+          }
+
+          pm2cmd status
+          pm2cmd describe roadmap-app
           echo -e "\nRecent logs:"
-          pm2 logs roadmap-app --lines 100 --nostream
+          pm2cmd logs roadmap-app --lines 100 --nostream
           echo -e "\nChecking port 3000..."
           ss -ltnp 2>/dev/null | grep ':3000' || true
 
       - name: Ensure app is online
         run: |
           set -euo pipefail
+          pm2cmd() {
+            if [ -n "${PM2_RUN_AS_USER:-}" ]; then
+              sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" pm2 "$@"
+            else
+              pm2 "$@"
+            fi
+          }
           echo "Checking if app is online..."
 
           maxAttempts=12
@@ -474,16 +534,16 @@ jobs:
             attempt=$((attempt + 1))
             echo "Health check attempt $attempt/$maxAttempts..."
 
-            pm2 list || true
-            if pm2 describe roadmap-app 2>/dev/null | grep -qiE '^\s*status\s*:\s*online\s*$'; then
+            pm2cmd list || true
+            if pm2cmd describe roadmap-app 2>/dev/null | grep -qiE '^\s*status\s*:\s*online\s*$'; then
               isOnline=true
               echo "[OK] App is online under PM2!"
               break
             fi
 
-            if pm2 describe roadmap-app 2>/dev/null | grep -qiE '^\s*status\s*:\s*(stopped|stopping|errored)\s*$'; then
+            if pm2cmd describe roadmap-app 2>/dev/null | grep -qiE '^\s*status\s*:\s*(stopped|stopping|errored)\s*$'; then
               echo "[WARN] App is in error state, showing logs..."
-              pm2 logs roadmap-app --lines 50 --nostream || true
+              pm2cmd logs roadmap-app --lines 50 --nostream || true
             fi
 
             if [ "$attempt" -lt "$maxAttempts" ]; then
@@ -509,11 +569,11 @@ jobs:
           if [ "$isOnline" != "true" ]; then
             echo "[FAIL] App failed to come online after $maxAttempts attempts" >&2
             echo -e "\nFinal PM2 status:"
-            pm2 status || true
+            pm2cmd status || true
             echo -e "\nFull PM2 describe:"
-            pm2 describe roadmap-app || true
+            pm2cmd describe roadmap-app || true
             echo -e "\nRecent logs:"
-            pm2 logs roadmap-app --lines 200 --nostream || true
+            pm2cmd logs roadmap-app --lines 200 --nostream || true
             echo -e "\nPort check:"
             ss -ltnp 2>/dev/null | grep ':3000' || true
             exit 1
