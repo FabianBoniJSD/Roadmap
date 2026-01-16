@@ -54,11 +54,6 @@ jobs:
             echo "Backed up local dev DB to $dbBackup"
           fi
 
-          echo "Ensuring no lingering PM2 daemon is running..."
-          if command -v pm2 >/dev/null 2>&1; then
-            pm2 kill || true
-          fi
-
           echo "Resetting workspace to HEAD commit..."
           git reset --hard HEAD
           chmod -R u+rwX . || true
@@ -397,56 +392,25 @@ jobs:
             fi
           }
 
-          echo "=== STOPPING ALL PROCESSES ==="
-          if command -v pm2 >/dev/null 2>&1; then
-            pm2cmd kill || true
+          appName="roadmap-app"
+
+          echo "=== STOPPING ONLY: $appName ==="
+          if pm2cmd describe "$appName" >/dev/null 2>&1; then
+            pm2cmd stop "$appName" || true
+            pm2cmd delete "$appName" || true
+          else
+            echo "PM2 app '$appName' not found; nothing to stop."
           fi
-          sleep 3
 
-          echo "Forcefully freeing port 3000..."
-          maxAttempts=5
-          portFreed=false
-          for attempt in $(seq 1 "$maxAttempts"); do
-            echo "Port cleanup attempt $attempt/$maxAttempts..."
-
-            pids=""
-            if command -v lsof >/dev/null 2>&1; then
-              pids="$(lsof -tiTCP:3000 -sTCP:LISTEN 2>/dev/null || true)"
-            fi
-
-            if [ -z "$pids" ]; then
-              pids="$(ss -ltnp 2>/dev/null | awk '/:3000/ && /LISTEN/ {print $0}' | awk -F'pid=' '{print $2}' | awk -F',' '{print $1}' | sort -u | tr '\n' ' ' | xargs || true)"
-            fi
-
-            if [ -z "$pids" ]; then
-              echo "[OK] Port 3000 is free!"
-              portFreed=true
-              break
-            fi
-
-            echo "Killing PIDs on port 3000: $pids"
-            kill -9 $pids || true
-            sleep 2
-          done
-
-          if [ "$portFreed" != "true" ]; then
-            echo "[WARN] Could not free port 3000"
+          echo "Verifying port 3000 is free (will NOT kill other processes)..."
+          # If something else is listening on 3000, fail fast rather than killing unrelated services.
+          if ss -ltnp 2>/dev/null | grep -q ':3000'; then
+            echo "[FAIL] Port 3000 is still in use after stopping '$appName'." >&2
             ss -ltnp 2>/dev/null | grep ':3000' || true
-
-            echo "Checking if existing process is healthy..."
-            if command -v curl >/dev/null 2>&1; then
-              if curl -fsS --max-time 5 "http://localhost:3000" >/dev/null 2>&1; then
-                echo "[OK] Existing app on port 3000 is responding (curl)."
-                echo "SKIP_PM2_START=true" >> "$GITHUB_ENV"
-              else
-                echo "[FAIL] Existing process not responding properly."
-              fi
-            else
-              echo "[WARN] curl not available; skipping HTTP health probe."
-            fi
+            exit 1
           fi
 
-          echo "=== CLEANUP COMPLETE ==="
+          echo "=== APP STOP COMPLETE ==="
         continue-on-error: true
 
       - name: Verify PM2 environment
@@ -502,13 +466,8 @@ jobs:
           echo "=== STARTING APPLICATION ==="
           echo "PM2_HOME: ${PM2_HOME:-}"
 
-          if [ "${SKIP_PM2_START:-}" = "true" ]; then
-            echo "Skipping PM2 start (existing app responding). Trying PM2 reload/update-env." 
-            pm2cmd reload ecosystem.config.js --update-env || pm2cmd start ecosystem.config.js --update-env
-          else
-            echo "Starting PM2 instance..."
-            pm2cmd start ecosystem.config.js --update-env
-          fi
+          echo "(Re)starting only roadmap-app via ecosystem config..."
+          pm2cmd start ecosystem.config.js --only roadmap-app --update-env
 
           echo "Waiting 10 seconds for app to initialize..."
           sleep 10
