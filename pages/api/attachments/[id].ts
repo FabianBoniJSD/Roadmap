@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { clientDataService } from '@/utils/clientDataService';
 import {
   getInstanceConfigFromRequest,
   INSTANCE_COOKIE_NAME,
@@ -61,7 +62,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const baseUrl =
       (process.env.INTERNAL_API_BASE_URL || '').replace(/\/$/, '') ||
       `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
-    const basePath = `/api/sharepoint/_api/web/lists/getByTitle('RoadmapProjects')/items(${encodeURIComponent(
+    let listTitle = 'RoadmapProjects';
+    try {
+      listTitle = await clientDataService.withInstance(instance.slug, () =>
+        clientDataService.resolveListTitle('RoadmapProjects', ['Roadmap Projects'])
+      );
+    } catch (err) {
+      console.warn('[api/attachments] failed to resolve list title', err);
+    }
+    const encodedTitle = encodeURIComponent(listTitle);
+    const basePath = `/api/sharepoint/_api/web/lists/getByTitle('${encodedTitle}')/items(${encodeURIComponent(
       id
     )})/AttachmentFiles`;
     const base = `${baseUrl}${basePath}`;

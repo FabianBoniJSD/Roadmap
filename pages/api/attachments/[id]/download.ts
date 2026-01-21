@@ -1,5 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { extname } from 'path';
+import { clientDataService } from '@/utils/clientDataService';
+import {
+  getInstanceConfigFromRequest,
+  INSTANCE_COOKIE_NAME,
+  INSTANCE_QUERY_PARAM,
+} from '@/utils/instanceConfig';
+import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
 const mimeByExtension: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -18,7 +25,7 @@ const mimeByExtension: Record<string, string> = {
   '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   '.ppt': 'application/vnd.ms-powerpoint',
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  '.zip': 'application/zip'
+  '.zip': 'application/zip',
 };
 
 export const config = {
@@ -41,13 +48,69 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const baseUrl = (process.env.INTERNAL_API_BASE_URL || '').replace(/\/$/, '') || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
-    const apiBase = baseUrl + `/api/sharepoint/_api/web/lists/getByTitle('RoadmapProjects')/items(${encodeURIComponent(id)})/AttachmentFiles/getByFileName('${encodeURIComponent(name).replace(/'/g, "''")}')/$value`;
+    let instance: RoadmapInstanceConfig | null = null;
+    try {
+      instance = await getInstanceConfigFromRequest(req, { fallbackToDefault: false });
+    } catch (error) {
+      console.error('[attachments:download] failed to resolve instance', error);
+      return res.status(500).json({ error: 'Failed to resolve roadmap instance' });
+    }
+    if (!instance) {
+      return res.status(404).json({ error: 'No roadmap instance configured for this request' });
+    }
+
+    let listTitle = 'RoadmapProjects';
+    try {
+      listTitle = await clientDataService.withInstance(instance.slug, () =>
+        clientDataService.resolveListTitle('RoadmapProjects', ['Roadmap Projects'])
+      );
+    } catch (err) {
+      console.warn('[attachments:download] failed to resolve list title', err);
+    }
+    const encodedTitle = encodeURIComponent(listTitle);
+
+    const baseUrl =
+      (process.env.INTERNAL_API_BASE_URL || '').replace(/\/$/, '') ||
+      `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+    const basePath = `/api/sharepoint/_api/web/lists/getByTitle('${encodedTitle}')/items(${encodeURIComponent(
+      id
+    )})/AttachmentFiles/getByFileName('${encodeURIComponent(name).replace(/'/g, "''")}')/$value`;
+    const withSlug = (rawUrl: string) => {
+      try {
+        const urlObj = new URL(rawUrl);
+        urlObj.searchParams.set(INSTANCE_QUERY_PARAM, instance!.slug);
+        return urlObj.toString();
+      } catch {
+        return rawUrl.includes('?')
+          ? `${rawUrl}&${INSTANCE_QUERY_PARAM}=${encodeURIComponent(instance!.slug)}`
+          : `${rawUrl}?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(instance!.slug)}`;
+      }
+    };
+    const attachHeaders = (headers: HeadersInit = {}) => {
+      const h = new Headers(headers);
+      h.set('x-roadmap-instance', instance!.slug);
+      const cookieValue = `${INSTANCE_COOKIE_NAME}=${instance!.slug}`;
+      const existingCookie = h.get('cookie');
+      if (existingCookie) {
+        const segments = existingCookie
+          .split(';')
+          .map((segment) => segment.trim())
+          .filter(Boolean)
+          .filter((segment) => !segment.toLowerCase().startsWith(`${INSTANCE_COOKIE_NAME}=`));
+        segments.push(cookieValue);
+        h.set('cookie', segments.join('; '));
+      } else {
+        h.set('cookie', cookieValue);
+      }
+      return h;
+    };
+
+    const apiBase = withSlug(baseUrl + basePath);
     const response = await fetch(apiBase, {
-      headers: {
+      headers: attachHeaders({
         Accept: '*/*',
         Cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : '',
-      },
+      }),
     });
 
     if (!response.ok) {
