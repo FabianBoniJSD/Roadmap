@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
 import { getInstanceConfigBySlug } from '@/utils/instanceConfig';
+import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import type { Project } from '@/types';
 
 const RATE_LIMIT = 500; // requests per window
@@ -52,6 +53,17 @@ const normalizeCategory = (value: unknown): string => {
 };
 
 const toLower = (v: string | undefined) => (v ? v.toLowerCase() : '');
+
+const isTruthyFlag = (value: unknown): boolean => {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return (
+      normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'all'
+    );
+  }
+  if (Array.isArray(value)) return value.some((entry) => isTruthyFlag(entry));
+  return false;
+};
 
 const filterProjects = (list: Project[], query: NextApiRequest['query']): Project[] => {
   const categoryFilter = normalizeCategory(query.category || '').toLowerCase();
@@ -133,14 +145,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ? projects.map((p) => ({ ...p, category: normalizeCategory(p.category) }))
       : [];
 
-    const filtered = filterProjects(normalized, req.query);
+    const skipFilters = isTruthyFlag(req.query.all);
+    const filtered = skipFilters ? normalized : filterProjects(normalized, req.query);
     res.setHeader('X-RateLimit-Limit', String(RATE_LIMIT));
     res.setHeader('X-RateLimit-Remaining', 'n/a');
     res.setHeader('X-RateLimit-Window', `${WINDOW_MS / 1000}s`);
 
-    return res
-      .status(200)
-      .json({ projects: filtered, count: filtered.length, instance: instance.slug });
+    return res.status(200).json({
+      projects: filtered,
+      count: filtered.length,
+      instance: instance.slug,
+      sharePointSiteUrl: resolveSharePointSiteUrl(instance),
+    });
   } catch (error) {
     console.error('[api/public/projects] failed', error);
     return res.status(500).json({ error: 'Failed to fetch projects' });
