@@ -157,6 +157,7 @@ const EditProjectPage: FC = () => {
       const projectToSave = {
         id: updatedProject.id,
         title: updatedProject.title || '',
+        projectType: updatedProject.projectType || 'long',
         category: updatedProject.category || '',
         startQuarter: updatedProject.startQuarter || '',
         endQuarter: updatedProject.endQuarter || '',

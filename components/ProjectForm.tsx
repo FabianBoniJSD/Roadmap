@@ -7,6 +7,7 @@ import { FaTrash, FaPlus } from 'react-icons/fa';
 import { clientDataService } from '@/utils/clientDataService';
 import JSDoITLoader from './JSDoITLoader';
 import { normalizeCategoryId } from '@/utils/categoryUtils';
+import ToggleSwitch from './ToggleSwitch';
 
 interface ProjectFormProps {
   initialProject?: Project;
@@ -38,6 +39,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   onSubmit,
   onCancel,
 }) => {
+  // Projekt-Typ
+  const [isShortTerm, setIsShortTerm] = useState<boolean>(
+    (initialProject?.projectType || 'long') === 'short'
+  );
+
   // Grundlegende Projektdaten
   const [title, setTitle] = useState(initialProject?.title || '');
   const [description, setDescription] = useState(initialProject?.description || '');
@@ -178,6 +184,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   // Sync when initialProject changes (edit mode populates after load)
   useEffect(() => {
     if (!initialProject) return;
+    setIsShortTerm((initialProject?.projectType || 'long') === 'short');
     setTitle(initialProject.title || '');
     setDescription(initialProject.description || '');
     setStatus(initialProject.status || 'planned');
@@ -231,7 +238,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     // Phase & Meilenstein
     setProjektphase(normalizePhase(initialProject.projektphase));
     setNaechsterMeilenstein(initialProject.naechster_meilenstein || '');
-  }, [initialProject]);
+  }, [initialProject, categories]);
 
   // Function to add a team member to the project
   const handleAddTeamMember = (member: TeamMember) => {
@@ -327,27 +334,34 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       newErrors.dates = 'Das Enddatum muss nach dem Startdatum liegen';
     }
 
-    if (!projektleitung.trim()) {
-      newErrors.projektleitung = 'Projektleitung ist erforderlich';
-    }
+    if (!isShortTerm) {
+      if (!projektleitung.trim()) {
+        newErrors.projektleitung = 'Projektleitung ist erforderlich';
+      }
 
-    if (!bisher.trim()) {
-      newErrors.bisher = 'Bisher-Feld ist erforderlich';
-    }
+      if (!bisher.trim()) {
+        newErrors.bisher = 'Bisher-Feld ist erforderlich';
+      }
 
-    if (!zukunft.trim()) {
-      newErrors.zukunft = 'Zukunft-Feld ist erforderlich';
-    }
+      if (!zukunft.trim()) {
+        newErrors.zukunft = 'Zukunft-Feld ist erforderlich';
+      }
 
-    if (!geplantUmsetzung.trim()) {
-      newErrors.geplantUmsetzung = 'Geplante Umsetzung ist erforderlich';
-    }
+      if (!geplantUmsetzung.trim()) {
+        newErrors.geplantUmsetzung = 'Geplante Umsetzung ist erforderlich';
+      }
 
-    // Add type check before trim for budget
-    if (!budget || (typeof budget === 'string' && !budget.trim())) {
-      newErrors.budget = 'Budget ist erforderlich';
-    } else if (typeof budget === 'string' && !/^\d+$/.test(budget.trim())) {
-      newErrors.budget = 'Budget muss eine Zahl sein';
+      // Add type check before trim for budget
+      if (!budget || (typeof budget === 'string' && !budget.trim())) {
+        newErrors.budget = 'Budget ist erforderlich';
+      } else if (typeof budget === 'string' && !/^\d+$/.test(budget.trim())) {
+        newErrors.budget = 'Budget muss eine Zahl sein';
+      }
+    } else {
+      // Kurzzeitprojekt: Budget optional, aber falls gesetzt, muss es numerisch sein
+      if (typeof budget === 'string' && budget.trim() && !/^\d+$/.test(budget.trim())) {
+        newErrors.budget = 'Budget muss eine Zahl sein';
+      }
     }
 
     setErrors(newErrors);
@@ -383,6 +397,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       title,
       description,
       status,
+      projectType: isShortTerm ? 'short' : 'long',
       category: selectedCategory,
       startQuarter,
       endQuarter,
@@ -415,6 +430,23 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Projektart */}
+      <div className="flex items-center justify-between rounded-3xl border border-slate-800/70 bg-slate-950/70 px-4 py-3">
+        <div>
+          <div className="text-sm font-medium text-slate-100">Projektart</div>
+          <div className="text-xs text-slate-400">
+            {isShortTerm
+              ? 'Kurzzeitprojekt: nur Basisfelder sind Pflicht.'
+              : 'Langzeitprojekt: erweiterte Felder sind Pflicht.'}
+          </div>
+        </div>
+        <ToggleSwitch
+          label={isShortTerm ? 'Kurzzeit' : 'Langzeit'}
+          isOn={isShortTerm}
+          onToggle={() => setIsShortTerm((prev) => !prev)}
+        />
+      </div>
+
       {/* Titel */}
       <div>
         <label htmlFor="title" className="block text-sm font-medium mb-1">
@@ -551,338 +583,677 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category}</p>}
       </div>
 
-      {/* Projektleitung */}
-      <div>
-        <label htmlFor="projektleitung" className="block text-sm font-medium mb-1">
-          Projektleitung <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="projektleitung"
-          type="text"
-          value={projektleitung}
-          onChange={(e) => setProjektleitung(e.target.value)}
-          className={`w-full rounded-2xl border px-4 py-2 text-sm text-slate-100 outline-none transition ${
-            errors.projektleitung
-              ? 'border-rose-500 bg-slate-900/60'
-              : 'border-slate-800/70 bg-slate-950'
-          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
-          required
-        />
-        {errors.projektleitung && (
-          <p className="text-red-500 text-sm mt-1">{errors.projektleitung}</p>
-        )}
-      </div>
-
-      {/* Fortschritt entfernt – Phasensteuerung ersetzt die Prozentanzeige */}
-
-      {/* Budget */}
-      <div>
-        <label htmlFor="budget" className="block text-sm font-medium mb-1">
-          Budget <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="budget"
-          type="text"
-          value={budget}
-          onChange={(e) => setBudget(e.target.value)}
-          className={`w-full rounded-2xl border px-4 py-2 text-sm text-slate-100 outline-none transition ${
-            errors.budget ? 'border-rose-500 bg-slate-900/60' : 'border-slate-800/70 bg-slate-950'
-          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
-          placeholder="Nur Zahlen eingeben (z.B. 150000)"
-          required
-        />
-        {errors.budget && <p className="text-red-500 text-sm mt-1">{errors.budget}</p>}
-      </div>
-
-      {/* Projektphase */}
-      <div>
-        <label htmlFor="projektphase" className="block text-sm font-medium mb-1">
-          Projektphase
-        </label>
-        <select
-          id="projektphase"
-          value={projektphase}
-          onChange={(e) => setProjektphase(normalizePhase(e.target.value))}
-          className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
-        >
-          <option value="initialisierung">Initialisierung</option>
-          <option value="konzept">Konzept</option>
-          <option value="realisierung">Realisierung</option>
-          <option value="einfuehrung">Einführung</option>
-          <option value="abschluss">Abschluss</option>
-        </select>
-      </div>
-
-      {/* Nächster Meilenstein (optional) */}
-      <div>
-        <label htmlFor="naechsterMeilenstein" className="block text-sm font-medium mb-1">
-          Nächster Meilenstein (optional)
-        </label>
-        <input
-          id="naechsterMeilenstein"
-          type="text"
-          value={naechsterMeilenstein}
-          onChange={(e) => setNaechsterMeilenstein(e.target.value)}
-          className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
-          placeholder="z.B. Go-Live Q3 2025"
-        />
-      </div>
-
-      {/* Bisher */}
-      <div>
-        <label htmlFor="bisher" className="block text-sm font-medium mb-1">
-          Bisher <span className="text-red-500">*</span>
-        </label>
-        <textarea
-          id="bisher"
-          value={bisher}
-          onChange={(e) => setBisher(e.target.value)}
-          rows={3}
-          className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
-            errors.bisher ? 'border-rose-500 bg-slate-900/60' : 'border-slate-800/70 bg-slate-950'
-          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
-          placeholder="Was wurde bisher erreicht?"
-          required
-        />
-        {errors.bisher && <p className="text-red-500 text-sm mt-1">{errors.bisher}</p>}
-      </div>
-
-      {/* Zukunft */}
-      <div>
-        <label htmlFor="zukunft" className="block text-sm font-medium mb-1">
-          In Zukunft <span className="text-red-500">*</span>
-        </label>
-        <textarea
-          id="zukunft"
-          value={zukunft}
-          onChange={(e) => setZukunft(e.target.value)}
-          rows={3}
-          className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
-            errors.zukunft ? 'border-rose-500 bg-slate-900/60' : 'border-slate-800/70 bg-slate-950'
-          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
-          placeholder="Was ist für die Zukunft geplant?"
-          required
-        />
-        {errors.zukunft && <p className="text-red-500 text-sm mt-1">{errors.zukunft}</p>}
-      </div>
-
-      {/* Geplante Umsetzung */}
-      <div>
-        <label htmlFor="geplantUmsetzung" className="block text-sm font-medium mb-1">
-          Geplante Umsetzung <span className="text-red-500">*</span>
-        </label>
-        <textarea
-          id="geplantUmsetzung"
-          value={geplantUmsetzung}
-          onChange={(e) => setGeplantUmsetzung(e.target.value)}
-          rows={3}
-          className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
-            errors.geplantUmsetzung
-              ? 'border-rose-500 bg-slate-900/60'
-              : 'border-slate-800/70 bg-slate-950'
-          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
-          placeholder="Wie soll das Projekt umgesetzt werden?"
-          required
-        />
-        {errors.geplantUmsetzung && (
-          <p className="text-red-500 text-sm mt-1">{errors.geplantUmsetzung}</p>
-        )}
-      </div>
-
-      {/* Felder */}
-      <div className="mt-6">
-        <h3 className="text-lg font-medium mb-2">Felder</h3>
-        <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
-          <p className="mb-4 text-sm text-slate-300">
-            Wählen Sie die Felder aus, die für dieses Projekt relevant sind:
-          </p>
-          {/* For debugging */}
-          <p className="mb-2 text-xs text-slate-500">
-            Selected fields: {selectedFields.join(', ')}
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {availableFields.map((field) => (
-              <div key={field.id} className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id={`field-${field.id}`}
-                  checked={selectedFields.includes(field.name)}
-                  onChange={() => toggleField(field.name)}
-                  className="h-4 w-4 rounded border-slate-700 bg-slate-900/70 text-sky-400 focus:ring-2 focus:ring-sky-500"
-                />
-                <label htmlFor={`field-${field.id}`} className="text-sm">
-                  {field.name}
-                  {field.description && (
-                    <span className="block text-xs text-slate-400">{field.description}</span>
-                  )}
-                </label>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Team-Mitglieder with search */}
-      <div className="mt-6">
-        <h3 className="text-lg font-medium mb-2">Team-Mitglieder</h3>
-        <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Nach Benutzern suchen..."
-              className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
-            />
-            {isSearching && (
-              <div className="absolute right-2 top-1.5">
-                <JSDoITLoader
-                  sizeRem={0.7}
-                  message=""
-                  showGlow={false}
-                  className="flex-row gap-1 px-0 py-0 text-sky-200"
-                />
-              </div>
-            )}
-
-            {/* Dropdown search results */}
-            {searchResults.length > 0 && (
-              <div className="absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-800/70 bg-slate-950/95 shadow-xl shadow-slate-950/40 backdrop-blur">
-                <ul>
-                  {searchResults.map((user) => (
-                    <li
-                      key={user.id || user.name}
-                      className="flex cursor-pointer items-center justify-between border-b border-slate-800/60 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-900/80 last:border-0"
-                      onClick={() => handleAddTeamMember(user)}
-                    >
-                      <span>{user.name}</span>
-                      <span className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
-                        Hinzufügen
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          {/* Current team members */}
-          <div className="mt-5">
-            <h4 className="text-sm font-medium mb-2">Aktuelle Team-Mitglieder:</h4>
-            {teamMembers.length > 0 ? (
-              <ul className="space-y-2">
-                {teamMembers.map((member) => (
-                  <li
-                    key={member.id}
-                    className="flex items-center justify-between rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm text-slate-200"
-                  >
-                    <div>
-                      <span>{member.name}</span>
-                      <span className="ml-2 text-xs text-slate-400">
-                        ({member.role || 'Teammitglied'})
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={member.role || 'Teammitglied'}
-                        onChange={(e) => {
-                          const newRole = e.target.value;
-                          setTeamMembers((prev) =>
-                            prev.map((m) => (m.id === member.id ? { ...m, role: newRole } : m))
-                          );
-                        }}
-                        className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-200 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30"
-                      >
-                        <option value="Teammitglied">Teammitglied</option>
-                        <option value="Projektleiter">Projektleiter</option>
-                        <option value="Fachexperte">Fachexperte</option>
-                        <option value="Stakeholder">Stakeholder</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => member.id && handleRemoveTeamMember(member.id)}
-                        className="rounded-full border border-rose-500/50 p-1 text-rose-300 transition hover:border-rose-400 hover:text-rose-100"
-                        aria-label="Teammitglied entfernen"
-                      >
-                        <FaTrash size={16} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-slate-400">Keine Team-Mitglieder vorhanden</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Links-Bereich */}
-      <div className="mt-6">
-        <h3 className="text-lg font-medium mb-2">Referenz-Links</h3>
-
-        {/* Liste der vorhandenen Links */}
-        <div className="mb-4 space-y-2">
-          {links.map((link) => (
-            <div
-              key={link.id}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm text-slate-200"
-            >
-              <div className="flex-grow">
-                <div className="font-semibold text-white">{link.title}</div>
-                <a
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300 transition hover:text-sky-200"
-                >
-                  {link.url}
-                </a>
-              </div>
-              <button
-                type="button"
-                onClick={() => removeLink(link.id)}
-                className="rounded-full border border-rose-500/50 p-1 text-rose-300 transition hover:border-rose-400 hover:text-rose-100"
-                aria-label="Link entfernen"
-              >
-                <FaTrash size={16} />
-              </button>
+      {/* Erweiterte Angaben (Langzeit Pflicht / Kurzzeit optional) */}
+      {isShortTerm ? (
+        <details className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-5 py-4">
+          <summary className="cursor-pointer select-none text-sm font-semibold text-slate-100">
+            Optionale Angaben anzeigen
+          </summary>
+          <div className="mt-5 space-y-6">
+            {/* Projektleitung */}
+            <div>
+              <label htmlFor="projektleitung" className="block text-sm font-medium mb-1">
+                Projektleitung
+              </label>
+              <input
+                id="projektleitung"
+                type="text"
+                value={projektleitung}
+                onChange={(e) => setProjektleitung(e.target.value)}
+                className={`w-full rounded-2xl border px-4 py-2 text-sm text-slate-100 outline-none transition ${
+                  errors.projektleitung
+                    ? 'border-rose-500 bg-slate-900/60'
+                    : 'border-slate-800/70 bg-slate-950'
+                } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
+              />
+              {errors.projektleitung && (
+                <p className="text-red-500 text-sm mt-1">{errors.projektleitung}</p>
+              )}
             </div>
-          ))}
-        </div>
 
-        {/* Formular zum Hinzufügen neuer Links */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-7">
-          <div className="md:col-span-3">
+            {/* Budget */}
+            <div>
+              <label htmlFor="budget" className="block text-sm font-medium mb-1">
+                Budget (optional)
+              </label>
+              <input
+                id="budget"
+                type="text"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                className={`w-full rounded-2xl border px-4 py-2 text-sm text-slate-100 outline-none transition ${
+                  errors.budget
+                    ? 'border-rose-500 bg-slate-900/60'
+                    : 'border-slate-800/70 bg-slate-950'
+                } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
+                placeholder="Nur Zahlen (z.B. 150000)"
+              />
+              {errors.budget && <p className="text-red-500 text-sm mt-1">{errors.budget}</p>}
+            </div>
+
+            {/* Projektphase */}
+            <div>
+              <label htmlFor="projektphase" className="block text-sm font-medium mb-1">
+                Projektphase (optional)
+              </label>
+              <select
+                id="projektphase"
+                value={projektphase}
+                onChange={(e) => setProjektphase(normalizePhase(e.target.value))}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+              >
+                <option value="initialisierung">Initialisierung</option>
+                <option value="konzept">Konzept</option>
+                <option value="realisierung">Realisierung</option>
+                <option value="einfuehrung">Einführung</option>
+                <option value="abschluss">Abschluss</option>
+              </select>
+            </div>
+
+            {/* Nächster Meilenstein */}
+            <div>
+              <label htmlFor="naechsterMeilenstein" className="block text-sm font-medium mb-1">
+                Nächster Meilenstein (optional)
+              </label>
+              <input
+                id="naechsterMeilenstein"
+                type="text"
+                value={naechsterMeilenstein}
+                onChange={(e) => setNaechsterMeilenstein(e.target.value)}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                placeholder="z.B. Go-Live Q3 2025"
+              />
+            </div>
+
+            {/* Bisher */}
+            <div>
+              <label htmlFor="bisher" className="block text-sm font-medium mb-1">
+                Bisher (optional)
+              </label>
+              <textarea
+                id="bisher"
+                value={bisher}
+                onChange={(e) => setBisher(e.target.value)}
+                rows={3}
+                className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
+                  errors.bisher
+                    ? 'border-rose-500 bg-slate-900/60'
+                    : 'border-slate-800/70 bg-slate-950'
+                } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
+                placeholder="Was wurde bisher erreicht?"
+              />
+              {errors.bisher && <p className="text-red-500 text-sm mt-1">{errors.bisher}</p>}
+            </div>
+
+            {/* Zukunft */}
+            <div>
+              <label htmlFor="zukunft" className="block text-sm font-medium mb-1">
+                In Zukunft (optional)
+              </label>
+              <textarea
+                id="zukunft"
+                value={zukunft}
+                onChange={(e) => setZukunft(e.target.value)}
+                rows={3}
+                className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
+                  errors.zukunft
+                    ? 'border-rose-500 bg-slate-900/60'
+                    : 'border-slate-800/70 bg-slate-950'
+                } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
+                placeholder="Was ist für die Zukunft geplant?"
+              />
+              {errors.zukunft && <p className="text-red-500 text-sm mt-1">{errors.zukunft}</p>}
+            </div>
+
+            {/* Geplante Umsetzung */}
+            <div>
+              <label htmlFor="geplantUmsetzung" className="block text-sm font-medium mb-1">
+                Geplante Umsetzung (optional)
+              </label>
+              <textarea
+                id="geplantUmsetzung"
+                value={geplantUmsetzung}
+                onChange={(e) => setGeplantUmsetzung(e.target.value)}
+                rows={3}
+                className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
+                  errors.geplantUmsetzung
+                    ? 'border-rose-500 bg-slate-900/60'
+                    : 'border-slate-800/70 bg-slate-950'
+                } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
+                placeholder="Wie soll das Projekt umgesetzt werden?"
+              />
+              {errors.geplantUmsetzung && (
+                <p className="text-red-500 text-sm mt-1">{errors.geplantUmsetzung}</p>
+              )}
+            </div>
+
+            {/* Felder */}
+            <div className="mt-2">
+              <h3 className="text-lg font-medium mb-2">Felder (optional)</h3>
+              <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
+                <p className="mb-4 text-sm text-slate-300">
+                  Wählen Sie die Felder aus, die für dieses Projekt relevant sind:
+                </p>
+                <p className="mb-2 text-xs text-slate-500">
+                  Selected fields: {selectedFields.join(', ')}
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {availableFields.map((field) => (
+                    <div key={field.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`field-${field.id}`}
+                        checked={selectedFields.includes(field.name)}
+                        onChange={() => toggleField(field.name)}
+                        className="h-4 w-4 rounded border-slate-700 bg-slate-900/70 text-sky-400 focus:ring-2 focus:ring-sky-500"
+                      />
+                      <label htmlFor={`field-${field.id}`} className="text-sm">
+                        {field.name}
+                        {field.description && (
+                          <span className="block text-xs text-slate-400">{field.description}</span>
+                        )}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Team-Mitglieder */}
+            <div className="mt-2">
+              <h3 className="text-lg font-medium mb-2">Team-Mitglieder (optional)</h3>
+              <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Nach Benutzern suchen..."
+                    className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                  />
+                  {isSearching && (
+                    <div className="absolute right-2 top-1.5">
+                      <JSDoITLoader
+                        sizeRem={0.7}
+                        message=""
+                        showGlow={false}
+                        className="flex-row gap-1 px-0 py-0 text-sky-200"
+                      />
+                    </div>
+                  )}
+
+                  {searchResults.length > 0 && (
+                    <div className="absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-800/70 bg-slate-950/95 shadow-xl shadow-slate-950/40 backdrop-blur">
+                      <ul>
+                        {searchResults.map((user) => (
+                          <li
+                            key={user.id || user.name}
+                            className="flex cursor-pointer items-center justify-between border-b border-slate-800/60 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-900/80 last:border-0"
+                            onClick={() => handleAddTeamMember(user)}
+                          >
+                            <span>{user.name}</span>
+                            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
+                              Hinzufügen
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-5">
+                  <h4 className="text-sm font-medium mb-2">Aktuelle Team-Mitglieder:</h4>
+                  {teamMembers.length > 0 ? (
+                    <ul className="space-y-2">
+                      {teamMembers.map((member) => (
+                        <li
+                          key={member.id}
+                          className="flex items-center justify-between rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm text-slate-200"
+                        >
+                          <div>
+                            <span>{member.name}</span>
+                            <span className="ml-2 text-xs text-slate-400">
+                              ({member.role || 'Teammitglied'})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={member.role || 'Teammitglied'}
+                              onChange={(e) => {
+                                const newRole = e.target.value;
+                                setTeamMembers((prev) =>
+                                  prev.map((m) =>
+                                    m.id === member.id ? { ...m, role: newRole } : m
+                                  )
+                                );
+                              }}
+                              className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-200 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30"
+                            >
+                              <option value="Teammitglied">Teammitglied</option>
+                              <option value="Projektleiter">Projektleiter</option>
+                              <option value="Fachexperte">Fachexperte</option>
+                              <option value="Stakeholder">Stakeholder</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => member.id && handleRemoveTeamMember(member.id)}
+                              className="rounded-full border border-rose-500/50 p-1 text-rose-300 transition hover:border-rose-400 hover:text-rose-100"
+                              aria-label="Teammitglied entfernen"
+                            >
+                              <FaTrash size={16} />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-slate-400">Keine Team-Mitglieder vorhanden</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Links */}
+            <div className="mt-2">
+              <h3 className="text-lg font-medium mb-2">Referenz-Links (optional)</h3>
+              <div className="mb-4 space-y-2">
+                {links.map((link) => (
+                  <div
+                    key={link.id}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm text-slate-200"
+                  >
+                    <div className="flex-grow">
+                      <div className="font-semibold text-white">{link.title}</div>
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300 transition hover:text-sky-200"
+                      >
+                        {link.url}
+                      </a>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeLink(link.id)}
+                      className="rounded-full border border-rose-500/50 p-1 text-rose-300 transition hover:border-rose-400 hover:text-rose-100"
+                      aria-label="Link entfernen"
+                    >
+                      <FaTrash size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-7">
+                <div className="md:col-span-3">
+                  <input
+                    type="text"
+                    placeholder="Link-Titel"
+                    value={newLinkTitle}
+                    onChange={(e) => setNewLinkTitle(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                  />
+                </div>
+                <div className="md:col-span-3">
+                  <input
+                    type="url"
+                    placeholder="URL (https://...)"
+                    value={newLinkUrl}
+                    onChange={(e) => setNewLinkUrl(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                  />
+                </div>
+                <div className="md:col-span-1">
+                  <button
+                    type="button"
+                    onClick={addLink}
+                    className="flex w-full items-center justify-center rounded-full bg-sky-500 px-4 py-2 text-white transition hover:bg-sky-400 disabled:opacity-60"
+                    disabled={!newLinkTitle.trim() || !newLinkUrl.trim()}
+                  >
+                    <FaPlus />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+      ) : (
+        <>
+          {/* Projektleitung */}
+          <div>
+            <label htmlFor="projektleitung" className="block text-sm font-medium mb-1">
+              Projektleitung <span className="text-red-500">*</span>
+            </label>
             <input
+              id="projektleitung"
               type="text"
-              placeholder="Link-Titel"
-              value={newLinkTitle}
-              onChange={(e) => setNewLinkTitle(e.target.value)}
-              className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+              value={projektleitung}
+              onChange={(e) => setProjektleitung(e.target.value)}
+              className={`w-full rounded-2xl border px-4 py-2 text-sm text-slate-100 outline-none transition ${
+                errors.projektleitung
+                  ? 'border-rose-500 bg-slate-900/60'
+                  : 'border-slate-800/70 bg-slate-950'
+              } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
+              required
             />
+            {errors.projektleitung && (
+              <p className="text-red-500 text-sm mt-1">{errors.projektleitung}</p>
+            )}
           </div>
-          <div className="md:col-span-3">
+
+          {/* Budget */}
+          <div>
+            <label htmlFor="budget" className="block text-sm font-medium mb-1">
+              Budget <span className="text-red-500">*</span>
+            </label>
             <input
-              type="url"
-              placeholder="URL (https://...)"
-              value={newLinkUrl}
-              onChange={(e) => setNewLinkUrl(e.target.value)}
-              className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+              id="budget"
+              type="text"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              className={`w-full rounded-2xl border px-4 py-2 text-sm text-slate-100 outline-none transition ${
+                errors.budget
+                  ? 'border-rose-500 bg-slate-900/60'
+                  : 'border-slate-800/70 bg-slate-950'
+              } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
+              placeholder="Nur Zahlen eingeben (z.B. 150000)"
+              required
+            />
+            {errors.budget && <p className="text-red-500 text-sm mt-1">{errors.budget}</p>}
+          </div>
+
+          {/* Projektphase */}
+          <div>
+            <label htmlFor="projektphase" className="block text-sm font-medium mb-1">
+              Projektphase
+            </label>
+            <select
+              id="projektphase"
+              value={projektphase}
+              onChange={(e) => setProjektphase(normalizePhase(e.target.value))}
+              className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+            >
+              <option value="initialisierung">Initialisierung</option>
+              <option value="konzept">Konzept</option>
+              <option value="realisierung">Realisierung</option>
+              <option value="einfuehrung">Einführung</option>
+              <option value="abschluss">Abschluss</option>
+            </select>
+          </div>
+
+          {/* Nächster Meilenstein (optional) */}
+          <div>
+            <label htmlFor="naechsterMeilenstein" className="block text-sm font-medium mb-1">
+              Nächster Meilenstein (optional)
+            </label>
+            <input
+              id="naechsterMeilenstein"
+              type="text"
+              value={naechsterMeilenstein}
+              onChange={(e) => setNaechsterMeilenstein(e.target.value)}
+              className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+              placeholder="z.B. Go-Live Q3 2025"
             />
           </div>
-          <div className="md:col-span-1">
-            <button
-              type="button"
-              onClick={addLink}
-              className="flex w-full items-center justify-center rounded-full bg-sky-500 px-4 py-2 text-white transition hover:bg-sky-400 disabled:opacity-60"
-              disabled={!newLinkTitle.trim() || !newLinkUrl.trim()}
-            >
-              <FaPlus />
-            </button>
+
+          {/* Bisher */}
+          <div>
+            <label htmlFor="bisher" className="block text-sm font-medium mb-1">
+              Bisher <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="bisher"
+              value={bisher}
+              onChange={(e) => setBisher(e.target.value)}
+              rows={3}
+              className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
+                errors.bisher
+                  ? 'border-rose-500 bg-slate-900/60'
+                  : 'border-slate-800/70 bg-slate-950'
+              } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
+              placeholder="Was wurde bisher erreicht?"
+              required
+            />
+            {errors.bisher && <p className="text-red-500 text-sm mt-1">{errors.bisher}</p>}
           </div>
-        </div>
-      </div>
+
+          {/* Zukunft */}
+          <div>
+            <label htmlFor="zukunft" className="block text-sm font-medium mb-1">
+              In Zukunft <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="zukunft"
+              value={zukunft}
+              onChange={(e) => setZukunft(e.target.value)}
+              rows={3}
+              className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
+                errors.zukunft
+                  ? 'border-rose-500 bg-slate-900/60'
+                  : 'border-slate-800/70 bg-slate-950'
+              } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
+              placeholder="Was ist für die Zukunft geplant?"
+              required
+            />
+            {errors.zukunft && <p className="text-red-500 text-sm mt-1">{errors.zukunft}</p>}
+          </div>
+
+          {/* Geplante Umsetzung */}
+          <div>
+            <label htmlFor="geplantUmsetzung" className="block text-sm font-medium mb-1">
+              Geplante Umsetzung <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="geplantUmsetzung"
+              value={geplantUmsetzung}
+              onChange={(e) => setGeplantUmsetzung(e.target.value)}
+              rows={3}
+              className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
+                errors.geplantUmsetzung
+                  ? 'border-rose-500 bg-slate-900/60'
+                  : 'border-slate-800/70 bg-slate-950'
+              } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
+              placeholder="Wie soll das Projekt umgesetzt werden?"
+              required
+            />
+            {errors.geplantUmsetzung && (
+              <p className="text-red-500 text-sm mt-1">{errors.geplantUmsetzung}</p>
+            )}
+          </div>
+
+          {/* Felder */}
+          <div className="mt-6">
+            <h3 className="text-lg font-medium mb-2">Felder</h3>
+            <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
+              <p className="mb-4 text-sm text-slate-300">
+                Wählen Sie die Felder aus, die für dieses Projekt relevant sind:
+              </p>
+              <p className="mb-2 text-xs text-slate-500">
+                Selected fields: {selectedFields.join(', ')}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {availableFields.map((field) => (
+                  <div key={field.id} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`field-${field.id}`}
+                      checked={selectedFields.includes(field.name)}
+                      onChange={() => toggleField(field.name)}
+                      className="h-4 w-4 rounded border-slate-700 bg-slate-900/70 text-sky-400 focus:ring-2 focus:ring-sky-500"
+                    />
+                    <label htmlFor={`field-${field.id}`} className="text-sm">
+                      {field.name}
+                      {field.description && (
+                        <span className="block text-xs text-slate-400">{field.description}</span>
+                      )}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Team-Mitglieder with search */}
+          <div className="mt-6">
+            <h3 className="text-lg font-medium mb-2">Team-Mitglieder</h3>
+            <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Nach Benutzern suchen..."
+                  className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                />
+                {isSearching && (
+                  <div className="absolute right-2 top-1.5">
+                    <JSDoITLoader
+                      sizeRem={0.7}
+                      message=""
+                      showGlow={false}
+                      className="flex-row gap-1 px-0 py-0 text-sky-200"
+                    />
+                  </div>
+                )}
+
+                {searchResults.length > 0 && (
+                  <div className="absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-800/70 bg-slate-950/95 shadow-xl shadow-slate-950/40 backdrop-blur">
+                    <ul>
+                      {searchResults.map((user) => (
+                        <li
+                          key={user.id || user.name}
+                          className="flex cursor-pointer items-center justify-between border-b border-slate-800/60 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-900/80 last:border-0"
+                          onClick={() => handleAddTeamMember(user)}
+                        >
+                          <span>{user.name}</span>
+                          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
+                            Hinzufügen
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5">
+                <h4 className="text-sm font-medium mb-2">Aktuelle Team-Mitglieder:</h4>
+                {teamMembers.length > 0 ? (
+                  <ul className="space-y-2">
+                    {teamMembers.map((member) => (
+                      <li
+                        key={member.id}
+                        className="flex items-center justify-between rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm text-slate-200"
+                      >
+                        <div>
+                          <span>{member.name}</span>
+                          <span className="ml-2 text-xs text-slate-400">
+                            ({member.role || 'Teammitglied'})
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={member.role || 'Teammitglied'}
+                            onChange={(e) => {
+                              const newRole = e.target.value;
+                              setTeamMembers((prev) =>
+                                prev.map((m) => (m.id === member.id ? { ...m, role: newRole } : m))
+                              );
+                            }}
+                            className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-200 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30"
+                          >
+                            <option value="Teammitglied">Teammitglied</option>
+                            <option value="Projektleiter">Projektleiter</option>
+                            <option value="Fachexperte">Fachexperte</option>
+                            <option value="Stakeholder">Stakeholder</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => member.id && handleRemoveTeamMember(member.id)}
+                            className="rounded-full border border-rose-500/50 p-1 text-rose-300 transition hover:border-rose-400 hover:text-rose-100"
+                            aria-label="Teammitglied entfernen"
+                          >
+                            <FaTrash size={16} />
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-400">Keine Team-Mitglieder vorhanden</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Links-Bereich */}
+          <div className="mt-6">
+            <h3 className="text-lg font-medium mb-2">Referenz-Links</h3>
+
+            <div className="mb-4 space-y-2">
+              {links.map((link) => (
+                <div
+                  key={link.id}
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm text-slate-200"
+                >
+                  <div className="flex-grow">
+                    <div className="font-semibold text-white">{link.title}</div>
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300 transition hover:text-sky-200"
+                    >
+                      {link.url}
+                    </a>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeLink(link.id)}
+                    className="rounded-full border border-rose-500/50 p-1 text-rose-300 transition hover:border-rose-400 hover:text-rose-100"
+                    aria-label="Link entfernen"
+                  >
+                    <FaTrash size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-7">
+              <div className="md:col-span-3">
+                <input
+                  type="text"
+                  placeholder="Link-Titel"
+                  value={newLinkTitle}
+                  onChange={(e) => setNewLinkTitle(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                />
+              </div>
+              <div className="md:col-span-3">
+                <input
+                  type="url"
+                  placeholder="URL (https://...)"
+                  value={newLinkUrl}
+                  onChange={(e) => setNewLinkUrl(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                />
+              </div>
+              <div className="md:col-span-1">
+                <button
+                  type="button"
+                  onClick={addLink}
+                  className="flex w-full items-center justify-center rounded-full bg-sky-500 px-4 py-2 text-white transition hover:bg-sky-400 disabled:opacity-60"
+                  disabled={!newLinkTitle.trim() || !newLinkUrl.trim()}
+                >
+                  <FaPlus />
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Buttons */}
       <div className="flex justify-end gap-3 pt-6">

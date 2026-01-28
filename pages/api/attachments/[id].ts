@@ -41,6 +41,32 @@ async function readRawBody(req: NextApiRequest): Promise<Uint8Array> {
   });
 }
 
+const encodeServerRelativeUrl = (value: string): string => encodeURI(value).replace(/'/g, "''");
+
+const extractJsonPayload = (raw: string, contentType: string): unknown => {
+  if (contentType.includes('application/json')) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+
+const getNested = (value: unknown, path: string[]): unknown => {
+  let current: unknown = value;
+  for (const key of path) {
+    const obj = asRecord(current);
+    if (!obj) return undefined;
+    current = obj[key];
+  }
+  return current;
+};
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query as { id: string };
   const name = (req.query.name as string) || '';
@@ -76,6 +102,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     )})/AttachmentFiles`;
     const base = `${baseUrl}${basePath}`;
 
+    const listInfoUrl = `${baseUrl}/api/sharepoint/_api/web/lists/getByTitle('${encodedTitle}')?$select=RootFolder/ServerRelativeUrl&$expand=RootFolder`;
+
     const withSlug = (rawUrl: string) => {
       try {
         const urlObj = new URL(rawUrl);
@@ -107,6 +135,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return h;
     };
 
+    const getRootFolderUrl = async (): Promise<string> => {
+      const url = withSlug(listInfoUrl);
+      const r = await fetch(url, {
+        headers: attachHeaders({ Accept: 'application/json;odata=nometadata' }),
+      });
+      const txt = await r.text();
+      const payload = extractJsonPayload(txt, r.headers.get('content-type') || '');
+      if (!r.ok) {
+        throw new Error(`list-root-folder-failed:${r.status}`);
+      }
+      const rootUrl = (getNested(payload, ['RootFolder', 'ServerRelativeUrl']) ??
+        getNested(payload, ['d', 'RootFolder', 'ServerRelativeUrl']) ??
+        '') as unknown;
+      if (!rootUrl) throw new Error('list-root-folder-missing');
+      return String(rootUrl);
+    };
+
+    const ensureAttachmentFolder = async (rootFolderUrl: string) => {
+      const parent = `${rootFolderUrl.replace(/\/$/, '')}/Attachments`;
+      const url = withSlug(
+        `${baseUrl}/api/sharepoint/_api/web/GetFolderByServerRelativeUrl('${encodeServerRelativeUrl(
+          parent
+        )}')/Folders/add('${encodeURIComponent(id)}')`
+      );
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: attachHeaders({
+          Accept: 'application/json;odata=nometadata',
+          'Content-Type': 'application/json;odata=verbose',
+        }),
+      });
+      if (!r.ok && r.status !== 409) {
+        const body = await r.text();
+        throw new Error(`attachments-folder-failed:${r.status}:${body}`);
+      }
+    };
+
     if (req.method === 'GET') {
       const url = withSlug(base + '?$select=FileName,ServerRelativeUrl');
       const r = await fetch(url, {
@@ -134,6 +199,71 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === 'POST') {
       if (!name) return res.status(400).json({ error: 'Missing name' });
+      const isChunked = String(req.query.chunked || '').toLowerCase() === '1';
+      if (isChunked) {
+        const actionRaw = req.query.action;
+        const action = Array.isArray(actionRaw) ? actionRaw[0] : actionRaw;
+        const uploadIdRaw = req.query.uploadId;
+        const uploadId = Array.isArray(uploadIdRaw) ? uploadIdRaw[0] : uploadIdRaw;
+        const offsetRaw = req.query.offset;
+        const offset = Number(Array.isArray(offsetRaw) ? offsetRaw[0] : offsetRaw || 0);
+
+        if (!action || !uploadId || Number.isNaN(offset)) {
+          return res.status(400).json({ error: 'Missing chunked upload parameters' });
+        }
+
+        const binary = await readRawBody(req);
+        let rootFolderUrl = '';
+        try {
+          rootFolderUrl = await getRootFolderUrl();
+          await ensureAttachmentFolder(rootFolderUrl);
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : 'attachment-folder-error';
+          return res.status(500).json({ error: msg });
+        }
+
+        const fileUrl = `${rootFolderUrl.replace(/\/$/, '')}/Attachments/${id}/${name}`;
+        const encodedFileUrl = encodeServerRelativeUrl(fileUrl);
+        const apiBase = `${baseUrl}/api/sharepoint/_api/web/GetFileByServerRelativeUrl('${encodedFileUrl}')`;
+
+        let spEndpoint = '';
+        if (action === 'start') {
+          spEndpoint = `${apiBase}/StartUpload(uploadId=guid'${uploadId}')`;
+        } else if (action === 'continue') {
+          spEndpoint = `${apiBase}/ContinueUpload(uploadId=guid'${uploadId}',fileOffset=${offset})`;
+        } else if (action === 'finish') {
+          spEndpoint = `${apiBase}/FinishUpload(uploadId=guid'${uploadId}',fileOffset=${offset})`;
+        } else {
+          return res.status(400).json({ error: 'Invalid chunked action' });
+        }
+
+        const r = await fetch(withSlug(spEndpoint), {
+          method: 'POST',
+          headers: attachHeaders({
+            Accept: 'application/json;odata=nometadata',
+            'Content-Type': 'application/octet-stream',
+          }),
+          body: binary.buffer.slice(
+            binary.byteOffset,
+            binary.byteOffset + binary.byteLength
+          ) as ArrayBuffer,
+        });
+        const bodyText = await r.text();
+        if (!r.ok) {
+          return res.status(r.status).json({ error: 'sp-upload-failed', body: bodyText });
+        }
+
+        const payload = extractJsonPayload(bodyText, r.headers.get('content-type') || '');
+        const nextOffset =
+          getNested(payload, ['value']) ??
+          getNested(payload, ['d', 'StartUpload']) ??
+          getNested(payload, ['d', 'ContinueUpload']) ??
+          getNested(payload, ['d', 'FinishUpload']) ??
+          undefined;
+
+        return res.status(200).json({ ok: true, nextOffset });
+      }
+
       const binary = await readRawBody(req);
       const url = withSlug(
         base + `/add(FileName='${encodeURIComponent(name).replace(/'/g, "''")}')`

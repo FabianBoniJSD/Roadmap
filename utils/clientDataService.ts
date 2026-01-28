@@ -34,33 +34,27 @@ const getAsyncLocalStorageCtor = (): AsyncLocalStorageCtor | null => {
     console.warn('[clientDataService] AsyncLocalStorage unavailable', error);
     asyncLocalStorageCtor = null;
   }
-
   return asyncLocalStorageCtor;
 };
 
 const getInstanceContextStorage = (): AsyncLocalStorage<string | null> | null => {
-  if (typeof window !== 'undefined') return null;
+  if (instanceContextStorage) return instanceContextStorage;
   const ctor = getAsyncLocalStorageCtor();
   if (!ctor) return null;
-
-  if (!instanceContextStorage) {
-    instanceContextStorage = new ctor<string | null>();
-  }
+  instanceContextStorage = new ctor();
   return instanceContextStorage;
 };
 
-// SharePoint list names
 const SP_LISTS = {
   PROJECTS: 'RoadmapProjects',
   CATEGORIES: 'RoadmapCategories',
+  SETTINGS: 'RoadmapSettings',
+  TEAM_MEMBERS: 'RoadmapTeamMembers',
+  PROJECT_LINKS: 'RoadmapProjectLinks',
   FIELD_TYPES: 'RoadmapFieldTypes',
   FIELDS: 'RoadmapFields',
-  TEAM_MEMBERS: 'RoadmapTeamMembers',
-  SETTINGS: 'RoadmapSettings',
-  PROJECT_LINKS: 'RoadmapProjectLinks', // Neue Liste für Projekt-Links
 };
 
-// Space / alias variants per list (SharePoint often has spaced titles)
 const SP_LIST_VARIANTS: Record<string, string[]> = {
   [SP_LISTS.PROJECTS]: ['Roadmap Projects'],
   [SP_LISTS.CATEGORIES]: ['Roadmap Categories'],
@@ -71,82 +65,22 @@ const SP_LIST_VARIANTS: Record<string, string[]> = {
   [SP_LISTS.PROJECT_LINKS]: ['Roadmap Project Links'],
 };
 
-// Client-side data service using fetch API instead of PnP JS
 class ClientDataService {
-  // Cache for list metadata types
-  private metadataCache: Record<string, string> = {};
-  // Cache for request digest
-  private requestDigestCache: Record<string, { value: string; expiration: number }> = {};
-  // Cache for list field internal names
-  private listFieldsCache: Record<string, Set<string>> = {};
-  // Cache for list field types (InternalName -> TypeAsString)
-  private listFieldTypeCache: Record<string, Record<string, string>> = {};
-  // Cache for resolved list titles (handles space/no-space variants)
   private listTitleCache: Record<string, string> = {};
+  private listFieldsCache: Record<string, Set<string>> = {};
+  private listFieldTypeCache: Record<string, Record<string, string>> = {};
+  private requestDigestCache: Record<string, { value: string; expiration: number }> = {};
+  private metadataCache: Record<string, string> = {};
+  private _validProjectFields: string[] | null = null;
 
-  private getBrowserInstanceSlug(): string | null {
-    if (typeof window === 'undefined') return null;
-    try {
-      const params = new URLSearchParams(window.location.search || '');
-      const paramSlug = params.get(INSTANCE_QUERY_PARAM);
-      if (paramSlug) return paramSlug;
-    } catch {
-      /* ignore */
-    }
-    try {
-      const cookies = document.cookie || '';
-      const match = cookies.match(new RegExp(`(?:^|;\s*)${INSTANCE_COOKIE_NAME}=([^;\s]+)`, 'i'));
-      if (match && match[1]) return decodeURIComponent(match[1]);
-    } catch {
-      /* ignore */
-    }
-    return null;
-  }
-
-  private prepareFetch(
-    url: string,
-    init: RequestInit = {}
-  ): { url: string; init: RequestInit & { next?: { revalidate?: number } } } {
-    const prepared = { ...init } as RequestInit & { next?: { revalidate?: number } };
-    const isServer = typeof window === 'undefined';
-    const activeSlug = isServer ? this.getActiveInstanceSlug() : this.getBrowserInstanceSlug();
-    const originalMethod = (prepared.method || 'GET').toString().toUpperCase();
-
-    if (isServer) {
-      prepared.cache = 'no-store';
-      prepared.next = { ...(prepared.next || {}), revalidate: 0 };
-      const existingHeaders = new Headers(prepared.headers as HeadersInit | undefined);
-      if (!existingHeaders.has('Cache-Control')) {
-        existingHeaders.set('Cache-Control', 'no-cache');
-      }
-      prepared.headers = existingHeaders;
-    } else {
-      // Avoid browser cache returning data from a previous instance
-      if (!prepared.cache) prepared.cache = 'no-store';
-    }
-
+  private prepareFetch(url: string, init: RequestInit = {}) {
+    const prepared: RequestInit = { ...init };
+    const headers = new Headers(init.headers || {});
     let finalUrl = url;
-    if (isServer && finalUrl.startsWith('/')) {
-      const base = (process.env.INTERNAL_API_BASE_URL || 'http://localhost:3000').replace(
-        /\/$/,
-        ''
-      );
-      finalUrl = base + finalUrl;
-    }
-    if (originalMethod === 'GET' || originalMethod === 'HEAD') {
-      const cacheBust = `cb=${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-      const instanceTag = activeSlug ? `ri=${encodeURIComponent(activeSlug)}` : null;
-      const params = [instanceTag, cacheBust].filter(Boolean).join('&');
-      finalUrl += (finalUrl.includes('?') ? '&' : '?') + params;
-    }
 
+    const activeSlug = this.getActiveInstanceSlug();
     if (activeSlug) {
-      const headers =
-        prepared.headers instanceof Headers
-          ? prepared.headers
-          : new Headers(prepared.headers as HeadersInit | undefined);
       headers.set('x-roadmap-instance', activeSlug);
-
       const cookieValue = `${INSTANCE_COOKIE_NAME}=${activeSlug}`;
       const existingCookie = headers.get('cookie');
       if (existingCookie) {
@@ -160,9 +94,35 @@ class ClientDataService {
       } else {
         headers.set('cookie', cookieValue);
       }
-      prepared.headers = headers;
+
+      try {
+        const base =
+          typeof window !== 'undefined'
+            ? window.location.origin
+            : (process.env.INTERNAL_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+        const urlObj = new URL(finalUrl, base);
+        if (!urlObj.searchParams.has(INSTANCE_QUERY_PARAM)) {
+          urlObj.searchParams.set(INSTANCE_QUERY_PARAM, activeSlug);
+        }
+        finalUrl = urlObj.toString();
+      } catch {
+        if (!finalUrl.includes(`${INSTANCE_QUERY_PARAM}=`)) {
+          finalUrl += finalUrl.includes('?')
+            ? `&${INSTANCE_QUERY_PARAM}=${encodeURIComponent(activeSlug)}`
+            : `?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(activeSlug)}`;
+        }
+      }
     }
 
+    if (typeof window === 'undefined' && !/^https?:\/\//i.test(finalUrl)) {
+      const base = (process.env.INTERNAL_API_BASE_URL || 'http://localhost:3000').replace(
+        /\/$/,
+        ''
+      );
+      finalUrl = finalUrl.startsWith('/') ? `${base}${finalUrl}` : `${base}/${finalUrl}`;
+    }
+
+    prepared.headers = headers;
     return { url: finalUrl, init: prepared };
   }
 
@@ -172,8 +132,6 @@ class ClientDataService {
   }
 
   private getWebUrl(): string {
-    // Route all SharePoint REST calls through Next.js API proxy to avoid CORS
-    // On the server, Node's fetch requires an absolute URL
     if (typeof window === 'undefined') {
       const base = (process.env.INTERNAL_API_BASE_URL || 'http://localhost:3000').replace(
         /\/$/,
@@ -547,6 +505,7 @@ class ClientDataService {
   async getAllProjects(): Promise<Project[]> {
     const candidateFields = [
       'Title',
+      'ProjectType',
       'Category',
       'StartQuarter',
       'EndQuarter',
@@ -564,9 +523,6 @@ class ClientDataService {
       'Projektphase',
       'NaechsterMeilenstein',
     ];
-    // Cache of validated fields (in-memory for runtime)
-    // @ts-expect-error attach dynamic cache property
-    if (!this._validProjectFields) this._validProjectFields = null as string[] | null;
 
     const buildSelect = (fields: string[]) => {
       const unique = Array.from(new Set(['Id', ...fields]));
@@ -961,6 +917,12 @@ class ClientDataService {
       const project: Project = {
         id: item.Id?.toString?.() || String(item.Id),
         title: item.Title,
+        projectType:
+          item.ProjectType !== undefined && item.ProjectType !== null && String(item.ProjectType)
+            ? String(item.ProjectType).toLowerCase() === 'short'
+              ? 'short'
+              : 'long'
+            : 'long',
         category: normalizedCategory,
         startQuarter:
           item.StartQuarter !== undefined && item.StartQuarter !== null
@@ -1088,7 +1050,17 @@ class ClientDataService {
   async getProjectById(id: string): Promise<Project | null> {
     try {
       const webUrl = this.getWebUrl();
-      const selectFields = [
+      const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
+
+      // Only include optional fields when the list supports them (older farms may not have them)
+      let listFields: Set<string> | null = null;
+      try {
+        listFields = await this.getListFieldNames(resolvedProjects);
+      } catch {
+        listFields = null;
+      }
+
+      const baseSelectFields: string[] = [
         'Id',
         'Title',
         'Category',
@@ -1105,10 +1077,12 @@ class ClientDataService {
         'StartDate',
         'EndDate',
         'ProjectFields',
-        'Projektphase',
-        'NaechsterMeilenstein',
-      ].join(',');
-      const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
+      ];
+      if (listFields?.has('ProjectType')) baseSelectFields.push('ProjectType');
+      if (listFields?.has('Projektphase')) baseSelectFields.push('Projektphase');
+      if (listFields?.has('NaechsterMeilenstein')) baseSelectFields.push('NaechsterMeilenstein');
+
+      const selectFields = baseSelectFields.join(',');
       const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})?$select=${selectFields}`;
 
       let response = await this.spFetch(endpoint, {
@@ -1241,6 +1215,12 @@ class ClientDataService {
     const project: Project = {
       id: item.Id?.toString?.() || id,
       title: item.Title,
+      projectType:
+        item.ProjectType !== undefined && item.ProjectType !== null && String(item.ProjectType)
+          ? String(item.ProjectType).toLowerCase() === 'short'
+            ? 'short'
+            : 'long'
+          : 'long',
       category: item.Category,
       startQuarter: item.StartQuarter,
       endQuarter: item.EndQuarter,
@@ -1406,6 +1386,11 @@ class ClientDataService {
       // Conditionally include optional new fields if list supports them
       try {
         const fields = await this.getListFieldNames(resolvedProjects);
+        if (fields.has('ProjectType')) {
+          const nextType = (projectData as any).projectType || (existingProject as any).projectType;
+          if (nextType)
+            body['ProjectType'] = String(nextType).toLowerCase() === 'short' ? 'short' : 'long';
+        }
         if (fields.has('Projektphase')) {
           const phaseRaw =
             (projectData as any).projektphase || (existingProject as any).projektphase || '';
@@ -1494,6 +1479,10 @@ class ClientDataService {
         ...existingProject,
         ...projectData,
         id,
+        projectType: ((body as any).ProjectType ||
+          (projectData as any).projectType ||
+          (existingProject as any).projectType ||
+          'long') as any,
         projektphase: ((body as any).Projektphase ||
           (projectData as any).projektphase ||
           (existingProject as any).projektphase) as any,
@@ -2110,6 +2099,10 @@ class ClientDataService {
 
       try {
         const fields = await this.getListFieldNames(resolvedProjects);
+        if (fields.has('ProjectType')) {
+          const pt = (projectData as any).projectType;
+          if (pt) body['ProjectType'] = String(pt).toLowerCase() === 'short' ? 'short' : 'long';
+        }
         if (fields.has('Projektphase')) {
           const phaseRaw = (projectData as any).projektphase || '';
           const phase = String(phaseRaw || '').toLowerCase();
@@ -2182,6 +2175,7 @@ class ClientDataService {
           id: String(newId),
           links: [],
           teamMembers: [],
+          projectType: (body as any).ProjectType || (projectData as any).projectType || 'long',
           projektphase: (body as any).Projektphase || (projectData as any).projektphase,
           naechster_meilenstein:
             (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein,
@@ -2192,6 +2186,7 @@ class ClientDataService {
           id: project.id,
           links: [],
           teamMembers: [],
+          projectType: (body as any).ProjectType || (projectData as any).projectType || 'long',
           projektphase: (body as any).Projektphase || (projectData as any).projektphase,
           naechster_meilenstein:
             (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein,
@@ -2814,7 +2809,9 @@ class ClientDataService {
     file: File,
     opts?: { onProgress?: (pct: number) => void; signal?: AbortSignal }
   ): Promise<{ ok: boolean; error?: string; aborted?: boolean }> {
-    const maxSize = 25 * 1024 * 1024; // 25MB default SP classic limit
+    const maxSize = 500 * 1024 * 1024; // 500MB
+    const simpleLimit = 25 * 1024 * 1024; // use simple upload below this size
+    const chunkSize = 10 * 1024 * 1024; // 10MB chunks
     const allowed = [
       /\.pdf$/i,
       /\.docx?$/i,
@@ -2826,48 +2823,111 @@ class ClientDataService {
       /\.csv$/i,
       /\.zip$/i,
     ];
-    if (file.size > maxSize) return { ok: false, error: 'Datei ist zu groß (max. 25MB)' };
+    if (file.size > maxSize) return { ok: false, error: 'Datei ist zu groß (max. 500MB)' };
     if (!allowed.some((rx) => rx.test(file.name)))
       return { ok: false, error: 'Dateityp nicht erlaubt' };
 
     const url = `/api/attachments/${encodeURIComponent(projectId)}?name=${encodeURIComponent(file.name)}`;
-    // Use XHR to get progress
     try {
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', url, true);
-        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable && opts?.onProgress) {
-            const pct = Math.round((e.loaded / e.total) * 100);
-            opts.onProgress(pct);
+      if (file.size <= simpleLimit) {
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', url, true);
+          xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && opts?.onProgress) {
+              const pct = Math.round((e.loaded / e.total) * 100);
+              opts.onProgress(pct);
+            }
+          };
+          let aborted = false;
+          const onAbort = () => {
+            aborted = true;
+            try {
+              xhr.abort();
+            } catch {}
+          };
+          if (opts?.signal) {
+            if (opts.signal.aborted) onAbort();
+            else opts.signal.addEventListener('abort', onAbort);
           }
-        };
-        // Abort handling
-        let aborted = false;
-        const onAbort = () => {
-          aborted = true;
-          try {
-            xhr.abort();
-          } catch {}
-        };
-        if (opts?.signal) {
-          if (opts.signal.aborted) onAbort();
-          else opts.signal.addEventListener('abort', onAbort);
+          xhr.onload = () => {
+            if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
+            if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
+            if (xhr.status >= 200 && xhr.status < 300) return resolve();
+            reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
+          };
+          xhr.onerror = () => {
+            if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
+            if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
+            reject(new Error('Netzwerkfehler beim Upload'));
+          };
+          xhr.send(file);
+        });
+        return { ok: true };
+      }
+
+      const uploadId = (crypto as any).randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+      let offset = 0;
+
+      const sendChunk = (
+        action: 'start' | 'continue' | 'finish',
+        chunk: Blob,
+        chunkOffset: number
+      ) =>
+        new Promise<void>((resolve, reject) => {
+          const chunkUrl = `${url}&chunked=1&action=${action}&uploadId=${encodeURIComponent(
+            uploadId
+          )}&offset=${chunkOffset}`;
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', chunkUrl, true);
+          xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && opts?.onProgress) {
+              const pct = Math.min(99, Math.round(((chunkOffset + e.loaded) / file.size) * 100));
+              opts.onProgress(pct);
+            }
+          };
+          let aborted = false;
+          const onAbort = () => {
+            aborted = true;
+            try {
+              xhr.abort();
+            } catch {}
+          };
+          if (opts?.signal) {
+            if (opts.signal.aborted) onAbort();
+            else opts.signal.addEventListener('abort', onAbort, { once: true });
+          }
+          xhr.onload = () => {
+            if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
+            if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
+            if (xhr.status >= 200 && xhr.status < 300) return resolve();
+            reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
+          };
+          xhr.onerror = () => {
+            if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
+            if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
+            reject(new Error('Netzwerkfehler beim Upload'));
+          };
+          xhr.send(chunk);
+        });
+
+      while (offset < file.size) {
+        const end = Math.min(offset + chunkSize, file.size);
+        const chunk = file.slice(offset, end);
+        const isFirst = offset === 0;
+        const isLast = end >= file.size;
+        const action = isFirst ? 'start' : isLast ? 'finish' : 'continue';
+        await sendChunk(action, chunk, offset);
+        offset = end;
+        if (opts?.onProgress) {
+          const pct = Math.round((offset / file.size) * 100);
+          opts.onProgress(pct);
         }
-        xhr.onload = () => {
-          if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
-          if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
-          if (xhr.status >= 200 && xhr.status < 300) return resolve();
-          reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
-        };
-        xhr.onerror = () => {
-          if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
-          if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
-          reject(new Error('Netzwerkfehler beim Upload'));
-        };
-        xhr.send(file);
-      });
+      }
       return { ok: true };
     } catch (e: any) {
       if (e?.name === 'AbortError')

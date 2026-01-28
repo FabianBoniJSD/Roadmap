@@ -23,6 +23,11 @@ export const SHAREPOINT_LIST_DEFINITIONS: SharePointListDefinition[] = [
     aliases: ['RoadmapProjects'],
     fields: [
       {
+        name: 'ProjectType',
+        schemaXml:
+          '<Field DisplayName="ProjectType" Name="ProjectType" Type="Text" MaxLength="20" />',
+      },
+      {
         name: 'Category',
         schemaXml: '<Field DisplayName="Category" Name="Category" Type="Text" MaxLength="100" />',
       },

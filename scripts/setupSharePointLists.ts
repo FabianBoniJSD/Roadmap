@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // Dynamic ESM imports to avoid CommonJS/ESM conflict under NodeNext when executed as a standalone script
 import { SP_LISTS } from '../utils/spConfig';
 
@@ -19,6 +20,7 @@ async function setupSharePointLists() {
     if (projectsList.created) {
       console.log('Created Projects list');
       // Add fields to the list
+      await projectsList.list.fields.addText('ProjectType', { MaxLength: 20, Required: false });
       await projectsList.list.fields.addText('Category', { MaxLength: 100 });
       await projectsList.list.fields.addText('StartQuarter', { MaxLength: 50 });
       await projectsList.list.fields.addText('EndQuarter', { MaxLength: 50 });

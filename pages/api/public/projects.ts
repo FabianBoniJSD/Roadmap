@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
-import { getInstanceConfigBySlug } from '@/utils/instanceConfig';
+import { getInstanceConfigBySlug, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import type { Project } from '@/types';
 
@@ -102,24 +102,9 @@ const filterProjects = (list: Project[], query: NextApiRequest['query']): Projec
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   disableCache(res);
 
-  if (req.method !== 'GET') {
-    res.setHeader('Allow', ['GET']);
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    res.setHeader('Allow', ['GET', 'POST']);
     return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
-  }
-
-  const allowedKeys = getAllowedApiKeys();
-  if (!allowedKeys.size) {
-    return res.status(500).json({ error: 'API keys not configured' });
-  }
-
-  const apiKey = extractApiKey(req);
-  if (!apiKey || !allowedKeys.has(apiKey)) {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
-
-  if (isRateLimited(apiKey)) {
-    res.setHeader('Retry-After', '60');
-    return res.status(429).json({ error: 'Rate limit exceeded (500/min)' });
   }
 
   const instanceParam = req.query.instance || req.query.roadmapInstance;
@@ -135,6 +120,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!instance) {
       return res.status(404).json({ error: 'Instance not found' });
+    }
+
+    if (req.method === 'POST') {
+      const target = `/admin/projects/new?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(
+        instance.slug
+      )}`;
+      res.setHeader('Location', target);
+      return res.status(303).json({
+        redirect: target,
+        instance: instance.slug,
+        sharePointSiteUrl: resolveSharePointSiteUrl(instance),
+      });
+    }
+
+    const allowedKeys = getAllowedApiKeys();
+    if (!allowedKeys.size) {
+      return res.status(500).json({ error: 'API keys not configured' });
+    }
+
+    const apiKey = extractApiKey(req);
+    if (!apiKey || !allowedKeys.has(apiKey)) {
+      return res.status(401).json({ error: 'Invalid API key' });
+    }
+
+    if (isRateLimited(apiKey)) {
+      res.setHeader('Retry-After', '60');
+      return res.status(429).json({ error: 'Rate limit exceeded (500/min)' });
     }
 
     const projects = await clientDataService.withInstance(instance.slug, () =>
