@@ -69,7 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     results.push({
       slug: mapped.slug,
-      ok: health.permissions.status !== 'error',
+      ok: health.permissions.status === 'ok' || health.permissions.status === 'insufficient',
       message: health.permissions.message,
     });
   }

@@ -157,6 +157,12 @@ const ensureField = async (
   );
   if (fieldCheck.ok) return;
 
+  if (isAuthStatus(fieldCheck.status)) {
+    const message = await readError(fieldCheck);
+    recordAuthFailure(health, fieldCheck.status, message);
+    throw new SharePointAuthError(fieldCheck.status, message);
+  }
+
   let allowCreation = fieldCheck.status === 404;
   let lastErrorMessage: string | null = null;
 
@@ -209,6 +215,11 @@ const ensureField = async (
   let cleanupAttempted = false;
 
   if (!createResp.ok) {
+    if (isAuthStatus(createResp.status)) {
+      const message = await readError(createResp);
+      recordAuthFailure(health, createResp.status, message);
+      throw new SharePointAuthError(createResp.status, message);
+    }
     primaryError = await readError(createResp);
     if (shouldAttemptDeletedFieldCleanup(primaryError)) {
       cleanupAttempted = await removeDeletedFieldIfPresent(listTitle, field.name, digest);
@@ -222,6 +233,11 @@ const ensureField = async (
     if (!primaryError) primaryError = await readError(createResp);
     let fallbackResp = await attemptCreate(fallbackBody);
     if (!fallbackResp.ok) {
+      if (isAuthStatus(fallbackResp.status)) {
+        const message = await readError(fallbackResp);
+        recordAuthFailure(health, fallbackResp.status, message);
+        throw new SharePointAuthError(fallbackResp.status, message);
+      }
       const fallbackError = await readError(fallbackResp);
       if (
         shouldAttemptDeletedFieldCleanup(fallbackError) &&
@@ -305,6 +321,26 @@ const validateListSchema = async (
   }
 };
 
+class SharePointAuthError extends Error {
+  public readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = 'SharePointAuthError';
+  }
+}
+
+const isAuthStatus = (status: number) => status === 401 || status === 403;
+
+const recordAuthFailure = (health: RoadmapInstanceHealth, status: number, message: string) => {
+  health.permissions = {
+    status: 'error',
+    message: `SharePoint Auth-Fehler (${status}): ${message}`,
+  };
+  if (!health.lists.errors) health.lists.errors = {};
+  health.lists.errors.__auth = `(${status}) ${message}`;
+};
+
 const ensureList = async (
   def: SharePointListDefinition,
   digest: string,
@@ -325,6 +361,13 @@ const ensureList = async (
       }
       break;
     }
+
+    if (isAuthStatus(check.status)) {
+      const message = await readError(check);
+      recordAuthFailure(health, check.status, message);
+      throw new SharePointAuthError(check.status, message);
+    }
+
     if (check.status !== 404) {
       const message = await readError(check);
       health.lists.errors[candidate] = message;
@@ -346,6 +389,10 @@ const ensureList = async (
     });
     if (!createResp.ok) {
       const message = await readError(createResp);
+      if (isAuthStatus(createResp.status)) {
+        recordAuthFailure(health, createResp.status, message);
+        throw new SharePointAuthError(createResp.status, message);
+      }
       health.lists.errors[def.title] = message;
       return null;
     }
@@ -632,30 +679,38 @@ export async function provisionSharePointForInstance(
   };
 
   await clientDataService.withInstance(instance.slug, async () => {
-    let digest: string;
     try {
-      digest = await clientDataService.requestDigest();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
-      health.permissions = { status: 'error', message: `Digest Fehler: ${message}` };
-      health.lists.errors.__digest = message;
-      return;
-    }
-
-    for (const def of SHAREPOINT_LIST_DEFINITIONS) {
-      const resolved = await ensureList(def, digest, health);
-      if (!resolved) {
-        health.lists.missing.push(def.title);
-        continue;
+      let digest: string;
+      try {
+        digest = await clientDataService.requestDigest();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+        health.permissions = { status: 'error', message: `Digest Fehler: ${message}` };
+        health.lists.errors.__digest = message;
+        return;
       }
 
-      // Validate schema after ensuring fields so we can report remaining mismatches
-      // (e.g., missing columns when the current user lacks permissions to create them).
-      await validateListSchema(def, resolved, health);
-    }
+      for (const def of SHAREPOINT_LIST_DEFINITIONS) {
+        const resolved = await ensureList(def, digest, health);
+        if (!resolved) {
+          health.lists.missing.push(def.title);
+          continue;
+        }
 
-    const permissionResult = await probePermissions(digest);
-    health.permissions = permissionResult;
+        // Validate schema after ensuring fields so we can report remaining mismatches
+        // (e.g., missing columns when the current user lacks permissions to create them).
+        await validateListSchema(def, resolved, health);
+      }
+
+      const permissionResult = await probePermissions(digest);
+      health.permissions = permissionResult;
+    } catch (error) {
+      if (error instanceof SharePointAuthError) {
+        recordAuthFailure(health, error.status, error.message);
+        return;
+      }
+      throw error;
+    }
   });
 
   return health;

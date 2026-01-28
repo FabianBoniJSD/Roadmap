@@ -201,6 +201,9 @@ const AdminInstancesPage = () => {
   const [saving, setSaving] = useState(false);
   const [bulkProvisioning, setBulkProvisioning] = useState(false);
   const [bulkProvisionSummary, setBulkProvisionSummary] = useState<string | null>(null);
+  const [bulkProvisionFailures, setBulkProvisionFailures] = useState<
+    Array<{ slug: string; message?: string }>
+  >([]);
   const [tokenMissing, setTokenMissing] = useState(true);
   const [listPanels, setListPanels] = useState<Record<string, InstanceListPanelState>>({});
 
@@ -255,6 +258,7 @@ const AdminInstancesPage = () => {
 
     setBulkProvisioning(true);
     setBulkProvisionSummary(null);
+    setBulkProvisionFailures([]);
     setError(null);
     try {
       const resp = await fetch('/api/instances/provision', {
@@ -266,6 +270,19 @@ const AdminInstancesPage = () => {
       if (!resp.ok) {
         throw new Error(payload?.error || 'Provisioning fehlgeschlagen');
       }
+
+      const results = Array.isArray(payload?.results) ? payload.results : [];
+      const asRecord = (value: unknown): Record<string, unknown> | null =>
+        value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+      const failures = (results as unknown[])
+        .map((r) => asRecord(r))
+        .filter((r): r is Record<string, unknown> => !!r)
+        .filter((r) => r.ok === false && typeof r.slug === 'string')
+        .map((r) => ({
+          slug: String(r.slug),
+          message: typeof r.message === 'string' ? r.message : r.message ? String(r.message) : '',
+        }));
+      setBulkProvisionFailures(failures);
 
       const summary = payload?.summary;
       if (summary && typeof summary.total === 'number') {
@@ -1026,7 +1043,24 @@ const AdminInstancesPage = () => {
             </div>
           </div>
           {bulkProvisionSummary && (
-            <p className="mt-2 text-xs text-slate-300">{bulkProvisionSummary}</p>
+            <div className="mt-2 space-y-1 text-xs text-slate-300">
+              <p>{bulkProvisionSummary}</p>
+              {bulkProvisionFailures.length > 0 && (
+                <details className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+                  <summary className="cursor-pointer text-slate-200">
+                    Fehlgeschlagen ({bulkProvisionFailures.length})
+                  </summary>
+                  <ul className="mt-2 space-y-1 text-slate-300">
+                    {bulkProvisionFailures.map((f) => (
+                      <li key={f.slug} className="break-words">
+                        <span className="font-semibold text-slate-200">{f.slug}</span>
+                        {f.message ? <span className="text-slate-400"> — {f.message}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
           )}
           {loading ? (
             <p className="mt-8 text-slate-400">Lade Daten …</p>
