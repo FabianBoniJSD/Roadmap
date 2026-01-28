@@ -646,7 +646,12 @@ export async function provisionSharePointForInstance(
       const resolved = await ensureList(def, digest, health);
       if (!resolved) {
         health.lists.missing.push(def.title);
+        continue;
       }
+
+      // Validate schema after ensuring fields so we can report remaining mismatches
+      // (e.g., missing columns when the current user lacks permissions to create them).
+      await validateListSchema(def, resolved, health);
     }
 
     const permissionResult = await probePermissions(digest);

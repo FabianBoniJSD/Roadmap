@@ -199,6 +199,8 @@ const AdminInstancesPage = () => {
   const [mode, setMode] = useState<'create' | 'edit'>('create');
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [bulkProvisioning, setBulkProvisioning] = useState(false);
+  const [bulkProvisionSummary, setBulkProvisionSummary] = useState<string | null>(null);
   const [tokenMissing, setTokenMissing] = useState(true);
   const [listPanels, setListPanels] = useState<Record<string, InstanceListPanelState>>({});
 
@@ -240,6 +242,48 @@ const AdminInstancesPage = () => {
       setLoading(false);
     }
   }, []);
+
+  const provisionAllInstances = async () => {
+    if (!instances.length) return;
+    if (
+      !window.confirm(
+        `Jetzt alle ${instances.length} Instanzen provisionieren?\n\nDas versucht fehlende Listen/Spalten in SharePoint anzulegen (Migration).`
+      )
+    ) {
+      return;
+    }
+
+    setBulkProvisioning(true);
+    setBulkProvisionSummary(null);
+    setError(null);
+    try {
+      const resp = await fetch('/api/instances/provision', {
+        method: 'POST',
+        headers: { ...headersWithAuth(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(payload?.error || 'Provisioning fehlgeschlagen');
+      }
+
+      const summary = payload?.summary;
+      if (summary && typeof summary.total === 'number') {
+        setBulkProvisionSummary(
+          `Provisioning abgeschlossen: ${summary.ok}/${summary.total} OK, ${summary.failed} Fehler.`
+        );
+      } else {
+        setBulkProvisionSummary('Provisioning abgeschlossen.');
+      }
+
+      await fetchInstances();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setError(message);
+    } finally {
+      setBulkProvisioning(false);
+    }
+  };
 
   useEffect(() => {
     if (!tokenMissing) fetchInstances();
@@ -959,14 +1003,31 @@ const AdminInstancesPage = () => {
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-lg shadow-slate-950/40">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-white">Bestehende Instanzen</h2>
-            <button
-              type="button"
-              onClick={fetchInstances}
-              className="text-sm text-slate-400 underline underline-offset-4 hover:text-white"
-            >
-              Aktualisieren
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={provisionAllInstances}
+                disabled={bulkProvisioning || loading || tokenMissing}
+                className={clsx(
+                  'rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white',
+                  (bulkProvisioning || loading || tokenMissing) && 'cursor-not-allowed opacity-60'
+                )}
+                title="Versucht fehlende Listen/Spalten für alle Instanzen anzulegen"
+              >
+                {bulkProvisioning ? 'Provisioniere …' : 'Alle provisionieren'}
+              </button>
+              <button
+                type="button"
+                onClick={fetchInstances}
+                className="text-sm text-slate-400 underline underline-offset-4 hover:text-white"
+              >
+                Aktualisieren
+              </button>
+            </div>
           </div>
+          {bulkProvisionSummary && (
+            <p className="mt-2 text-xs text-slate-300">{bulkProvisionSummary}</p>
+          )}
           {loading ? (
             <p className="mt-8 text-slate-400">Lade Daten …</p>
           ) : (
