@@ -333,12 +333,14 @@ class SharePointAuthError extends Error {
 const isAuthStatus = (status: number) => status === 401 || status === 403;
 
 const recordAuthFailure = (health: RoadmapInstanceHealth, status: number, message: string) => {
+  const normalized = typeof message === 'string' ? message.trim() : '';
+  const safeMessage = normalized || (status === 401 ? 'Unauthorized' : 'Forbidden');
   health.permissions = {
     status: 'error',
-    message: `SharePoint Auth-Fehler (${status}): ${message}`,
+    message: `SharePoint Auth-Fehler (${status}): ${safeMessage}`,
   };
   if (!health.lists.errors) health.lists.errors = {};
-  health.lists.errors.__auth = `(${status}) ${message}`;
+  health.lists.errors.__auth = `(${status}) ${safeMessage}`;
 };
 
 const ensureList = async (

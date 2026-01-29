@@ -130,7 +130,45 @@ async function loadNtlmHelpers(): Promise<NtlmHelpers> {
 interface CachedAuth extends SharePointAuthContext {
   expires: number;
 }
-let cachedAuth: CachedAuth | null = null;
+const cachedAuthByKey = new Map<string, CachedAuth>();
+
+const buildAuthCacheKey = (params: {
+  siteUrl: string;
+  strategy: string;
+  username: string;
+  domain?: string;
+  workstation?: string;
+  extraModes?: string[];
+}): string => {
+  const modes = (params.extraModes || []).map((m) => m.trim().toLowerCase()).filter(Boolean);
+  return [
+    params.strategy.trim().toLowerCase(),
+    params.siteUrl.trim().toLowerCase(),
+    params.username.trim().toLowerCase(),
+    (params.domain || '').trim().toLowerCase(),
+    (params.workstation || '').trim().toLowerCase(),
+    modes.join('|'),
+  ].join('::');
+};
+
+const getCachedAuth = (key: string, disableCache: boolean): CachedAuth | null => {
+  if (disableCache) return null;
+  const entry = cachedAuthByKey.get(key);
+  if (!entry) return null;
+  if (entry.expires > Date.now()) return entry;
+  cachedAuthByKey.delete(key);
+  return null;
+};
+
+const setCachedAuth = (key: string, entry: CachedAuth) => {
+  cachedAuthByKey.set(key, entry);
+  // Light pruning to avoid unbounded growth
+  if (cachedAuthByKey.size > 100) {
+    for (const [k, v] of cachedAuthByKey) {
+      if (v.expires <= Date.now()) cachedAuthByKey.delete(k);
+    }
+  }
+};
 
 function debugLog(...args: unknown[]) {
   if (process.env.SP_PROXY_DEBUG === 'true') {
@@ -241,10 +279,6 @@ async function getSharePointAuthHeadersInternal(
   const disableCache =
     instance?.sharePoint.authNoCache === true || process.env.SP_AUTH_NO_CACHE === 'true';
 
-  if (cachedAuth && cachedAuth.expires > Date.now() && !disableCache) {
-    return cachedAuth;
-  }
-
   // Get credentials from SP_USERNAME/SP_PASSWORD (preferred) or fallback to USER_* secrets
   const credentials = getPrimaryCredentials({
     username: instance?.sharePoint.username,
@@ -261,6 +295,17 @@ async function getSharePointAuthHeadersInternal(
   const workstationEnv =
     instance?.sharePoint.workstation || process.env.SP_ONPREM_WORKSTATION || undefined;
 
+  const cacheKey = buildAuthCacheKey({
+    siteUrl,
+    strategy,
+    username: usernameEnv,
+    domain: domainEnv,
+    workstation: workstationEnv,
+    extraModes,
+  });
+  const fromCache = getCachedAuth(cacheKey, disableCache);
+  if (fromCache) return fromCache;
+
   // Build list of credential permutations (especially for NTLM) because farms differ in accepted forms
   const permutations: CredentialPermutation[] = [];
   const ws = workstationEnv || os.hostname().split('.')[0];
@@ -272,17 +317,19 @@ async function getSharePointAuthHeadersInternal(
       Accept: 'application/json;odata=nometadata',
       Authorization: `Basic ${auth}`,
     };
-    cachedAuth = { headers, expires: Date.now() + 60 * 60 * 1000 };
+    const cached = { headers, expires: Date.now() + 60 * 60 * 1000 };
+    setCachedAuth(cacheKey, cached);
     debugLog('basic auth headers prepared');
-    return cachedAuth;
+    return cached;
   } else if (strategy === 'kerberos') {
     // Kerberos: rely on browser/OS negotiation; server-side calls typically run under a domain account or are avoided.
     // We purposefully do NOT inject Authorization header; SharePoint/IIS will issue 401 with WWW-Authenticate: Negotiate and browser will respond.
     // For server initiated calls (Node) you would need a separate Kerberos client lib; out-of-scope here.
     const headers: Record<string, string> = { Accept: 'application/json;odata=verbose' };
-    cachedAuth = { headers, expires: Date.now() + 5 * 60 * 1000 };
+    const cached = { headers, expires: Date.now() + 5 * 60 * 1000 };
+    setCachedAuth(cacheKey, cached);
     debugLog('kerberos mode headers prepared (no Authorization)');
-    return cachedAuth;
+    return cached;
   } else if (strategy === 'fba') {
     // FBA will be handled separately below; permutations not needed.
     permutations.push({ fba: true });
@@ -486,9 +533,10 @@ async function getSharePointAuthHeadersInternal(
         Cookie: fba.cookie,
         Accept: 'application/json;odata=verbose',
       };
-      cachedAuth = { headers, expires: fba.expires };
-      debugLog('fba auth success', { cachedUntil: new Date(fba.expires).toISOString() });
-      return cachedAuth;
+      const cached = { headers, expires: fba.expires };
+      setCachedAuth(cacheKey, cached);
+      debugLog('fba auth success', { cachedUntil: new Date(cached.expires).toISOString() });
+      return cached;
     } catch (error) {
       debugLog('fba auth failed', getErrorMessage(error));
       lastErr = error;
@@ -522,13 +570,14 @@ async function getSharePointAuthHeadersInternal(
           disableProxyForPrimary,
           disableProxyForPrimary ? 'primary-direct' : 'primary-proxy'
         );
-        cachedAuth = { ...context, expires: Date.now() + ttlMs };
+        const cached = { ...context, expires: Date.now() + ttlMs };
+        setCachedAuth(cacheKey, cached);
         debugLog('auth success', {
           idx: i,
           mode: disableProxyForPrimary ? 'direct' : 'proxy-enabled',
-          cachedUntil: new Date(cachedAuth.expires).toISOString(),
+          cachedUntil: new Date(cached.expires).toISOString(),
         });
-        return cachedAuth;
+        return cached;
       } catch (error) {
         const err = toExtendedError(error);
         lastErr = err;
@@ -553,13 +602,14 @@ async function getSharePointAuthHeadersInternal(
               true,
               'proxy-fallback'
             );
-            cachedAuth = { ...context, expires: Date.now() + ttlMs };
+            const cached = { ...context, expires: Date.now() + ttlMs };
+            setCachedAuth(cacheKey, cached);
             debugLog('auth success', {
               idx: i,
               mode: 'proxy-fallback',
-              cachedUntil: new Date(cachedAuth.expires).toISOString(),
+              cachedUntil: new Date(cached.expires).toISOString(),
             });
-            return cachedAuth;
+            return cached;
           } catch (fallbackErr) {
             debugLog('proxy fallback attempt failed', {
               idx: i,
@@ -834,8 +884,9 @@ async function getSharePointAuthHeadersInternal(
               Accept: 'application/json;odata=verbose',
             };
             // Short TTL because connection affinity might matter
-            cachedAuth = { headers, expires: Date.now() + 5 * 60 * 1000 };
-            return cachedAuth;
+            const cached = { headers, expires: Date.now() + 5 * 60 * 1000 };
+            setCachedAuth(cacheKey, cached);
+            return cached;
           } else {
             const h2 = r2.headers.get('www-authenticate');
             throw new Error('manual ntlm: final request failed status ' + r2.status + ' www=' + h2);
@@ -997,8 +1048,9 @@ async function getSharePointAuthHeadersInternal(
               // However we can cache a dummy header to keep higher layers satisfied and mark success for diagnostics.
               debugLog('manual ntlm: persistent socket handshake success');
               const headers: Record<string, string> = { 'X-NTLM-Persistent': 'true' };
-              cachedAuth = { headers, expires: Date.now() + 60 * 1000 };
-              return cachedAuth;
+              const cached = { headers, expires: Date.now() + 60 * 1000 };
+              setCachedAuth(cacheKey, cached);
+              return cached;
             }
           } catch (perr) {
             debugLog('manual ntlm: persistent socket failed', getErrorMessage(perr));
