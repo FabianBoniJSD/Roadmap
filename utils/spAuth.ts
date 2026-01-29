@@ -3,6 +3,7 @@ import { URL as NodeURL } from 'url';
 import tls from 'tls';
 import path from 'path';
 import { Buffer } from 'buffer';
+import crypto from 'crypto';
 import { fbaLogin } from './fbaAuth';
 import './md4Fallback';
 import os from 'os';
@@ -136,15 +137,20 @@ const buildAuthCacheKey = (params: {
   siteUrl: string;
   strategy: string;
   username: string;
+  password: string;
   domain?: string;
   workstation?: string;
   extraModes?: string[];
 }): string => {
   const modes = (params.extraModes || []).map((m) => m.trim().toLowerCase()).filter(Boolean);
+  // Do NOT store plaintext passwords; use a short fingerprint to avoid cache collisions
+  // when multiple instances share the same username but have different passwords.
+  const passFp = crypto.createHash('sha256').update(params.password).digest('hex').slice(0, 12);
   return [
     params.strategy.trim().toLowerCase(),
     params.siteUrl.trim().toLowerCase(),
     params.username.trim().toLowerCase(),
+    `pw=${passFp}`,
     (params.domain || '').trim().toLowerCase(),
     (params.workstation || '').trim().toLowerCase(),
     modes.join('|'),
@@ -299,6 +305,7 @@ async function getSharePointAuthHeadersInternal(
     siteUrl,
     strategy,
     username: usernameEnv,
+    password: passwordEnv,
     domain: domainEnv,
     workstation: workstationEnv,
     extraModes,

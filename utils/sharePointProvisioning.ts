@@ -4,6 +4,7 @@ import type {
   RoadmapInstanceHealth,
   RoadmapInstanceHealthStatus,
 } from '@/types/roadmapInstance';
+import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import type { SharePointFieldDefinition, SharePointListDefinition } from '@/utils/sharePointLists';
 import { SHAREPOINT_LIST_DEFINITIONS, encodeSharePointValue } from '@/utils/sharePointLists';
 
@@ -159,8 +160,9 @@ const ensureField = async (
 
   if (isAuthStatus(fieldCheck.status)) {
     const message = await readError(fieldCheck);
-    recordAuthFailure(health, fieldCheck.status, message);
-    throw new SharePointAuthError(fieldCheck.status, message);
+    const ctx = `field:check ${listTitle}.${field.name}`;
+    recordAuthFailure(health, fieldCheck.status, message, { context: ctx });
+    throw new SharePointAuthError(fieldCheck.status, message, ctx);
   }
 
   let allowCreation = fieldCheck.status === 404;
@@ -217,8 +219,9 @@ const ensureField = async (
   if (!createResp.ok) {
     if (isAuthStatus(createResp.status)) {
       const message = await readError(createResp);
-      recordAuthFailure(health, createResp.status, message);
-      throw new SharePointAuthError(createResp.status, message);
+      const ctx = `field:create ${listTitle}.${field.name}`;
+      recordAuthFailure(health, createResp.status, message, { context: ctx });
+      throw new SharePointAuthError(createResp.status, message, ctx);
     }
     primaryError = await readError(createResp);
     if (shouldAttemptDeletedFieldCleanup(primaryError)) {
@@ -235,8 +238,9 @@ const ensureField = async (
     if (!fallbackResp.ok) {
       if (isAuthStatus(fallbackResp.status)) {
         const message = await readError(fallbackResp);
-        recordAuthFailure(health, fallbackResp.status, message);
-        throw new SharePointAuthError(fallbackResp.status, message);
+        const ctx = `field:create(fallback) ${listTitle}.${field.name}`;
+        recordAuthFailure(health, fallbackResp.status, message, { context: ctx });
+        throw new SharePointAuthError(fallbackResp.status, message, ctx);
       }
       const fallbackError = await readError(fallbackResp);
       if (
@@ -323,24 +327,40 @@ const validateListSchema = async (
 
 class SharePointAuthError extends Error {
   public readonly status: number;
-  constructor(status: number, message: string) {
+  public readonly context?: string;
+  constructor(status: number, message: string, context?: string) {
     super(message);
     this.status = status;
+    this.context = context;
     this.name = 'SharePointAuthError';
   }
 }
 
 const isAuthStatus = (status: number) => status === 401 || status === 403;
 
-const recordAuthFailure = (health: RoadmapInstanceHealth, status: number, message: string) => {
+const recordAuthFailure = (
+  health: RoadmapInstanceHealth,
+  status: number,
+  message: string,
+  meta?: { siteUrl?: string; strategy?: string; context?: string }
+) => {
   const normalized = typeof message === 'string' ? message.trim() : '';
   const safeMessage = normalized || (status === 401 ? 'Unauthorized' : 'Forbidden');
+  const extraParts = [
+    meta?.context ? `op=${meta.context}` : null,
+    meta?.strategy ? `strategy=${meta.strategy}` : null,
+    meta?.siteUrl ? `site=${meta.siteUrl}` : null,
+  ].filter(Boolean);
+  const suffix = extraParts.length ? ` (${extraParts.join(', ')})` : '';
   health.permissions = {
     status: 'error',
-    message: `SharePoint Auth-Fehler (${status}): ${safeMessage}`,
+    message: `SharePoint Auth-Fehler (${status}): ${safeMessage}${suffix}`,
   };
   if (!health.lists.errors) health.lists.errors = {};
-  health.lists.errors.__auth = `(${status}) ${safeMessage}`;
+  health.lists.errors.__auth = `(${status}) ${safeMessage}${suffix}`;
+  if (meta?.context) health.lists.errors.__authOp = meta.context;
+  if (meta?.strategy) health.lists.errors.__authStrategy = meta.strategy;
+  if (meta?.siteUrl) health.lists.errors.__authSite = meta.siteUrl;
 };
 
 const ensureList = async (
@@ -366,8 +386,9 @@ const ensureList = async (
 
     if (isAuthStatus(check.status)) {
       const message = await readError(check);
-      recordAuthFailure(health, check.status, message);
-      throw new SharePointAuthError(check.status, message);
+      const ctx = `list:check ${candidate}`;
+      recordAuthFailure(health, check.status, message, { context: ctx });
+      throw new SharePointAuthError(check.status, message, ctx);
     }
 
     if (check.status !== 404) {
@@ -392,8 +413,9 @@ const ensureList = async (
     if (!createResp.ok) {
       const message = await readError(createResp);
       if (isAuthStatus(createResp.status)) {
-        recordAuthFailure(health, createResp.status, message);
-        throw new SharePointAuthError(createResp.status, message);
+        const ctx = `list:create ${def.title}`;
+        recordAuthFailure(health, createResp.status, message, { context: ctx });
+        throw new SharePointAuthError(createResp.status, message, ctx);
       }
       health.lists.errors[def.title] = message;
       return null;
@@ -680,6 +702,9 @@ export async function provisionSharePointForInstance(
     },
   };
 
+  const siteUrl = resolveSharePointSiteUrl(instance);
+  const strategy = instance?.sharePoint?.strategy || process.env.SP_STRATEGY || 'online';
+
   await clientDataService.withInstance(instance.slug, async () => {
     try {
       let digest: string;
@@ -708,7 +733,11 @@ export async function provisionSharePointForInstance(
       health.permissions = permissionResult;
     } catch (error) {
       if (error instanceof SharePointAuthError) {
-        recordAuthFailure(health, error.status, error.message);
+        recordAuthFailure(health, error.status, error.message, {
+          siteUrl,
+          strategy,
+          context: error.context,
+        });
         return;
       }
       throw error;
