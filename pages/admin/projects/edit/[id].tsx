@@ -1,12 +1,12 @@
 import { useRouter } from 'next/router';
-import { useEffect, useMemo, useRef, useState, type FC } from 'react';
+import { useEffect, useRef, useState, type FC } from 'react';
 import AdminSubpageLayout from '@/components/AdminSubpageLayout';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import ProjectForm from '@/components/ProjectForm';
 import withAdminAuth from '@/components/withAdminAuth';
 import { Category, Project, TeamMember } from '@/types';
 import { clientDataService } from '@/utils/clientDataService';
-import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
+import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 
 type Attachment = {
   FileName: string;
@@ -28,22 +28,20 @@ const EditProjectPage: FC = () => {
   const [uploadPct, setUploadPct] = useState(0);
   const [uploadError, setUploadError] = useState('');
   const [currentFileName, setCurrentFileName] = useState('');
+  const [selectedFilesLabel, setSelectedFilesLabel] = useState('Keine Datei ausgewählt');
 
   const uploadAbortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const sharePointBaseUrl = useMemo(() => resolveSharePointSiteUrl().replace(/\/$/, ''), []);
-
-  const buildSharePointAttachmentUrl = (serverRelativeUrl: string) => {
-    if (!serverRelativeUrl) return '#';
-    try {
-      return new URL(serverRelativeUrl, `${sharePointBaseUrl}/`).toString();
-    } catch {
-      const normalized = serverRelativeUrl.startsWith('/')
-        ? serverRelativeUrl
-        : `/${serverRelativeUrl}`;
-      return `${sharePointBaseUrl}${encodeURI(normalized)}`;
+  const buildAttachmentDownloadUrl = (projectId: string, fileName: string) => {
+    const base = `/api/attachments/${encodeURIComponent(projectId)}/download?name=${encodeURIComponent(
+      fileName
+    )}`;
+    const q = router.query?.[INSTANCE_QUERY_PARAM];
+    if (typeof q === 'string' && q) {
+      return `${base}&${INSTANCE_QUERY_PARAM}=${encodeURIComponent(q)}`;
     }
+    return base;
   };
 
   const refreshAttachments = async (projectId: string) => {
@@ -98,6 +96,10 @@ const EditProjectPage: FC = () => {
     const files = event.target.files ? Array.from(event.target.files) : [];
     if (!files.length) return;
 
+    setSelectedFilesLabel(
+      files.length === 1 ? files[0].name : `${files.length} Dateien ausgewählt`
+    );
+
     setUploadError('');
     setUploading(true);
 
@@ -131,6 +133,8 @@ const EditProjectPage: FC = () => {
       setUploading(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
+        setSelectedFilesLabel('Keine Datei ausgewählt');
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     }
   };
@@ -276,14 +280,37 @@ const EditProjectPage: FC = () => {
 
       <div className="mt-6 space-y-5">
         <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            onChange={handleFileSelection}
-            disabled={uploading}
-            className="block w-full cursor-pointer text-sm text-slate-300 file:mr-4 file:cursor-pointer file:rounded-full file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-100 hover:file:bg-slate-700 disabled:opacity-60"
-          />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <input
+              id="attachment-upload"
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={handleFileSelection}
+              disabled={uploading}
+              className="sr-only"
+            />
+            <label
+              htmlFor="attachment-upload"
+              className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                uploading
+                  ? 'cursor-not-allowed bg-slate-800/60 text-slate-400'
+                  : 'cursor-pointer bg-slate-800 text-slate-100 hover:bg-slate-700'
+              }`}
+            >
+              Dateien auswählen
+            </label>
+            <div
+              className="flex-1 truncate rounded-2xl border border-slate-800/70 bg-slate-900/60 px-4 py-3 text-sm text-slate-300"
+              aria-live="polite"
+            >
+              {uploading
+                ? currentFileName
+                  ? `Lädt hoch: ${currentFileName}`
+                  : 'Upload läuft …'
+                : selectedFilesLabel}
+            </div>
+          </div>
           {uploading && (
             <div className="mt-3 space-y-2">
               <div className="h-2 rounded-full bg-slate-800/70">
@@ -293,7 +320,7 @@ const EditProjectPage: FC = () => {
                 />
               </div>
               <div className="flex items-center justify-between text-xs text-slate-300">
-                <span className="truncate">{currentFileName}</span>
+                <span className="truncate">{currentFileName || 'Upload läuft …'}</span>
                 <button
                   type="button"
                   onClick={handleAbortUpload}
@@ -323,7 +350,10 @@ const EditProjectPage: FC = () => {
               className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3"
             >
               <a
-                href={buildSharePointAttachmentUrl(attachment.ServerRelativeUrl)}
+                href={buildAttachmentDownloadUrl(
+                  resolvedProjectId || String(id),
+                  attachment.FileName
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 truncate text-sky-300 transition hover:text-sky-200"

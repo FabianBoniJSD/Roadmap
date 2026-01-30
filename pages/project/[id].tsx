@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useEffect, useMemo, useState, type FC, type ReactNode } from 'react';
+import { useEffect, useState, type FC, type ReactNode } from 'react';
 import { FiArrowLeft, FiExternalLink, FiInfo } from 'react-icons/fi';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
@@ -9,7 +9,7 @@ import SiteHeader from '@/components/SiteHeader';
 import { Project, TeamMember } from '@/types';
 import { hasAdminAccess } from '@/utils/auth';
 import { clientDataService } from '@/utils/clientDataService';
-import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
+import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 
 const statusStyles: Record<string, string> = {
   completed: 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-200',
@@ -74,18 +74,15 @@ const ProjectDetailPage: FC = () => {
   const [leadImageBroken, setLeadImageBroken] = useState(false);
   const [memberImageErrors, setMemberImageErrors] = useState<Record<number, boolean>>({});
 
-  const sharePointBaseUrl = useMemo(() => resolveSharePointSiteUrl().replace(/\/$/, ''), []);
-
-  const buildSharePointAttachmentUrl = (serverRelativeUrl: string) => {
-    if (!serverRelativeUrl) return '#';
-    try {
-      return new URL(serverRelativeUrl, `${sharePointBaseUrl}/`).toString();
-    } catch {
-      const normalized = serverRelativeUrl.startsWith('/')
-        ? serverRelativeUrl
-        : `/${serverRelativeUrl}`;
-      return `${sharePointBaseUrl}${encodeURI(normalized)}`;
+  const buildAttachmentDownloadUrl = (projectId: string, fileName: string) => {
+    const base = `/api/attachments/${encodeURIComponent(projectId)}/download?name=${encodeURIComponent(
+      fileName
+    )}`;
+    const q = router.query?.[INSTANCE_QUERY_PARAM];
+    if (typeof q === 'string' && q) {
+      return `${base}&${INSTANCE_QUERY_PARAM}=${encodeURIComponent(q)}`;
     }
+    return base;
   };
 
   useEffect(() => {
@@ -369,7 +366,7 @@ const ProjectDetailPage: FC = () => {
                         <span className="truncate">{attachment.FileName}</span>
                       </div>
                       <a
-                        href={buildSharePointAttachmentUrl(attachment.ServerRelativeUrl)}
+                        href={buildAttachmentDownloadUrl(String(id), attachment.FileName)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300 transition hover:text-sky-200"

@@ -165,6 +165,33 @@ class ClientDataService {
     return '__default__';
   }
 
+  private getClientInstanceSlugHint(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const slug = new URLSearchParams(window.location.search).get(INSTANCE_QUERY_PARAM);
+      if (slug) return slug;
+    } catch {
+      /* ignore */
+    }
+    try {
+      const cookies = document.cookie || '';
+      const match = cookies.match(new RegExp(`(?:^|;\\s*)${INSTANCE_COOKIE_NAME}=([^;\\s]+)`, 'i'));
+      if (match && match[1]) return decodeURIComponent(match[1]);
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }
+
+  private withClientInstanceQuery(url: string): string {
+    const slug = this.getClientInstanceSlugHint();
+    if (!slug) return url;
+    if (url.includes(`${INSTANCE_QUERY_PARAM}=`)) return url;
+    return url.includes('?')
+      ? `${url}&${INSTANCE_QUERY_PARAM}=${encodeURIComponent(slug)}`
+      : `${url}?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(slug)}`;
+  }
+
   async withInstance<T>(slug: string | null | undefined, fn: () => Promise<T> | T): Promise<T> {
     const storage = getInstanceContextStorage();
     const callback = () => Promise.resolve(fn());
@@ -2825,7 +2852,8 @@ class ClientDataService {
     projectId: string
   ): Promise<Array<{ FileName: string; ServerRelativeUrl: string }>> {
     try {
-      const r = await this.spFetch(`/api/attachments/${encodeURIComponent(projectId)}`, {
+      const url = this.withClientInstanceQuery(`/api/attachments/${encodeURIComponent(projectId)}`);
+      const r = await this.spFetch(url, {
         headers: { Accept: 'application/json' },
       });
       if (!r.ok) return [];
@@ -2841,9 +2869,7 @@ class ClientDataService {
     file: File,
     opts?: { onProgress?: (pct: number) => void; signal?: AbortSignal }
   ): Promise<{ ok: boolean; error?: string; aborted?: boolean }> {
-    const maxSize = 500 * 1024 * 1024; // 500MB
-    const simpleLimit = 25 * 1024 * 1024; // use simple upload below this size
-    const chunkSize = 10 * 1024 * 1024; // 10MB chunks
+    const maxSize = 25 * 1024 * 1024; // 25MB (SharePoint list-item attachments limit in this app)
     const allowed = [
       /\.pdf$/i,
       /\.docx?$/i,
@@ -2855,111 +2881,49 @@ class ClientDataService {
       /\.csv$/i,
       /\.zip$/i,
     ];
-    if (file.size > maxSize) return { ok: false, error: 'Datei ist zu groß (max. 500MB)' };
+    if (file.size > maxSize) return { ok: false, error: 'Datei ist zu groß (max. 25MB)' };
     if (!allowed.some((rx) => rx.test(file.name)))
       return { ok: false, error: 'Dateityp nicht erlaubt' };
 
-    const url = `/api/attachments/${encodeURIComponent(projectId)}?name=${encodeURIComponent(file.name)}`;
+    const url = this.withClientInstanceQuery(
+      `/api/attachments/${encodeURIComponent(projectId)}?name=${encodeURIComponent(file.name)}`
+    );
     try {
-      if (file.size <= simpleLimit) {
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', url, true);
-          xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable && opts?.onProgress) {
-              const pct = Math.round((e.loaded / e.total) * 100);
-              opts.onProgress(pct);
-            }
-          };
-          let aborted = false;
-          const onAbort = () => {
-            aborted = true;
-            try {
-              xhr.abort();
-            } catch {}
-          };
-          if (opts?.signal) {
-            if (opts.signal.aborted) onAbort();
-            else opts.signal.addEventListener('abort', onAbort);
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && opts?.onProgress) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            opts.onProgress(pct);
           }
-          xhr.onload = () => {
-            if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
-            if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
-            if (xhr.status >= 200 && xhr.status < 300) return resolve();
-            reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
-          };
-          xhr.onerror = () => {
-            if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
-            if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
-            reject(new Error('Netzwerkfehler beim Upload'));
-          };
-          xhr.send(file);
-        });
-        return { ok: true };
-      }
-
-      const uploadId = (crypto as any).randomUUID
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random()}`;
-      let offset = 0;
-
-      const sendChunk = (
-        action: 'start' | 'continue' | 'finish',
-        chunk: Blob,
-        chunkOffset: number
-      ) =>
-        new Promise<void>((resolve, reject) => {
-          const chunkUrl = `${url}&chunked=1&action=${action}&uploadId=${encodeURIComponent(
-            uploadId
-          )}&offset=${chunkOffset}`;
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', chunkUrl, true);
-          xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable && opts?.onProgress) {
-              const pct = Math.min(99, Math.round(((chunkOffset + e.loaded) / file.size) * 100));
-              opts.onProgress(pct);
-            }
-          };
-          let aborted = false;
-          const onAbort = () => {
-            aborted = true;
-            try {
-              xhr.abort();
-            } catch {}
-          };
-          if (opts?.signal) {
-            if (opts.signal.aborted) onAbort();
-            else opts.signal.addEventListener('abort', onAbort, { once: true });
-          }
-          xhr.onload = () => {
-            if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
-            if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
-            if (xhr.status >= 200 && xhr.status < 300) return resolve();
-            reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
-          };
-          xhr.onerror = () => {
-            if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
-            if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
-            reject(new Error('Netzwerkfehler beim Upload'));
-          };
-          xhr.send(chunk);
-        });
-
-      while (offset < file.size) {
-        const end = Math.min(offset + chunkSize, file.size);
-        const chunk = file.slice(offset, end);
-        const isFirst = offset === 0;
-        const isLast = end >= file.size;
-        const action = isFirst ? 'start' : isLast ? 'finish' : 'continue';
-        await sendChunk(action, chunk, offset);
-        offset = end;
-        if (opts?.onProgress) {
-          const pct = Math.round((offset / file.size) * 100);
-          opts.onProgress(pct);
+        };
+        let aborted = false;
+        const onAbort = () => {
+          aborted = true;
+          try {
+            xhr.abort();
+          } catch {}
+        };
+        if (opts?.signal) {
+          if (opts.signal.aborted) onAbort();
+          else opts.signal.addEventListener('abort', onAbort);
         }
-      }
+        xhr.onload = () => {
+          if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
+          if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
+          if (xhr.status >= 200 && xhr.status < 300) return resolve();
+          const text = xhr.responseText || `Upload failed (${xhr.status})`;
+          reject(new Error(text));
+        };
+        xhr.onerror = () => {
+          if (opts?.signal) opts.signal.removeEventListener('abort', onAbort);
+          if (aborted) return reject(new DOMException('Aborted', 'AbortError'));
+          reject(new Error('Netzwerkfehler beim Upload'));
+        };
+        xhr.send(file);
+      });
       return { ok: true };
     } catch (e: any) {
       if (e?.name === 'AbortError')
@@ -2969,7 +2933,9 @@ class ClientDataService {
   }
 
   async deleteAttachment(projectId: string, fileName: string): Promise<boolean> {
-    const url = `/api/attachments/${encodeURIComponent(projectId)}?name=${encodeURIComponent(fileName)}`;
+    const url = this.withClientInstanceQuery(
+      `/api/attachments/${encodeURIComponent(projectId)}?name=${encodeURIComponent(fileName)}`
+    );
     try {
       const r = await this.spFetch(url, { method: 'DELETE' });
       return r.ok;
