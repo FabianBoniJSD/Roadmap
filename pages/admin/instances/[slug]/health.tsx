@@ -30,12 +30,16 @@ const statusBadgeClasses = (status: string | undefined) =>
 
 type ApiInstanceResponse = { instance: RoadmapInstanceSummary };
 
+type IgnoreKind = 'missing' | 'unexpected' | 'typeMismatch';
+
 const InstanceHealthPage = () => {
   const router = useRouter();
   const { slug } = router.query;
   const [instance, setInstance] = useState<RoadmapInstanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [ignoreBusy, setIgnoreBusy] = useState<Record<string, boolean>>({});
+  const [showIgnored, setShowIgnored] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadInstance = async (slugValue: string) => {
@@ -94,6 +98,46 @@ const InstanceHealthPage = () => {
   const health = instance?.health;
   const lists = health?.lists;
   const schema = lists?.schemaMismatches || {};
+  const schemaIgnored = lists?.schemaMismatchesIgnored || {};
+  const hasSchema = Object.keys(schema).length > 0;
+  const hasIgnoredSchema = Object.keys(schemaIgnored).length > 0;
+
+  const setMismatchIgnore = async (payload: {
+    op: 'ignore' | 'unignore';
+    kind: IgnoreKind;
+    listName: string;
+    field: string;
+    expected?: string;
+    actual?: string;
+  }) => {
+    if (!slug || typeof slug !== 'string') return;
+    const busyKey = `${payload.kind}:${payload.listName}:${payload.field}:${payload.expected ?? ''}:${payload.actual ?? ''}`;
+    setIgnoreBusy((prev) => ({ ...prev, [busyKey]: true }));
+    setError(null);
+    try {
+      const token = getAdminSessionToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/health-ignore`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        const apiPayload = await resp.json().catch(() => null);
+        throw new Error(apiPayload?.error || `Fehler ${resp.status}`);
+      }
+      const data = (await resp.json()) as ApiInstanceResponse;
+      setInstance(data.instance);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setError(message);
+    } finally {
+      setIgnoreBusy((prev) => ({ ...prev, [busyKey]: false }));
+    }
+  };
 
   return (
     <AdminSubpageLayout
@@ -157,6 +201,58 @@ const InstanceHealthPage = () => {
 
             {health?.permissions.message && (
               <p className="mt-3 text-sm text-amber-200">Hinweis: {health.permissions.message}</p>
+            )}
+
+            {health?.compatibility && (
+              <div className="mt-4 rounded-2xl border border-slate-800/60 bg-slate-900/40 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                      Kompatibilität
+                    </div>
+                    <div className="mt-1 text-sm text-slate-200">
+                      {health.compatibility.sharePointTeamServices
+                        ? `Version: ${health.compatibility.sharePointTeamServices}`
+                        : 'Version: unbekannt'}
+                    </div>
+                    {(health.compatibility.webTitle || health.compatibility.webTemplate) && (
+                      <div className="mt-1 text-xs text-slate-400">
+                        {health.compatibility.webTitle ? `${health.compatibility.webTitle}` : ''}
+                        {health.compatibility.webTemplate
+                          ? ` · Template: ${health.compatibility.webTemplate}${
+                              typeof health.compatibility.webTemplateConfiguration === 'number'
+                                ? ` (${health.compatibility.webTemplateConfiguration})`
+                                : ''
+                            }`
+                          : ''}
+                      </div>
+                    )}
+                  </div>
+                  <span className={statusBadgeClasses(health.compatibility.status)}>
+                    {health.compatibility.status === 'ok' && 'Kompatibel'}
+                    {health.compatibility.status === 'insufficient' && 'Hinweis'}
+                    {health.compatibility.status === 'error' && 'Problem'}
+                    {health.compatibility.status === 'unknown' && 'Unbekannt'}
+                  </span>
+                </div>
+
+                {Array.isArray(health.compatibility.warnings) &&
+                  health.compatibility.warnings.length > 0 && (
+                    <ul className="mt-3 space-y-1 text-xs text-amber-100/90">
+                      {health.compatibility.warnings.map((w) => (
+                        <li key={w}>{w}</li>
+                      ))}
+                    </ul>
+                  )}
+                {Array.isArray(health.compatibility.errors) &&
+                  health.compatibility.errors.length > 0 && (
+                    <ul className="mt-3 space-y-1 text-xs text-rose-100/90">
+                      {health.compatibility.errors.map((e) => (
+                        <li key={e}>{e}</li>
+                      ))}
+                    </ul>
+                  )}
+              </div>
             )}
           </section>
 
@@ -273,12 +369,32 @@ const InstanceHealthPage = () => {
             </section>
           )}
 
-          {schema && Object.keys(schema).length > 0 && (
+          {(hasSchema || hasIgnoredSchema) && (
             <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
-              <h3 className="text-sm font-semibold text-white">Schema-Abweichungen</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-white">Schema-Abweichungen</h3>
+                {hasIgnoredSchema && (
+                  <label className="flex items-center gap-2 text-xs text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={showIgnored}
+                      onChange={(e) => setShowIgnored(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-700 bg-slate-900"
+                    />
+                    Ignorierte anzeigen
+                  </label>
+                )}
+              </div>
               <p className="mt-1 text-xs text-slate-400">
                 Unterschiede zwischen erwartetem und vorhandenem Listen-Schema pro Instanz.
               </p>
+
+              {!hasSchema && (
+                <p className="mt-4 text-sm text-emerald-300">
+                  Keine (nicht ignorierten) Schema-Abweichungen.
+                </p>
+              )}
+
               <div className="mt-4 space-y-4 text-sm text-slate-200">
                 {Object.entries(schema).map(([listName, details]) => (
                   <div
@@ -295,7 +411,28 @@ const InstanceHealthPage = () => {
                         </div>
                         <ul className="ml-4 list-disc space-y-1 text-amber-50/90">
                           {details.missing.map((f) => (
-                            <li key={f}>{f}</li>
+                            <li key={f} className="flex items-start justify-between gap-3">
+                              <span className="break-all">{f}</span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void setMismatchIgnore({
+                                    op: 'ignore',
+                                    kind: 'missing',
+                                    listName,
+                                    field: f,
+                                  })
+                                }
+                                disabled={Boolean(ignoreBusy[`missing:${listName}:${f}:::`])}
+                                className={clsx(
+                                  'shrink-0 rounded-md border border-amber-200/40 bg-amber-200/10 px-2 py-1 text-[11px] font-semibold text-amber-50 transition hover:bg-amber-200/20',
+                                  ignoreBusy[`missing:${listName}:${f}:::`] &&
+                                    'cursor-not-allowed opacity-60'
+                                )}
+                              >
+                                Ignorieren
+                              </button>
+                            </li>
                           ))}
                         </ul>
                       </div>
@@ -307,8 +444,39 @@ const InstanceHealthPage = () => {
                         </div>
                         <ul className="ml-4 list-disc space-y-1 text-amber-50/90">
                           {details.typeMismatches.map((m) => (
-                            <li key={m.field}>
-                              {m.field}: erwartet {m.expected}, vorhanden {m.actual}
+                            <li
+                              key={`${m.field}:${m.expected}:${m.actual}`}
+                              className="flex items-start justify-between gap-3"
+                            >
+                              <span className="break-words">
+                                {m.field}: erwartet {m.expected}, vorhanden {m.actual}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void setMismatchIgnore({
+                                    op: 'ignore',
+                                    kind: 'typeMismatch',
+                                    listName,
+                                    field: m.field,
+                                    expected: m.expected,
+                                    actual: m.actual,
+                                  })
+                                }
+                                disabled={Boolean(
+                                  ignoreBusy[
+                                    `typeMismatch:${listName}:${m.field}:${m.expected}:${m.actual}`
+                                  ]
+                                )}
+                                className={clsx(
+                                  'shrink-0 rounded-md border border-amber-200/40 bg-amber-200/10 px-2 py-1 text-[11px] font-semibold text-amber-50 transition hover:bg-amber-200/20',
+                                  ignoreBusy[
+                                    `typeMismatch:${listName}:${m.field}:${m.expected}:${m.actual}`
+                                  ] && 'cursor-not-allowed opacity-60'
+                                )}
+                              >
+                                Ignorieren
+                              </button>
                             </li>
                           ))}
                         </ul>
@@ -321,7 +489,28 @@ const InstanceHealthPage = () => {
                         </div>
                         <ul className="ml-4 list-disc space-y-1 text-amber-50/90">
                           {details.unexpected.map((f) => (
-                            <li key={f}>{f}</li>
+                            <li key={f} className="flex items-start justify-between gap-3">
+                              <span className="break-all">{f}</span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void setMismatchIgnore({
+                                    op: 'ignore',
+                                    kind: 'unexpected',
+                                    listName,
+                                    field: f,
+                                  })
+                                }
+                                disabled={Boolean(ignoreBusy[`unexpected:${listName}:${f}:::`])}
+                                className={clsx(
+                                  'shrink-0 rounded-md border border-amber-200/40 bg-amber-200/10 px-2 py-1 text-[11px] font-semibold text-amber-50 transition hover:bg-amber-200/20',
+                                  ignoreBusy[`unexpected:${listName}:${f}:::`] &&
+                                    'cursor-not-allowed opacity-60'
+                                )}
+                              >
+                                Ignorieren
+                              </button>
+                            </li>
                           ))}
                         </ul>
                       </div>
@@ -334,6 +523,140 @@ const InstanceHealthPage = () => {
                   </div>
                 ))}
               </div>
+
+              {showIgnored && hasIgnoredSchema && (
+                <div className="mt-6">
+                  <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                    Ignorierte Abweichungen
+                  </h4>
+                  <div className="mt-3 space-y-4 text-sm text-slate-200">
+                    {Object.entries(schemaIgnored).map(([listName, details]) => (
+                      <div
+                        key={listName}
+                        className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4"
+                      >
+                        <h5 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                          {listName}
+                        </h5>
+
+                        {details.missing.length > 0 && (
+                          <div className="mt-2">
+                            <div className="text-[11px] font-semibold text-slate-300">
+                              Fehlende Felder (ignoriert)
+                            </div>
+                            <ul className="ml-4 list-disc space-y-1 text-slate-200">
+                              {details.missing.map((f) => (
+                                <li key={f} className="flex items-start justify-between gap-3">
+                                  <span className="break-all">{f}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void setMismatchIgnore({
+                                        op: 'unignore',
+                                        kind: 'missing',
+                                        listName,
+                                        field: f,
+                                      })
+                                    }
+                                    disabled={Boolean(ignoreBusy[`missing:${listName}:${f}:::`])}
+                                    className={clsx(
+                                      'shrink-0 rounded-md border border-slate-700 bg-slate-950/40 px-2 py-1 text-[11px] font-semibold text-slate-200 transition hover:border-slate-500',
+                                      ignoreBusy[`missing:${listName}:${f}:::`] &&
+                                        'cursor-not-allowed opacity-60'
+                                    )}
+                                  >
+                                    Ignorierung aufheben
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {details.typeMismatches.length > 0 && (
+                          <div className="mt-2">
+                            <div className="text-[11px] font-semibold text-slate-300">
+                              Typ-Abweichungen (ignoriert)
+                            </div>
+                            <ul className="ml-4 list-disc space-y-1 text-slate-200">
+                              {details.typeMismatches.map((m) => (
+                                <li
+                                  key={`${m.field}:${m.expected}:${m.actual}`}
+                                  className="flex items-start justify-between gap-3"
+                                >
+                                  <span className="break-words">
+                                    {m.field}: erwartet {m.expected}, vorhanden {m.actual}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void setMismatchIgnore({
+                                        op: 'unignore',
+                                        kind: 'typeMismatch',
+                                        listName,
+                                        field: m.field,
+                                        expected: m.expected,
+                                        actual: m.actual,
+                                      })
+                                    }
+                                    disabled={Boolean(
+                                      ignoreBusy[
+                                        `typeMismatch:${listName}:${m.field}:${m.expected}:${m.actual}`
+                                      ]
+                                    )}
+                                    className={clsx(
+                                      'shrink-0 rounded-md border border-slate-700 bg-slate-950/40 px-2 py-1 text-[11px] font-semibold text-slate-200 transition hover:border-slate-500',
+                                      ignoreBusy[
+                                        `typeMismatch:${listName}:${m.field}:${m.expected}:${m.actual}`
+                                      ] && 'cursor-not-allowed opacity-60'
+                                    )}
+                                  >
+                                    Ignorierung aufheben
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {details.unexpected.length > 0 && (
+                          <div className="mt-2">
+                            <div className="text-[11px] font-semibold text-slate-300">
+                              Zusätzliche Felder (ignoriert)
+                            </div>
+                            <ul className="ml-4 list-disc space-y-1 text-slate-200">
+                              {details.unexpected.map((f) => (
+                                <li key={f} className="flex items-start justify-between gap-3">
+                                  <span className="break-all">{f}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void setMismatchIgnore({
+                                        op: 'unignore',
+                                        kind: 'unexpected',
+                                        listName,
+                                        field: f,
+                                      })
+                                    }
+                                    disabled={Boolean(ignoreBusy[`unexpected:${listName}:${f}:::`])}
+                                    className={clsx(
+                                      'shrink-0 rounded-md border border-slate-700 bg-slate-950/40 px-2 py-1 text-[11px] font-semibold text-slate-200 transition hover:border-slate-500',
+                                      ignoreBusy[`unexpected:${listName}:${f}:::`] &&
+                                        'cursor-not-allowed opacity-60'
+                                    )}
+                                  >
+                                    Ignorierung aufheben
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </>

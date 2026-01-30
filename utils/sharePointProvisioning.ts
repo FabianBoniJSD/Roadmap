@@ -18,6 +18,53 @@ const jsonHeaders = {
   Accept: 'application/json;odata=nometadata',
 };
 
+const probeCompatibility = async (health: RoadmapInstanceHealth) => {
+  try {
+    const resp = await clientDataService.sharePointFetch(
+      '/api/sharepoint/_api/web?$select=Title,Url,WebTemplate,WebTemplateConfiguration',
+      { headers: jsonHeaders }
+    );
+    if (!resp.ok) {
+      const message = await readError(resp);
+      health.compatibility = {
+        status: 'error',
+        errors: [message],
+      };
+      return;
+    }
+
+    const data = (await resp.json().catch(() => null)) as unknown;
+    const obj =
+      data && typeof data === 'object' && !Array.isArray(data)
+        ? (data as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const msts = resp.headers.get('microsoftsharepointteamservices') ?? undefined;
+    const webTitle = typeof obj.Title === 'string' ? obj.Title : undefined;
+    const webUrl = typeof obj.Url === 'string' ? obj.Url : undefined;
+    const webTemplate = typeof obj.WebTemplate === 'string' ? obj.WebTemplate : undefined;
+    const webTemplateConfiguration =
+      typeof obj.WebTemplateConfiguration === 'number' ? obj.WebTemplateConfiguration : undefined;
+
+    const warnings: string[] = [];
+    if (!msts)
+      warnings.push('Header "MicrosoftSharePointTeamServices" fehlt (Version nicht erkennbar)');
+
+    const status: RoadmapInstanceHealthStatus = 'ok';
+    health.compatibility = {
+      status,
+      sharePointTeamServices: msts,
+      webTitle,
+      webUrl,
+      webTemplate,
+      webTemplateConfiguration,
+      warnings: warnings.length ? warnings : undefined,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    health.compatibility = { status: 'error', errors: [message] };
+  }
+};
+
 const getListCandidates = (def: SharePointListDefinition): string[] => {
   const candidates = [def.title, def.key, ...(def.aliases ?? [])].filter(Boolean);
   return Array.from(new Set(candidates.map((value) => value.trim()))).filter(Boolean);
@@ -691,6 +738,7 @@ export async function provisionSharePointForInstance(
 ): Promise<RoadmapInstanceHealth> {
   const health: RoadmapInstanceHealth = {
     checkedAt: new Date().toISOString(),
+    compatibility: { status: 'unknown' },
     permissions: { status: 'unknown' },
     lists: {
       ensured: [],
@@ -716,6 +764,8 @@ export async function provisionSharePointForInstance(
         health.lists.errors.__digest = message;
         return;
       }
+
+      await probeCompatibility(health);
 
       for (const def of SHAREPOINT_LIST_DEFINITIONS) {
         const resolved = await ensureList(def, digest, health);

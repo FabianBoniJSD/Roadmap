@@ -118,6 +118,7 @@ const decodeSettings = (
 };
 
 const emptyHealth: RoadmapInstanceHealth = {
+  compatibility: { status: 'unknown' },
   permissions: { status: 'unknown' },
   lists: { ensured: [], created: [], missing: [], fieldsCreated: {}, errors: {} },
 };
@@ -139,10 +140,13 @@ const decodeHealth = (
     }
   }
   const normalized: RoadmapInstanceHealth = {
+    compatibility: parsed.compatibility ?? { status: 'unknown' },
     permissions: parsed.permissions ?? { status: 'unknown' },
     lists: parsed.lists ?? { ensured: [], created: [], missing: [], fieldsCreated: {}, errors: {} },
     checkedAt: parsed.checkedAt ?? undefined,
   };
+  if (!normalized.compatibility) normalized.compatibility = { status: 'unknown' };
+  if (!normalized.compatibility.status) normalized.compatibility.status = 'unknown';
   if (!normalized.permissions.status) normalized.permissions.status = 'unknown';
   if (!normalized.lists.ensured) normalized.lists.ensured = [];
   if (!normalized.lists.created) normalized.lists.created = [];
@@ -314,8 +318,10 @@ export async function getInstanceConfigFromRequest(
 
 export function toInstanceSummary(config: RoadmapInstanceConfig): RoadmapInstanceSummary {
   const { sharePoint, ...rest } = config;
+  const health = applyHealthIgnores(config.health, config.metadata);
   return {
     ...rest,
+    health,
     sharePoint: {
       ...sharePoint,
       usernameSet: Boolean(sharePoint.username),
@@ -323,6 +329,96 @@ export function toInstanceSummary(config: RoadmapInstanceConfig): RoadmapInstanc
     },
   };
 }
+
+type HealthIgnoreConfig = {
+  schemaMismatches?: Record<
+    string,
+    {
+      missing?: string[];
+      unexpected?: string[];
+      typeMismatches?: string[];
+    }
+  >;
+};
+
+const readHealthIgnoreConfig = (metadata?: Record<string, unknown>): HealthIgnoreConfig | null => {
+  if (!metadata || typeof metadata !== 'object') return null;
+  const raw = (metadata as Record<string, unknown>).spHealthIgnore;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const cfg = raw as Record<string, unknown>;
+  const schemaRaw = cfg.schemaMismatches;
+  if (!schemaRaw || typeof schemaRaw !== 'object' || Array.isArray(schemaRaw)) return null;
+  return { schemaMismatches: schemaRaw as HealthIgnoreConfig['schemaMismatches'] };
+};
+
+const normalizeStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => (typeof entry === 'string' ? entry.trim() : '')).filter(Boolean);
+};
+
+const typeMismatchKey = (field: string, expected: string, actual: string) =>
+  `${field}::${expected}::${actual}`;
+
+const applyHealthIgnores = (
+  health: RoadmapInstanceHealth | undefined,
+  metadata?: Record<string, unknown>
+): RoadmapInstanceHealth | undefined => {
+  if (!health?.lists?.schemaMismatches) return health;
+  const ignore = readHealthIgnoreConfig(metadata);
+  if (!ignore?.schemaMismatches) return health;
+
+  const filtered: NonNullable<RoadmapInstanceHealth['lists']['schemaMismatches']> = {};
+  const ignored: NonNullable<RoadmapInstanceHealth['lists']['schemaMismatches']> = {};
+
+  for (const [listName, details] of Object.entries(health.lists.schemaMismatches)) {
+    const listIgnore = ignore.schemaMismatches[listName];
+    if (!listIgnore) {
+      filtered[listName] = details;
+      continue;
+    }
+    const ignoreMissing = new Set(normalizeStringArray(listIgnore.missing));
+    const ignoreUnexpected = new Set(normalizeStringArray(listIgnore.unexpected));
+    const ignoreType = new Set(normalizeStringArray(listIgnore.typeMismatches));
+
+    const missingAll = details.missing || [];
+    const unexpectedAll = details.unexpected || [];
+    const typeAll = details.typeMismatches || [];
+
+    const missing = missingAll.filter((field) => !ignoreMissing.has(field));
+    const unexpected = unexpectedAll.filter((field) => !ignoreUnexpected.has(field));
+    const typeMismatches = typeAll.filter(
+      (m) => !ignoreType.has(typeMismatchKey(m.field, m.expected, m.actual))
+    );
+
+    const ignoredMissing = missingAll.filter((field) => ignoreMissing.has(field));
+    const ignoredUnexpected = unexpectedAll.filter((field) => ignoreUnexpected.has(field));
+    const ignoredType = typeAll.filter((m) =>
+      ignoreType.has(typeMismatchKey(m.field, m.expected, m.actual))
+    );
+
+    if (ignoredMissing.length || ignoredUnexpected.length || ignoredType.length) {
+      ignored[listName] = {
+        missing: ignoredMissing,
+        unexpected: ignoredUnexpected,
+        typeMismatches: ignoredType,
+      };
+    }
+
+    if (missing.length === 0 && unexpected.length === 0 && typeMismatches.length === 0) {
+      continue;
+    }
+    filtered[listName] = { missing, unexpected, typeMismatches };
+  }
+
+  return {
+    ...health,
+    lists: {
+      ...health.lists,
+      schemaMismatches: Object.keys(filtered).length > 0 ? filtered : undefined,
+      schemaMismatchesIgnored: Object.keys(ignored).length > 0 ? ignored : undefined,
+    },
+  };
+};
 
 export function maskSharePointSecrets(settings: RoadmapInstanceSharePointSettings) {
   return {

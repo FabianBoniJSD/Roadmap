@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
-import { buildInstanceAwareUrl, persistAdminSession } from '@/utils/auth';
+import { buildInstanceAwareUrl, hasAdminAccess, persistAdminSession } from '@/utils/auth';
 
 type AdminMode = 'github-secrets' | 'sharepoint-permissions';
 
@@ -27,6 +27,19 @@ const AdminLogin: React.FC = () => {
       setError('');
       setStatus('Prüfe Service Account …');
 
+      // If a valid browser session already exists, skip the login screen.
+      // This prevents re-login prompts when navigating between Roadmap/Admin.
+      try {
+        const alreadyAuthed = await hasAdminAccess();
+        if (alreadyAuthed) {
+          setStatus('Bereits angemeldet. Weiterleitung …');
+          setTimeout(() => router.push(returnUrl), 200);
+          return;
+        }
+      } catch {
+        // ignore and continue with normal mode detection
+      }
+
       const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin'));
       if (!response.ok) {
         throw new Error('check-admin failed');
@@ -37,9 +50,7 @@ const AdminLogin: React.FC = () => {
       setRequiresSession(Boolean(data.requiresUserSession));
       if (Array.isArray(data.users)) {
         setUsers(data.users);
-        if (!username && data.users.length > 0) {
-          setUsername(data.users[0]);
-        }
+        if (!username && data.users.length > 0) setUsername(data.users[0]);
       }
 
       if (data.requiresUserSession) {
@@ -140,26 +151,21 @@ const AdminLogin: React.FC = () => {
               <form className="space-y-6" onSubmit={handleLogin}>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-200">Benutzername</label>
-                  {users.length > 0 ? (
-                    <select
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-                    >
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    list={users.length > 0 ? 'admin-user-suggestions' : undefined}
+                    autoComplete="username"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                    placeholder="Benutzername eingeben"
+                  />
+                  {users.length > 0 && (
+                    <datalist id="admin-user-suggestions">
                       {users.map((user) => (
-                        <option key={user} value={user}>
-                          {user}
-                        </option>
+                        <option key={user} value={user} />
                       ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-                      placeholder="Benutzername eingeben"
-                    />
+                    </datalist>
                   )}
                 </div>
 
@@ -169,6 +175,7 @@ const AdminLogin: React.FC = () => {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
                     className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
                     placeholder="Passwort eingeben"
                   />

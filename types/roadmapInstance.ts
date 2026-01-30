@@ -13,6 +13,16 @@ export type RoadmapInstanceHealthStatus = 'unknown' | 'ok' | 'insufficient' | 'e
 
 export interface RoadmapInstanceHealth {
   checkedAt?: string;
+  compatibility?: {
+    status: RoadmapInstanceHealthStatus;
+    sharePointTeamServices?: string;
+    webTitle?: string;
+    webUrl?: string;
+    webTemplate?: string;
+    webTemplateConfiguration?: number;
+    warnings?: string[];
+    errors?: string[];
+  };
   permissions: {
     status: RoadmapInstanceHealthStatus;
     message?: string;
@@ -25,6 +35,14 @@ export interface RoadmapInstanceHealth {
     fieldsCreated: Record<string, string[]>;
     errors: Record<string, string>;
     schemaMismatches?: Record<
+      string,
+      {
+        missing: string[];
+        unexpected: string[];
+        typeMismatches: { field: string; expected: string; actual: string }[];
+      }
+    >;
+    schemaMismatchesIgnored?: Record<
       string,
       {
         missing: string[];
