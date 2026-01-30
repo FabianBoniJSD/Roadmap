@@ -1285,7 +1285,11 @@ class ClientDataService {
   async deleteProject(id: string): Promise<void> {
     try {
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECTS}')/items(${id})`;
+      const resolvedProjects = await this.resolveListTitle(
+        SP_LISTS.PROJECTS,
+        SP_LIST_VARIANTS[SP_LISTS.PROJECTS] || ['Roadmap Projects']
+      );
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})`;
 
       // Get request digest for write operations
       const requestDigest = await this.getRequestDigest();
@@ -1699,7 +1703,11 @@ class ClientDataService {
   async getCategoryById(id: string): Promise<Category | null> {
     try {
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.CATEGORIES}')/items(${id})?$select=Id,Title,Color,Icon,ParentCategoryId,IsSubcategory`;
+      const resolvedCategories = await this.resolveListTitle(
+        SP_LISTS.CATEGORIES,
+        SP_LIST_VARIANTS[SP_LISTS.CATEGORIES] || ['Roadmap Categories']
+      );
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedCategories}')/items(${id})?$select=Id,Title,Color,Icon,ParentCategoryId,IsSubcategory`;
 
       const response = await this.spFetch(endpoint, {
         method: 'GET',
@@ -1844,13 +1852,17 @@ class ClientDataService {
   async createProjectLink(link: Omit<ProjectLink, 'id'>): Promise<ProjectLink> {
     try {
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECT_LINKS}')/items`;
+      const resolvedLinks = await this.resolveListTitle(
+        SP_LISTS.PROJECT_LINKS,
+        SP_LIST_VARIANTS[SP_LISTS.PROJECT_LINKS] || ['Roadmap Project Links']
+      );
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedLinks}')/items`;
 
       // Get request digest for write operations
       const requestDigest = await this.getRequestDigest();
 
       // Get the correct metadata type
-      const itemType = await this.getListMetadata(SP_LISTS.PROJECT_LINKS);
+      const itemType = await this.getListMetadata(resolvedLinks);
 
       // SharePoint might expect ProjectId as a complex object if it's a lookup field
       // We need to examine the actual structure required
@@ -1930,13 +1942,17 @@ class ClientDataService {
   async updateProjectLink(link: ProjectLink): Promise<ProjectLink> {
     try {
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECT_LINKS}')/items(${link.id})`;
+      const resolvedLinks = await this.resolveListTitle(
+        SP_LISTS.PROJECT_LINKS,
+        SP_LIST_VARIANTS[SP_LISTS.PROJECT_LINKS] || ['Roadmap Project Links']
+      );
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedLinks}')/items(${link.id})`;
 
       // Get request digest for write operations
       const requestDigest = await this.getRequestDigest();
 
       // Get the correct metadata type
-      const itemType = await this.getListMetadata(SP_LISTS.PROJECT_LINKS);
+      const itemType = await this.getListMetadata(resolvedLinks);
 
       const response = await this.spFetch(endpoint, {
         method: 'POST',
@@ -1970,7 +1986,11 @@ class ClientDataService {
   async deleteProjectLink(linkId: string): Promise<void> {
     try {
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.PROJECT_LINKS}')/items(${linkId})`;
+      const resolvedLinks = await this.resolveListTitle(
+        SP_LISTS.PROJECT_LINKS,
+        SP_LIST_VARIANTS[SP_LISTS.PROJECT_LINKS] || ['Roadmap Project Links']
+      );
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedLinks}')/items(${linkId})`;
 
       // Get request digest for write operations
       const requestDigest = await this.getRequestDigest();
@@ -2296,7 +2316,11 @@ class ClientDataService {
   async getTeamMembersForProject(projectId: string): Promise<TeamMember[]> {
     try {
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.TEAM_MEMBERS}')/items?$filter=ProjectId eq '${projectId}'&$select=Id,Title,Role,ProjectId`;
+      const resolvedMembers = await this.resolveListTitle(
+        SP_LISTS.TEAM_MEMBERS,
+        SP_LIST_VARIANTS[SP_LISTS.TEAM_MEMBERS] || ['Roadmap Team Members']
+      );
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedMembers}')/items?$filter=ProjectId eq '${projectId}'&$select=Id,Title,Role,ProjectId`;
 
       const response = await this.spFetch(endpoint, {
         method: 'GET',
@@ -2369,13 +2393,17 @@ class ClientDataService {
   }): Promise<TeamMember> {
     try {
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.TEAM_MEMBERS}')/items`;
+      const resolvedMembers = await this.resolveListTitle(
+        SP_LISTS.TEAM_MEMBERS,
+        SP_LIST_VARIANTS[SP_LISTS.TEAM_MEMBERS] || ['Roadmap Team Members']
+      );
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedMembers}')/items`;
 
       // Get request digest for write operations
       const requestDigest = await this.getRequestDigest();
 
       // Get the correct metadata type
-      const itemType = await this.getListMetadata(SP_LISTS.TEAM_MEMBERS);
+      const itemType = await this.getListMetadata(resolvedMembers);
 
       const response = await this.spFetch(endpoint, {
         method: 'POST',
@@ -2414,7 +2442,11 @@ class ClientDataService {
   async deleteTeamMember(memberId: string): Promise<void> {
     try {
       const webUrl = this.getWebUrl();
-      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${SP_LISTS.TEAM_MEMBERS}')/items(${memberId})`;
+      const resolvedMembers = await this.resolveListTitle(
+        SP_LISTS.TEAM_MEMBERS,
+        SP_LIST_VARIANTS[SP_LISTS.TEAM_MEMBERS] || ['Roadmap Team Members']
+      );
+      const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedMembers}')/items(${memberId})`;
 
       // Get request digest for write operations
       const requestDigest = await this.getRequestDigest();
