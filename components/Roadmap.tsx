@@ -367,14 +367,16 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   ];
 
   // Get category name by ID
-  const getCategoryName = (categoryId: string) => {
+  const getCategoryName = (categoryValue: unknown) => {
+    const categoryId = normalizeCategoryId(categoryValue, categories);
     if (categoryId === UNCATEGORIZED_ID) return 'Uncategorized';
     const category = categories.find((cat) => cat.id === categoryId);
     return category?.name || 'Uncategorized';
   };
 
   // Get category color by ID
-  const getCategoryColor = (categoryId: string) => {
+  const getCategoryColor = (categoryValue: unknown) => {
+    const categoryId = normalizeCategoryId(categoryValue, categories);
     if (categoryId === UNCATEGORIZED_ID) return '#777777';
     const category = categories.find((cat) => cat.id === categoryId);
     return category?.color || '#777777';
