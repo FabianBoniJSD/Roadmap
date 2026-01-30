@@ -83,6 +83,8 @@ function isAllowedPath(path: string) {
   // Normalize trailing slashes (except root) so /_api/contextinfo/ is treated like /_api/contextinfo
   const cleaned = path.endsWith('/') ? path.replace(/\/+$/, '') : path;
   if (cleaned === '/_api/contextinfo') return true;
+  // Allow querying basic web metadata (title/template) for compatibility checks
+  if (cleaned === '/_api/web') return true;
   // Allow current user lookup for authentication checks
   if (cleaned === '/_api/web/currentuser') return true;
   // Allow current user's SharePoint groups (needed for Owners membership checks)
@@ -256,6 +258,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (typeof process !== 'undefined' && process.env && process.env.SP_PROXY_DEBUG === 'true') {
     // eslint-disable-next-line no-console
     console.debug('[sharepoint proxy] original url:', req.url, '-> decoded fullPath:', fullPath);
+  }
+
+  // /_api/web is allowed read-only (compatibility probe); block non-GET/HEAD for safety.
+  if (apiPath === '/_api/web' && req.method !== 'GET' && req.method !== 'HEAD') {
+    return res.status(400).json({ error: 'Path not allowed' });
   }
 
   if (!isAllowedPath(apiPath)) {
@@ -939,7 +946,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const ct = spResp.headers.get('content-type') || '';
+    const msts = spResp.headers.get('microsoftsharepointteamservices');
     const buffer = Buffer.from(await spResp.arrayBuffer());
+    if (msts) res.setHeader('microsoftsharepointteamservices', msts);
     if (spResp.status === 401 || spResp.status === 403) {
       try {
         const snippet = buffer.toString('utf8', 0, Math.min(buffer.length, 500));

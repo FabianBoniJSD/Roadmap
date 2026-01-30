@@ -11,6 +11,14 @@ import {
 type IgnoreOp = 'ignore' | 'unignore';
 type IgnoreKind = 'missing' | 'unexpected' | 'typeMismatch';
 
+type IgnoreItem = {
+  kind: IgnoreKind;
+  listName: string;
+  field: string;
+  expected?: string;
+  actual?: string;
+};
+
 const sanitizeSlug = (value: string) => value.trim().toLowerCase();
 
 const decodeSettings = (settingsJson: string | null): Record<string, unknown> => {
@@ -81,30 +89,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!(await ensureAdminForInstance())) return res.status(401).json({ error: 'Unauthorized' });
 
-  const body = req.body as Partial<{
-    op: IgnoreOp;
-    kind: IgnoreKind;
-    listName: string;
-    field: string;
-    expected: string;
-    actual: string;
-  }>;
+  const rawBody = (req.body ?? {}) as Record<string, unknown>;
+  const op: IgnoreOp = rawBody.op === 'unignore' ? 'unignore' : 'ignore';
 
-  const op: IgnoreOp = body.op === 'unignore' ? 'unignore' : 'ignore';
-  const kind = body.kind;
-  const listName = typeof body.listName === 'string' ? body.listName.trim() : '';
-  const field = typeof body.field === 'string' ? body.field.trim() : '';
-
-  if (!kind || (kind !== 'missing' && kind !== 'unexpected' && kind !== 'typeMismatch')) {
-    return res.status(400).json({ error: 'Invalid kind' });
+  const items: IgnoreItem[] = [];
+  if (Array.isArray(rawBody.items)) {
+    for (const entry of rawBody.items) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+      const obj = entry as Record<string, unknown>;
+      const kind = obj.kind;
+      const listName = typeof obj.listName === 'string' ? obj.listName.trim() : '';
+      const field = typeof obj.field === 'string' ? obj.field.trim() : '';
+      const expected = typeof obj.expected === 'string' ? obj.expected.trim() : undefined;
+      const actual = typeof obj.actual === 'string' ? obj.actual.trim() : undefined;
+      if (kind !== 'missing' && kind !== 'unexpected' && kind !== 'typeMismatch') continue;
+      if (!listName || !field) continue;
+      if (kind === 'typeMismatch' && (!expected || !actual)) continue;
+      items.push({ kind, listName, field, expected, actual });
+    }
+  } else {
+    // Backward compatible single-item payload
+    const kind = rawBody.kind;
+    const listName = typeof rawBody.listName === 'string' ? rawBody.listName.trim() : '';
+    const field = typeof rawBody.field === 'string' ? rawBody.field.trim() : '';
+    const expected = typeof rawBody.expected === 'string' ? rawBody.expected.trim() : undefined;
+    const actual = typeof rawBody.actual === 'string' ? rawBody.actual.trim() : undefined;
+    if (kind !== 'missing' && kind !== 'unexpected' && kind !== 'typeMismatch') {
+      return res.status(400).json({ error: 'Invalid kind' });
+    }
+    if (!listName) return res.status(400).json({ error: 'Invalid listName' });
+    if (!field) return res.status(400).json({ error: 'Invalid field' });
+    if (kind === 'typeMismatch' && (!expected || !actual)) {
+      return res.status(400).json({ error: 'expected/actual required for typeMismatch' });
+    }
+    items.push({ kind, listName, field, expected, actual });
   }
-  if (!listName) return res.status(400).json({ error: 'Invalid listName' });
-  if (!field) return res.status(400).json({ error: 'Invalid field' });
 
-  const expected = typeof body.expected === 'string' ? body.expected.trim() : '';
-  const actual = typeof body.actual === 'string' ? body.actual.trim() : '';
-  if (kind === 'typeMismatch' && (!expected || !actual)) {
-    return res.status(400).json({ error: 'expected/actual required for typeMismatch' });
+  if (items.length === 0) {
+    return res.status(400).json({ error: 'No valid items provided' });
   }
 
   const settings = decodeSettings(record.settingsJson ?? null);
@@ -112,30 +134,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const spHealthIgnore = ensureRecordObject(metadata.spHealthIgnore);
   const schemaMismatches = ensureRecordObject(spHealthIgnore.schemaMismatches);
-  const listIgnore = ensureRecordObject(schemaMismatches[listName]);
 
-  if (kind === 'missing') {
-    listIgnore.missing = upsertString(
-      Array.isArray(listIgnore.missing) ? (listIgnore.missing as string[]) : [],
-      field,
-      op
-    );
-  } else if (kind === 'unexpected') {
-    listIgnore.unexpected = upsertString(
-      Array.isArray(listIgnore.unexpected) ? (listIgnore.unexpected as string[]) : [],
-      field,
-      op
-    );
-  } else {
-    const key = typeMismatchKey(field, expected, actual);
-    listIgnore.typeMismatches = upsertString(
-      Array.isArray(listIgnore.typeMismatches) ? (listIgnore.typeMismatches as string[]) : [],
-      key,
-      op
-    );
+  for (const item of items) {
+    const listIgnore = ensureRecordObject(schemaMismatches[item.listName]);
+    if (item.kind === 'missing') {
+      listIgnore.missing = upsertString(
+        Array.isArray(listIgnore.missing) ? (listIgnore.missing as string[]) : [],
+        item.field,
+        op
+      );
+    } else if (item.kind === 'unexpected') {
+      listIgnore.unexpected = upsertString(
+        Array.isArray(listIgnore.unexpected) ? (listIgnore.unexpected as string[]) : [],
+        item.field,
+        op
+      );
+    } else {
+      const key = typeMismatchKey(item.field, item.expected ?? '', item.actual ?? '');
+      listIgnore.typeMismatches = upsertString(
+        Array.isArray(listIgnore.typeMismatches) ? (listIgnore.typeMismatches as string[]) : [],
+        key,
+        op
+      );
+    }
+    schemaMismatches[item.listName] = listIgnore;
   }
 
-  schemaMismatches[listName] = listIgnore;
   spHealthIgnore.schemaMismatches = schemaMismatches;
   metadata.spHealthIgnore = spHealthIgnore;
   settings.metadata = metadata;

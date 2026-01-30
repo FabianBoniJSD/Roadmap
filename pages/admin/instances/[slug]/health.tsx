@@ -40,6 +40,7 @@ const InstanceHealthPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [ignoreBusy, setIgnoreBusy] = useState<Record<string, boolean>>({});
   const [showIgnored, setShowIgnored] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadInstance = async (slugValue: string) => {
@@ -101,6 +102,58 @@ const InstanceHealthPage = () => {
   const schemaIgnored = lists?.schemaMismatchesIgnored || {};
   const hasSchema = Object.keys(schema).length > 0;
   const hasIgnoredSchema = Object.keys(schemaIgnored).length > 0;
+
+  const toIgnoreItems = (listName: string, details: (typeof schema)[string]) => {
+    const items: Array<{
+      kind: IgnoreKind;
+      listName: string;
+      field: string;
+      expected?: string;
+      actual?: string;
+    }> = [];
+    (details.missing || []).forEach((field) => items.push({ kind: 'missing', listName, field }));
+    (details.unexpected || []).forEach((field) =>
+      items.push({ kind: 'unexpected', listName, field })
+    );
+    (details.typeMismatches || []).forEach((m) =>
+      items.push({
+        kind: 'typeMismatch',
+        listName,
+        field: m.field,
+        expected: m.expected,
+        actual: m.actual,
+      })
+    );
+    return items;
+  };
+
+  const bulkSetMismatchIgnore = async (op: 'ignore' | 'unignore', items: unknown[]) => {
+    if (!slug || typeof slug !== 'string') return;
+    if (!Array.isArray(items) || items.length === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    try {
+      const token = getAdminSessionToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/health-ignore`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ op, items }),
+      });
+      if (!resp.ok) {
+        const apiPayload = await resp.json().catch(() => null);
+        throw new Error(apiPayload?.error || `Fehler ${resp.status}`);
+      }
+      const data = (await resp.json()) as ApiInstanceResponse;
+      setInstance(data.instance);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setError(message);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const setMismatchIgnore = async (payload: {
     op: 'ignore' | 'unignore';
@@ -373,17 +426,57 @@ const InstanceHealthPage = () => {
             <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold text-white">Schema-Abweichungen</h3>
-                {hasIgnoredSchema && (
-                  <label className="flex items-center gap-2 text-xs text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={showIgnored}
-                      onChange={(e) => setShowIgnored(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-900"
-                    />
-                    Ignorierte anzeigen
-                  </label>
-                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  {hasSchema && (
+                    <button
+                      type="button"
+                      disabled={bulkBusy}
+                      onClick={() => {
+                        const items = Object.entries(schema).flatMap(([listName, details]) =>
+                          toIgnoreItems(listName, details)
+                        );
+                        void bulkSetMismatchIgnore('ignore', items);
+                      }}
+                      className={clsx(
+                        'rounded-lg border border-amber-200/40 bg-amber-200/10 px-3 py-1.5 text-xs font-semibold text-amber-50 transition hover:bg-amber-200/20',
+                        bulkBusy && 'cursor-not-allowed opacity-60'
+                      )}
+                    >
+                      Alles ignorieren
+                    </button>
+                  )}
+
+                  {hasIgnoredSchema && (
+                    <label className="flex items-center gap-2 text-xs text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={showIgnored}
+                        onChange={(e) => setShowIgnored(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-700 bg-slate-900"
+                      />
+                      Ignorierte anzeigen
+                    </label>
+                  )}
+
+                  {hasIgnoredSchema && showIgnored && (
+                    <button
+                      type="button"
+                      disabled={bulkBusy}
+                      onClick={() => {
+                        const items = Object.entries(schemaIgnored).flatMap(([listName, details]) =>
+                          toIgnoreItems(listName, details)
+                        );
+                        void bulkSetMismatchIgnore('unignore', items);
+                      }}
+                      className={clsx(
+                        'rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500',
+                        bulkBusy && 'cursor-not-allowed opacity-60'
+                      )}
+                    >
+                      Alle Ignorierungen aufheben
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="mt-1 text-xs text-slate-400">
                 Unterschiede zwischen erwartetem und vorhandenem Listen-Schema pro Instanz.
@@ -401,9 +494,25 @@ const InstanceHealthPage = () => {
                     key={listName}
                     className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-50"
                   >
-                    <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-200">
-                      {listName}
-                    </h4>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-200">
+                        {listName}
+                      </h4>
+                      <button
+                        type="button"
+                        disabled={bulkBusy}
+                        onClick={() => {
+                          const items = toIgnoreItems(listName, details);
+                          void bulkSetMismatchIgnore('ignore', items);
+                        }}
+                        className={clsx(
+                          'rounded-md border border-amber-200/40 bg-amber-200/10 px-2 py-1 text-[11px] font-semibold text-amber-50 transition hover:bg-amber-200/20',
+                          bulkBusy && 'cursor-not-allowed opacity-60'
+                        )}
+                      >
+                        Liste ignorieren
+                      </button>
+                    </div>
                     {details.missing.length > 0 && (
                       <div className="mt-2">
                         <div className="text-[11px] font-semibold text-amber-100">
