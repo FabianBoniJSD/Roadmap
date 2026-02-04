@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { extractAdminSession } from '@/utils/apiAuth';
 import { clientDataService } from '@/utils/clientDataService';
 import { mapInstanceRecord, toInstanceSummary } from '@/utils/instanceConfig';
+import { isAdminUserAllowedForInstance } from '@/utils/instanceAccess';
 import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
 import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
 import { sanitizeSlug } from '../helpers';
@@ -36,6 +37,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Allow either JWT-based admin session or service-account admin on this instance
   const session = extractAdminSession(req);
+
+  const sessionUsername =
+    (typeof session?.username === 'string' && session.username) ||
+    (typeof session?.displayName === 'string' && session.displayName) ||
+    null;
+
+  if (session?.isAdmin && !isAdminUserAllowedForInstance(sessionUsername, mapped)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   if (!session?.isAdmin) {
     try {
       const allowed = await clientDataService.withInstance(mapped.slug, () =>

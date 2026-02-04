@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import AdminSubpageLayout from '@/components/AdminSubpageLayout';
 import withAdminAuth from '@/components/withAdminAuth';
 import type { RoadmapInstanceSummary } from '@/types/roadmapInstance';
@@ -29,8 +29,11 @@ const statusBadgeClasses = (status: string | undefined) =>
   );
 
 type ApiInstanceResponse = { instance: RoadmapInstanceSummary };
+type ApiAccessResponse = { users: string[] };
 
 type IgnoreKind = 'missing' | 'unexpected' | 'typeMismatch';
+
+const normalizeUser = (value: string) => value.trim().toLowerCase();
 
 const InstanceHealthPage = () => {
   const router = useRouter();
@@ -43,7 +46,13 @@ const InstanceHealthPage = () => {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadInstance = async (slugValue: string) => {
+  const [accessUsers, setAccessUsers] = useState<string[]>([]);
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessSaving, setAccessSaving] = useState(false);
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [accessNewUser, setAccessNewUser] = useState('');
+
+  const loadInstance = useCallback(async (slugValue: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -64,12 +73,77 @@ const InstanceHealthPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const loadAccess = useCallback(async (slugValue: string) => {
+    setAccessLoading(true);
+    setAccessError(null);
+    try {
+      const token = getAdminSessionToken();
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const resp = await fetch(`/api/instances/${encodeURIComponent(slugValue)}/access`, {
+        headers,
+      });
+      if (!resp.ok) {
+        const payload = await resp.json().catch(() => null);
+        throw new Error(payload?.error || `Fehler ${resp.status}`);
+      }
+      const data = (await resp.json()) as ApiAccessResponse;
+      const users = Array.isArray(data.users) ? data.users : [];
+      setAccessUsers(users.map((u) => normalizeUser(String(u))).filter(Boolean));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setAccessError(message);
+      setAccessUsers([]);
+    } finally {
+      setAccessLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!slug || typeof slug !== 'string') return;
     void loadInstance(slug);
-  }, [slug]);
+    void loadAccess(slug);
+  }, [slug, loadAccess, loadInstance]);
+
+  const addAccessUser = () => {
+    const normalized = normalizeUser(accessNewUser);
+    if (!normalized) return;
+    setAccessUsers((prev) => Array.from(new Set([...prev, normalized])).sort());
+    setAccessNewUser('');
+  };
+
+  const removeAccessUser = (user: string) => {
+    setAccessUsers((prev) => prev.filter((u) => u !== user));
+  };
+
+  const saveAccess = async () => {
+    if (!slug || typeof slug !== 'string') return;
+    setAccessSaving(true);
+    setAccessError(null);
+    try {
+      const token = getAdminSessionToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/access`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ users: accessUsers }),
+      });
+      if (!resp.ok) {
+        const payload = await resp.json().catch(() => null);
+        throw new Error(payload?.error || `Fehler ${resp.status}`);
+      }
+      const data = (await resp.json()) as ApiAccessResponse;
+      const users = Array.isArray(data.users) ? data.users : [];
+      setAccessUsers(users.map((u) => normalizeUser(String(u))).filter(Boolean));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setAccessError(message);
+    } finally {
+      setAccessSaving(false);
+    }
+  };
 
   const triggerRefresh = async () => {
     if (!slug || typeof slug !== 'string') return;
@@ -307,6 +381,109 @@ const InstanceHealthPage = () => {
                   )}
               </div>
             )}
+          </section>
+
+          <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
+            <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800/60 pb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Instanz-Zugriff</h2>
+                <p className="text-xs text-slate-400">
+                  Legt fest, welche Admin-User (USER_* Secrets) diese Instanz verwalten dürfen.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={saveAccess}
+                disabled={accessSaving || accessLoading}
+                className={clsx(
+                  'rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-sky-400',
+                  (accessSaving || accessLoading) && 'cursor-not-allowed opacity-60'
+                )}
+              >
+                {accessSaving ? 'Speichert…' : 'Speichern'}
+              </button>
+            </header>
+
+            {accessError && (
+              <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {accessError}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[240px]">
+                <label className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                  Benutzer hinzufügen
+                </label>
+                <input
+                  type="text"
+                  value={accessNewUser}
+                  onChange={(e) => setAccessNewUser(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addAccessUser();
+                    }
+                  }}
+                  placeholder="z.B. alice"
+                  className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                  disabled={accessLoading || accessSaving}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={addAccessUser}
+                disabled={accessLoading || accessSaving || !normalizeUser(accessNewUser)}
+                className={clsx(
+                  'rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white',
+                  (accessLoading || accessSaving || !normalizeUser(accessNewUser)) &&
+                    'cursor-not-allowed opacity-60'
+                )}
+              >
+                Hinzufügen
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccessUsers([])}
+                disabled={accessLoading || accessSaving || accessUsers.length === 0}
+                className={clsx(
+                  'rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-rose-400 hover:text-white',
+                  (accessLoading || accessSaving || accessUsers.length === 0) &&
+                    'cursor-not-allowed opacity-60'
+                )}
+              >
+                Zugriff öffnen
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-xs text-slate-400">
+                {accessUsers.length === 0
+                  ? 'Keine Einschränkung: alle Admin-User haben Zugriff.'
+                  : `${accessUsers.length} User erlaubt:`}
+              </div>
+              {accessUsers.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {accessUsers.map((user) => (
+                    <span
+                      key={user}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs font-semibold text-slate-200"
+                    >
+                      {user}
+                      <button
+                        type="button"
+                        onClick={() => removeAccessUser(user)}
+                        disabled={accessLoading || accessSaving}
+                        className="text-slate-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        aria-label={`Entferne ${user}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
 
           <section className="grid gap-6 md:grid-cols-2">

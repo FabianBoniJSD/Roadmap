@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { requireAdminSession } from '@/utils/apiAuth';
 import { mapInstanceRecord } from '@/utils/instanceConfig';
+import { isAdminUserAllowedForInstance } from '@/utils/instanceAccess';
 import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
 import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
 
@@ -12,11 +13,17 @@ type ProvisionResult = {
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  let sessionUser: { username?: string; displayName?: string } | null = null;
   try {
-    requireAdminSession(req);
+    sessionUser = requireAdminSession(req);
   } catch {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+
+  const username =
+    (typeof sessionUser?.username === 'string' && sessionUser.username) ||
+    (typeof sessionUser?.displayName === 'string' && sessionUser.displayName) ||
+    null;
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -38,6 +45,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   for (const record of records) {
     const mapped = mapInstanceRecord(record);
+
+    if (!isAdminUserAllowedForInstance(username, mapped)) {
+      results.push({ slug: mapped.slug, ok: false, message: 'Forbidden' });
+      continue;
+    }
 
     let health: RoadmapInstanceHealth;
     try {

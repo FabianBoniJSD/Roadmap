@@ -67,6 +67,38 @@ const getNested = (value: unknown, path: string[]): unknown => {
   return current;
 };
 
+type AttachmentFile = { FileName: string; ServerRelativeUrl: string };
+
+const coerceAttachmentFile = (value: unknown): AttachmentFile | null => {
+  const rec = asRecord(value);
+  if (!rec) return null;
+  const fileName = typeof rec.FileName === 'string' ? rec.FileName : null;
+  const serverRelativeUrl =
+    typeof rec.ServerRelativeUrl === 'string' ? rec.ServerRelativeUrl : null;
+  if (!fileName || !serverRelativeUrl) return null;
+  return { FileName: fileName, ServerRelativeUrl: serverRelativeUrl };
+};
+
+const extractAttachmentArray = (payload: unknown): AttachmentFile[] => {
+  const direct = asRecord(payload);
+  const value = direct?.value;
+  if (Array.isArray(value)) {
+    return value.map(coerceAttachmentFile).filter((v): v is AttachmentFile => Boolean(v));
+  }
+
+  const results = getNested(payload, ['d', 'results']);
+  if (Array.isArray(results)) {
+    return results.map(coerceAttachmentFile).filter((v): v is AttachmentFile => Boolean(v));
+  }
+
+  return [];
+};
+
+const shouldRetryAsLegacy = (status: number, bodyText: string) => {
+  if (status === 400) return true;
+  return /InvalidClientQuery|Invalid argument|OData\s+version|unsupported/i.test(bodyText);
+};
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query as { id: string };
   const name = (req.query.name as string) || '';
@@ -173,28 +205,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     if (req.method === 'GET') {
-      const url = withSlug(base + '?$select=FileName,ServerRelativeUrl');
-      const r = await fetch(url, {
-        headers: attachHeaders({ Accept: 'application/json;odata=nometadata' }),
-      });
-      const txt = await r.text();
-      const ct = r.headers.get('content-type') || '';
-      let payload: unknown = txt;
-      if (ct.includes('application/json')) {
+      const baseListUrl = withSlug(base + '?$select=FileName,ServerRelativeUrl');
+
+      const tryFetch = async (accept: string) => {
+        const r = await fetch(baseListUrl, {
+          headers: attachHeaders({ Accept: accept }),
+        });
+        const txt = await r.text();
+        const ct = r.headers.get('content-type') || '';
+        const payload = extractJsonPayload(txt, ct);
+        return { r, txt, ct, payload };
+      };
+
+      // 1) nometadata
+      let attempt = await tryFetch('application/json;odata=nometadata');
+      if (!attempt.r.ok && shouldRetryAsLegacy(attempt.r.status, String(attempt.txt || ''))) {
+        // 2) verbose JSON
+        attempt = await tryFetch('application/json;odata=verbose');
+      }
+      if (!attempt.r.ok && shouldRetryAsLegacy(attempt.r.status, String(attempt.txt || ''))) {
+        // 3) Atom XML
+        const atomUrl = baseListUrl;
+        const atomResp = await fetch(atomUrl, {
+          headers: attachHeaders({ Accept: 'application/atom+xml' }),
+        });
+        const atomText = await atomResp.text();
+        if (!atomResp.ok) {
+          return res.status(atomResp.status).json({ error: 'sp-error', payload: atomText });
+        }
+        // Minimal Atom parser for attachments
         try {
-          payload = JSON.parse(txt);
+          const entries = atomText.match(/<entry[\s\S]*?<\/entry>/gi) || [];
+          const items = entries
+            .map((entry) => {
+              const fileNameMatch = entry.match(/<d:FileName[^>]*>([\s\S]*?)<\/d:FileName>/i);
+              const urlMatch = entry.match(
+                /<d:ServerRelativeUrl[^>]*>([\s\S]*?)<\/d:ServerRelativeUrl>/i
+              );
+              const FileName = fileNameMatch?.[1]?.trim() || '';
+              const ServerRelativeUrl = urlMatch?.[1]?.trim() || '';
+              return FileName && ServerRelativeUrl ? { FileName, ServerRelativeUrl } : null;
+            })
+            .filter(Boolean);
+          return res.status(200).json(items);
         } catch {
-          /* ignore parse errors */
+          return res.status(200).json([]);
         }
       }
-      if (!r.ok) {
-        return res.status(r.status).json({ error: 'sp-error', payload });
+
+      if (!attempt.r.ok) {
+        return res.status(attempt.r.status).json({ error: 'sp-error', payload: attempt.payload });
       }
-      const value =
-        typeof payload === 'object' && payload !== null && 'value' in payload
-          ? (payload as { value?: unknown }).value
-          : undefined;
-      return res.status(200).json(Array.isArray(value) ? value : []);
+      const attachments = extractAttachmentArray(attempt.payload);
+      return res.status(200).json(Array.isArray(attachments) ? attachments : []);
     }
 
     if (req.method === 'POST') {

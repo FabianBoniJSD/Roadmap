@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
+import { extractAdminSession } from '@/utils/apiAuth';
+import { isAdminUserAllowedForInstance } from '@/utils/instanceAccess';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
@@ -18,11 +20,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Check authentication for write operations
   if (req.method !== 'GET') {
     try {
-      const isAdmin = await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.isCurrentUserAdmin()
-      );
-      if (!isAdmin) {
-        return res.status(401).json({ message: 'Unauthorized' });
+      const session = extractAdminSession(req);
+      const sessionUsername =
+        (typeof session?.username === 'string' && session.username) ||
+        (typeof session?.displayName === 'string' && session.displayName) ||
+        null;
+
+      if (session?.isAdmin) {
+        if (!isAdminUserAllowedForInstance(sessionUsername, instance)) {
+          return res.status(403).json({ message: 'Forbidden' });
+        }
+      } else {
+        const isAdmin = await clientDataService.withInstance(instance.slug, () =>
+          clientDataService.isCurrentUserAdmin()
+        );
+        if (!isAdmin) {
+          return res.status(401).json({ message: 'Unauthorized' });
+        }
       }
     } catch (error) {
       console.error('Error checking admin status:', error);

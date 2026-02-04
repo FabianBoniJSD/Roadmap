@@ -7,6 +7,7 @@ import {
   toInstanceSummary,
   type PrismaInstanceWithHosts,
 } from '@/utils/instanceConfig';
+import { isAdminUserAllowedForInstance } from '@/utils/instanceAccess';
 
 type IgnoreOp = 'ignore' | 'unignore';
 type IgnoreKind = 'missing' | 'unexpected' | 'typeMismatch';
@@ -75,11 +76,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!record) return res.status(404).json({ error: 'Instance not found' });
 
+  const mappedForAccess = mapInstanceRecord(record);
+  const sessionUsername =
+    (typeof session?.username === 'string' && session.username) ||
+    (typeof session?.displayName === 'string' && session.displayName) ||
+    null;
+  if (session?.isAdmin && !isAdminUserAllowedForInstance(sessionUsername, mappedForAccess)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
   const ensureAdminForInstance = async () => {
     if (session?.isAdmin) return true;
     try {
-      const mapped = mapInstanceRecord(record);
-      return await clientDataService.withInstance(mapped.slug, () =>
+      return await clientDataService.withInstance(mappedForAccess.slug, () =>
         clientDataService.isCurrentUserAdmin()
       );
     } catch {

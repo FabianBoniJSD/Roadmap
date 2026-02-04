@@ -7,6 +7,7 @@ import {
   toInstanceSummary,
   type PrismaInstanceWithHosts,
 } from '@/utils/instanceConfig';
+import { isAdminUserAllowedForInstance } from '@/utils/instanceAccess';
 import {
   buildSettingsPayload,
   coerceBool,
@@ -43,6 +44,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = extractAdminSession(req);
 
+  const sessionUsername =
+    (typeof session?.username === 'string' && session.username) ||
+    (typeof session?.displayName === 'string' && session.displayName) ||
+    null;
+
   const ensureAdminForInstance = async (record: PrismaInstanceWithHosts | null) => {
     if (session?.isAdmin) return true;
     if (!record) return false;
@@ -63,9 +69,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       include: { hosts: true },
     })) as PrismaInstanceWithHosts | null;
     if (!record) return res.status(404).json({ error: 'Instance not found' });
+    const mapped = mapInstanceRecord(record);
+    if (session?.isAdmin && !isAdminUserAllowedForInstance(sessionUsername, mapped)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
     if (!(await ensureAdminForInstance(record)))
       return res.status(401).json({ error: 'Unauthorized' });
-    return res.status(200).json({ instance: toInstanceSummary(mapInstanceRecord(record)) });
+    return res.status(200).json({ instance: toInstanceSummary(mapped) });
   }
 
   if (req.method === 'PUT') {
@@ -74,6 +84,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       include: { hosts: true },
     })) as PrismaInstanceWithHosts | null;
     if (!existing) return res.status(404).json({ error: 'Instance not found' });
+    const existingMapped = mapInstanceRecord(existing);
+    if (session?.isAdmin && !isAdminUserAllowedForInstance(sessionUsername, existingMapped)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
     if (!(await ensureAdminForInstance(existing)))
       return res.status(401).json({ error: 'Unauthorized' });
 
@@ -237,6 +251,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       include: { hosts: true },
     })) as PrismaInstanceWithHosts | null;
     if (!existing) return res.status(404).json({ error: 'Instance not found' });
+    const existingMapped = mapInstanceRecord(existing);
+    if (session?.isAdmin && !isAdminUserAllowedForInstance(sessionUsername, existingMapped)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
     if (!(await ensureAdminForInstance(existing)))
       return res.status(401).json({ error: 'Unauthorized' });
     try {

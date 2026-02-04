@@ -1,12 +1,34 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { extname } from 'path';
 import { clientDataService } from '@/utils/clientDataService';
+import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import {
   getInstanceConfigFromRequest,
   INSTANCE_COOKIE_NAME,
   INSTANCE_QUERY_PARAM,
 } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+
+type AttachmentListItem = { FileName: string; ServerRelativeUrl: string };
+
+const findAttachmentByName = (payload: unknown, name: string): AttachmentListItem | null => {
+  if (!Array.isArray(payload)) return null;
+  const expected = String(name).toLowerCase();
+  for (const entry of payload) {
+    const rec = asRecord(entry);
+    if (!rec) continue;
+    const fileName = typeof rec.FileName === 'string' ? rec.FileName : '';
+    const serverRelativeUrl =
+      typeof rec.ServerRelativeUrl === 'string' ? rec.ServerRelativeUrl : '';
+    if (!fileName || !serverRelativeUrl) continue;
+    if (fileName.toLowerCase() === expected)
+      return { FileName: fileName, ServerRelativeUrl: serverRelativeUrl };
+  }
+  return null;
+};
 
 const mimeByExtension: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -106,7 +128,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     const apiBase = withSlug(baseUrl + basePath);
-    const response = await fetch(apiBase, {
+    let response = await fetch(apiBase, {
       headers: attachHeaders({
         Accept: '*/*',
         Cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : '',
@@ -114,8 +136,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     if (!response.ok) {
-      const text = await response.text();
-      return res.status(response.status).json({ error: 'download-failed', detail: text });
+      const detail = await response.text();
+      // Fallback for legacy farms / encoding issues: resolve ServerRelativeUrl then download by it
+      try {
+        const listUrl = withSlug(
+          `${baseUrl}/api/attachments/${encodeURIComponent(id)}?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(
+            instance.slug
+          )}`
+        );
+        const listResp = await fetch(listUrl, {
+          headers: attachHeaders({ Accept: 'application/json' }),
+        });
+        const listJson = await listResp.json().catch(() => null);
+        const match = findAttachmentByName(listJson, name);
+        if (match?.ServerRelativeUrl) {
+          const encodedServerRelative = encodeURI(String(match.ServerRelativeUrl)).replace(
+            /'/g,
+            "''"
+          );
+          const altPath = `${baseUrl}/api/sharepoint/_api/web/GetFileByServerRelativeUrl('${encodedServerRelative}')/$value`;
+          response = await fetch(withSlug(altPath), {
+            headers: attachHeaders({
+              Accept: '*/*',
+              Cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : '',
+            }),
+          });
+        }
+      } catch {
+        /* ignore fallback errors */
+      }
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: 'download-failed', detail });
+      }
     }
     let contentType = response.headers.get('content-type') || '';
     const originalDisposition = response.headers.get('content-disposition') || '';
@@ -133,6 +186,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
+
+    const sniff = buffer
+      .toString('utf8', 0, Math.min(buffer.length, 256))
+      .replace(/^\uFEFF/, '')
+      .trimStart();
+    const looksLikeHtml = /^<!doctype\s+html|^<html\b|^<head\b|^<body\b|^<script\b|^<\?xml\b/i.test(
+      sniff
+    );
+    const isDerivedImage =
+      /^(image\/)i?/i.test(contentType) || /\.(jpe?g|png|gif|bmp|svg|webp)$/i.test(name);
+    const ctIsOctet = /application\/octet-stream/i.test(contentType) || !contentType;
+
+    // Some SharePoint farms/proxies respond with HTML (login/error) but with octet-stream.
+    // In that case, redirect the browser to the direct SharePoint URL as a best-effort fallback.
+    if ((ctIsOctet || isDerivedImage) && looksLikeHtml) {
+      try {
+        const listUrl = withSlug(
+          `${baseUrl}/api/attachments/${encodeURIComponent(id)}?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(
+            instance.slug
+          )}`
+        );
+        const listResp = await fetch(listUrl, {
+          headers: attachHeaders({ Accept: 'application/json' }),
+        });
+        const listJson = await listResp.json().catch(() => null);
+        const match = findAttachmentByName(listJson, name);
+        if (match?.ServerRelativeUrl) {
+          const spSite = resolveSharePointSiteUrl(instance);
+          const spOrigin = new URL(spSite).origin;
+          const serverRel = String(match.ServerRelativeUrl);
+          const direct = new URL(serverRel, spOrigin).toString();
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          res.setHeader('Location', direct);
+          return res.status(302).end();
+        }
+      } catch {
+        /* ignore redirect fallback */
+      }
+      // If redirect fallback fails, return the text snippet for debugging instead of a broken image.
+      return res.status(502).json({ error: 'download-invalid-binary', snippet: sniff });
+    }
     res.status(response.status);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.setHeader('Content-Type', contentType);

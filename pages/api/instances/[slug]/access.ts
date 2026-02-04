@@ -1,0 +1,105 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import prisma from '@/lib/prisma';
+import { requireAdminSession } from '@/utils/apiAuth';
+import { mapInstanceRecord, type PrismaInstanceWithHosts } from '@/utils/instanceConfig';
+import {
+  coerceAllowedUsersPayload,
+  getInstanceAdminAccessConfig,
+  isAdminUserAllowedForInstance,
+} from '@/utils/instanceAccess';
+
+const sanitizeSlug = (value: string) => value.trim().toLowerCase();
+
+const decodeSettings = (settingsJson: string | null): Record<string, unknown> => {
+  if (!settingsJson) return {};
+  try {
+    const parsed = JSON.parse(settingsJson);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+  } catch {
+    // ignore parse errors
+  }
+  return {};
+};
+
+const ensureRecordObject = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === 'object' && !Array.isArray(value))
+    return value as Record<string, unknown>;
+  return {};
+};
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const slugParam = req.query.slug;
+  const slug =
+    typeof slugParam === 'string'
+      ? sanitizeSlug(slugParam)
+      : Array.isArray(slugParam) && slugParam.length > 0
+        ? sanitizeSlug(slugParam[0])
+        : null;
+
+  if (!slug) return res.status(400).json({ error: 'Invalid slug' });
+
+  let sessionUser: { username?: string; displayName?: string } | null = null;
+  try {
+    sessionUser = requireAdminSession(req);
+  } catch {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const username =
+    (typeof sessionUser?.username === 'string' && sessionUser.username) ||
+    (typeof sessionUser?.displayName === 'string' && sessionUser.displayName) ||
+    null;
+
+  const record = (await prisma.roadmapInstance.findUnique({
+    where: { slug },
+    include: { hosts: true },
+  })) as PrismaInstanceWithHosts | null;
+
+  if (!record) return res.status(404).json({ error: 'Instance not found' });
+
+  const mapped = mapInstanceRecord(record);
+
+  // If an allowlist exists, only members can view/edit it.
+  if (!isAdminUserAllowedForInstance(username, mapped)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  if (req.method === 'GET') {
+    const cfg = getInstanceAdminAccessConfig(mapped.metadata);
+    return res.status(200).json({
+      users: cfg?.allowedUsers ?? [],
+    });
+  }
+
+  if (req.method === 'PUT') {
+    const users = coerceAllowedUsersPayload((req.body ?? {})?.users);
+
+    const settings = decodeSettings(record.settingsJson ?? null);
+    const metadata = ensureRecordObject(settings.metadata);
+    const adminAccess = ensureRecordObject(metadata.adminAccess);
+
+    if (users.length === 0) {
+      delete adminAccess.allowedUsers;
+    } else {
+      adminAccess.allowedUsers = users;
+    }
+
+    if (Object.keys(adminAccess).length === 0) {
+      delete metadata.adminAccess;
+    } else {
+      metadata.adminAccess = adminAccess;
+    }
+
+    settings.metadata = metadata;
+
+    await prisma.roadmapInstance.update({
+      where: { id: record.id },
+      data: { settingsJson: JSON.stringify(settings) },
+    });
+
+    return res.status(200).json({ users });
+  }
+
+  res.setHeader('Allow', ['GET', 'PUT']);
+  return res.status(405).end(`Method ${req.method} Not Allowed`);
+}

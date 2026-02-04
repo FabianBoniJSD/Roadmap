@@ -6,6 +6,7 @@ import {
   mapInstanceRecord,
   toInstanceSummary,
 } from '@/utils/instanceConfig';
+import { isAdminUserAllowedForInstance } from '@/utils/instanceAccess';
 import {
   buildSettingsPayload,
   coerceBool,
@@ -18,20 +19,30 @@ import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
 import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  let sessionUser: { username?: string; displayName?: string } | null = null;
   try {
-    requireAdminSession(req);
+    sessionUser = requireAdminSession(req);
   } catch {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+
+  const username =
+    (typeof sessionUser?.username === 'string' && sessionUser.username) ||
+    (typeof sessionUser?.displayName === 'string' && sessionUser.displayName) ||
+    null;
 
   if (req.method === 'GET') {
     const instances = await prisma.roadmapInstance.findMany({
       include: { hosts: true },
       orderBy: { slug: 'asc' },
     });
-    return res
-      .status(200)
-      .json({ instances: instances.map((record) => toInstanceSummary(mapInstanceRecord(record))) });
+
+    const summaries = instances
+      .map((record) => mapInstanceRecord(record))
+      .filter((instance) => isAdminUserAllowedForInstance(username, instance))
+      .map((instance) => toInstanceSummary(instance));
+
+    return res.status(200).json({ instances: summaries });
   }
 
   if (req.method === 'POST') {

@@ -1,5 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
+import { extractAdminSession } from '@/utils/apiAuth';
+import { isAdminUserAllowedForInstance } from '@/utils/instanceAccess';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
@@ -41,13 +43,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // PUT - Update a category
   else if (req.method === 'PUT') {
     try {
-      // Admin-only: ensure caller is a Site Collection Admin
-      const isAdmin = await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.isCurrentUserAdmin()
-      );
-      if (!isAdmin) {
-        return res.status(401).json({ error: 'Unauthorized' });
+      const session = extractAdminSession(req);
+      const sessionUsername =
+        (typeof session?.username === 'string' && session.username) ||
+        (typeof session?.displayName === 'string' && session.displayName) ||
+        null;
+
+      if (session?.isAdmin) {
+        if (!isAdminUserAllowedForInstance(sessionUsername, instance)) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+      } else {
+        // Admin-only: ensure caller is a Site Collection Admin
+        const isAdmin = await clientDataService.withInstance(instance.slug, () =>
+          clientDataService.isCurrentUserAdmin()
+        );
+        if (!isAdmin) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
       }
+
       const { name, color, icon } = req.body;
 
       if (!name || !color || !icon) {
@@ -73,13 +88,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // DELETE - Delete a category
   else if (req.method === 'DELETE') {
     try {
-      // Admin-only: ensure caller is a Site Collection Admin
-      const isAdmin = await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.isCurrentUserAdmin()
-      );
-      if (!isAdmin) {
-        return res.status(401).json({ error: 'Unauthorized' });
+      const session = extractAdminSession(req);
+      const sessionUsername =
+        (typeof session?.username === 'string' && session.username) ||
+        (typeof session?.displayName === 'string' && session.displayName) ||
+        null;
+
+      if (session?.isAdmin) {
+        if (!isAdminUserAllowedForInstance(sessionUsername, instance)) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+      } else {
+        // Admin-only: ensure caller is a Site Collection Admin
+        const isAdmin = await clientDataService.withInstance(instance.slug, () =>
+          clientDataService.isCurrentUserAdmin()
+        );
+        if (!isAdmin) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
       }
+
       await clientDataService.withInstance(instance.slug, () =>
         clientDataService.deleteCategory(id)
       );

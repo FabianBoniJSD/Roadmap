@@ -96,6 +96,35 @@ function getBrowserInstanceSlug(): string | null {
   return null;
 }
 
+export function getCurrentBrowserInstanceSlug(): string | null {
+  return getBrowserInstanceSlug();
+}
+
+/**
+ * For JWT-based admin sessions (USER_* logins), enforce per-instance allowlists.
+ * Returns false only for explicit 403 (Forbidden). Other failures are treated as "don't block".
+ */
+export async function hasAdminAccessToCurrentInstance(): Promise<boolean> {
+  try {
+    if (typeof window === 'undefined') return true;
+
+    const token = getStoredToken();
+    if (!token) return true;
+
+    const slug = getBrowserInstanceSlug();
+    if (!slug) return true;
+
+    const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (resp.status === 403) return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 export function buildInstanceAwareUrl(path: string): string {
   const slug = getBrowserInstanceSlug();
   if (!slug) return path;

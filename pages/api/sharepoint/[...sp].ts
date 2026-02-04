@@ -115,7 +115,14 @@ function isAllowedPath(path: string) {
   if (!cleaned.startsWith('/_api/web/lists')) return false;
   const match = cleaned.match(/getByTitle\('([^']+)'\)/);
   if (!match) return false;
-  return ALLOWED_LISTS.has(match[1]);
+  const rawTitle = match[1];
+  let decodedTitle = rawTitle;
+  try {
+    decodedTitle = decodeURIComponent(rawTitle);
+  } catch {
+    /* ignore decode errors */
+  }
+  return ALLOWED_LISTS.has(decodedTitle) || ALLOWED_LISTS.has(rawTitle);
 }
 
 // Basic in-process digest cache (optional, improves performance for writes)
