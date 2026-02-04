@@ -117,6 +117,7 @@ jobs:
           USER_STEFAN: ${{ secrets.USER_MARTIN }}
           USER_LEONARDO: ${{ secrets.USER_LEONARDO }}
           USER_JENS: ${{ secrets.USER_JENS }}
+          USER_MANUELA: ${{ secrets.USER_MANUELA }}
           USER_ADMIN: ${{ secrets.USER_ADMIN }}
           PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
         run: |
