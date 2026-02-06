@@ -14,12 +14,30 @@ const AdminLogin: React.FC = () => {
   const [status, setStatus] = useState<string>('Prüfe Admin-Konfiguration …');
   const [mode, setMode] = useState<AdminMode | null>(null);
   const [requiresSession, setRequiresSession] = useState<boolean>(false);
+  const [entraStatus, setEntraStatus] = useState<{
+    enabled: boolean;
+    allowlistConfigured: boolean;
+  }>({ enabled: false, allowlistConfigured: false });
   const [users, setUsers] = useState<string[]>([]);
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const returnUrl = (router.query.returnUrl as string) || '/admin';
+
+  const fetchEntraStatus = async () => {
+    try {
+      const resp = await fetch(buildInstanceAwareUrl('/api/auth/entra/status'));
+      if (!resp.ok) return;
+      const data = await resp.json();
+      setEntraStatus({
+        enabled: Boolean(data.enabled),
+        allowlistConfigured: Boolean(data.allowlistConfigured),
+      });
+    } catch {
+      // ignore
+    }
+  };
 
   const fetchAuthMode = async () => {
     try {
@@ -79,8 +97,30 @@ const AdminLogin: React.FC = () => {
 
   useEffect(() => {
     fetchAuthMode();
+    fetchEntraStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Handle non-popup Entra callback (token is placed in URL fragment).
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (typeof window === 'undefined') return;
+    try {
+      const hash = window.location.hash || '';
+      if (!hash.startsWith('#')) return;
+      const params = new URLSearchParams(hash.substring(1));
+      const token = params.get('token');
+      const u = params.get('username');
+      if (!token) return;
+
+      persistAdminSession(token, u || 'Microsoft SSO');
+      window.location.hash = '';
+      setStatus('Anmeldung erfolgreich. Weiterleitung …');
+      setTimeout(() => router.replace(returnUrl), 150);
+    } catch {
+      // ignore
+    }
+  }, [router.isReady, returnUrl, router]);
 
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault();
@@ -116,6 +156,73 @@ const AdminLogin: React.FC = () => {
       setStatus('');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const startEntraPopupLogin = async () => {
+    try {
+      setError('');
+      setStatus('Microsoft SSO wird geöffnet …');
+
+      const popupUrl = buildInstanceAwareUrl(
+        `/api/auth/entra/login?popup=1&returnUrl=${encodeURIComponent(returnUrl)}`
+      );
+
+      const popup = window.open(
+        popupUrl,
+        'entraSsoLogin',
+        'width=520,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes'
+      );
+
+      if (!popup) {
+        setStatus('');
+        setError('Popup wurde blockiert. Bitte Popups erlauben und erneut versuchen.');
+        return;
+      }
+
+      type EntraPopupMessage =
+        | { type: 'AUTH_SUCCESS'; token: string; username?: string }
+        | { type: 'AUTH_ERROR'; error?: string }
+        | { type: string; [key: string]: unknown };
+
+      const onMessage = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        const data = event.data as unknown;
+        if (!data || typeof data !== 'object') return;
+
+        const msg = data as EntraPopupMessage;
+
+        if (msg.type === 'AUTH_SUCCESS' && typeof msg.token === 'string') {
+          persistAdminSession(msg.token, String(msg.username || 'Microsoft SSO'));
+          setStatus('Anmeldung erfolgreich. Weiterleitung …');
+          window.removeEventListener('message', onMessage);
+          try {
+            popup.close();
+          } catch {
+            // ignore
+          }
+          setTimeout(() => router.push(returnUrl), 150);
+        }
+
+        if (msg.type === 'AUTH_ERROR') {
+          setStatus('');
+          setError(String(msg.error || 'SSO fehlgeschlagen'));
+          window.removeEventListener('message', onMessage);
+        }
+      };
+
+      window.addEventListener('message', onMessage);
+
+      const poll = window.setInterval(() => {
+        if (popup.closed) {
+          window.clearInterval(poll);
+          window.removeEventListener('message', onMessage);
+          setStatus('');
+        }
+      }, 500);
+    } catch (err) {
+      setStatus('');
+      setError(err instanceof Error ? err.message : 'SSO fehlgeschlagen');
     }
   };
 
@@ -189,6 +296,16 @@ const AdminLogin: React.FC = () => {
                   {isSubmitting ? 'Anmeldung läuft …' : 'Anmelden'}
                 </button>
 
+                {entraStatus.enabled && (
+                  <button
+                    type="button"
+                    onClick={startEntraPopupLogin}
+                    className="w-full rounded-full border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
+                  >
+                    Mit Microsoft anmelden (SSO)
+                  </button>
+                )}
+
                 {status && <p className="text-center text-xs text-slate-300">{status}</p>}
               </form>
             ) : showLoader ? (
@@ -205,6 +322,16 @@ const AdminLogin: React.FC = () => {
                   werden. Bitte prüfe die Mitgliedschaft in der Owners- oder Site-Admin-Gruppe und
                   versuche es erneut.
                 </p>
+
+                {entraStatus.enabled && (
+                  <button
+                    onClick={startEntraPopupLogin}
+                    className="w-full rounded-full bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
+                  >
+                    Mit Microsoft anmelden (SSO)
+                  </button>
+                )}
+
                 <button
                   onClick={() => fetchAuthMode()}
                   className="w-full rounded-full border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
@@ -222,6 +349,12 @@ const AdminLogin: React.FC = () => {
                     Die verfügbaren Benutzer stammen aus den konfigurierten USER_* Secrets.
                     Erfolgreiche Logins erzeugen eine lokale Admin-Session für den Browser.
                   </p>
+                  {entraStatus.enabled && !entraStatus.allowlistConfigured && (
+                    <p className="text-amber-200">
+                      Hinweis: Microsoft SSO ist aktiviert, aber es ist keine Allowlist gesetzt.
+                      Setze ENTRA_ADMIN_UPNS (oder ENTRA_ALLOW_ALL=true) in der Umgebung.
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
@@ -231,6 +364,12 @@ const AdminLogin: React.FC = () => {
                     Gruppe sein. Zugangsdaten werden über die Umgebungsvariablen SP_USERNAME und
                     SP_PASSWORD verwaltet.
                   </p>
+                  {entraStatus.enabled && (
+                    <p>
+                      Alternativ ist Microsoft SSO verfügbar. Admin-Zugriff wird über
+                      ENTRA_ADMIN_UPNS (oder ENTRA_ALLOW_ALL) gesteuert.
+                    </p>
+                  )}
                 </>
               )}
             </div>
