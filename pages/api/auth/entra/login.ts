@@ -1,13 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import {
-  buildEntraAuthorizeUrl,
-  entraSsoEnabled,
+  buildAuthorizeUrl,
   generatePkcePair,
   generateRandomBase64Url,
-  getEntraRedirectUri,
+} from '@roadmap/entra-sso/core';
+import {
   buildSetCookie,
+  getEntraRedirectUri,
   shouldUseSecureCookies,
-} from '@/utils/entraSso';
+  type EntraRedirectEnv,
+} from '@roadmap/entra-sso/next';
+
+function entraSsoEnabled(): boolean {
+  return Boolean(
+    process.env.ENTRA_TENANT_ID && process.env.ENTRA_CLIENT_ID && process.env.ENTRA_CLIENT_SECRET
+  );
+}
 
 const COOKIE_STATE = 'entra_state';
 const COOKIE_NONCE = 'entra_nonce';
@@ -27,7 +35,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const tenantId = String(process.env.ENTRA_TENANT_ID);
   const clientId = String(process.env.ENTRA_CLIENT_ID);
 
-  const redirectUri = getEntraRedirectUri(req);
+  const redirectUri = getEntraRedirectUri({ req, env: process.env as EntraRedirectEnv });
   if (!redirectUri || !/^https?:\/\//i.test(redirectUri)) {
     return res.status(500).json({
       error:
@@ -55,7 +63,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     'User.Read',
   ];
 
-  const authorizeUrl = buildEntraAuthorizeUrl({
+  const authorizeUrl = buildAuthorizeUrl({
     tenantId,
     clientId,
     redirectUri,

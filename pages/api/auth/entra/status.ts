@@ -1,5 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { entraSsoEnabled, getEntraRedirectUri } from '@/utils/entraSso';
+import { getEntraRedirectUri, type EntraRedirectEnv } from '@roadmap/entra-sso/next';
+
+function entraSsoEnabled(): boolean {
+  return Boolean(
+    process.env.ENTRA_TENANT_ID && process.env.ENTRA_CLIENT_ID && process.env.ENTRA_CLIENT_SECRET
+  );
+}
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -13,7 +19,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     redirectUriConfigured: Boolean(
       process.env.ENTRA_REDIRECT_URI && process.env.ENTRA_REDIRECT_URI.trim()
     ),
-    computedRedirectUri: getEntraRedirectUri(req),
+    computedRedirectUri: getEntraRedirectUri({ req, env: process.env as EntraRedirectEnv }),
     allowlistConfigured: Boolean(
       (process.env.ENTRA_ADMIN_UPNS && process.env.ENTRA_ADMIN_UPNS.trim()) ||
       String(process.env.ENTRA_ALLOW_ALL || '').toLowerCase() === 'true'

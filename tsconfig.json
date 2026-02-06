@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2021",
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ES2021"
-    ],
+    "lib": ["DOM", "DOM.Iterable", "ES2021"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": false,
@@ -17,30 +13,23 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "forceConsistentCasingInFileNames": true,
-    "types": [
-      "next",
-      "node",
-      "react",
-      "react-dom"
-    ],
+    "types": ["next", "node", "react", "react-dom"],
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"],
+      "@roadmap/entra-sso": ["./packages/entra-sso/src/index.ts"],
+      "@roadmap/entra-sso/core": ["./packages/entra-sso/src/core/index.ts"],
+      "@roadmap/entra-sso/next": ["./packages/entra-sso/src/next/index.ts"],
+      "@roadmap/entra-sso/react": ["./packages/entra-sso/src/react/index.ts"]
     },
     "incremental": true
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx"
-  ],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
   "exclude": [
-  "node_modules",
-  "scripts",
-  "utils/dataService.ts",
-  "utils/authService.ts",
-  "utils/spConfig.ts"
+    "node_modules",
+    "scripts",
+    "utils/dataService.ts",
+    "utils/authService.ts",
+    "utils/spConfig.ts"
   ]
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { hasAdminAccess, hasAdminAccessToCurrentInstance } from '@/utils/auth';
+import { hasAdminAccess, hasAdminAccessToCurrentInstance, persistAdminSession } from '@/utils/auth';
 import JSDoITLoader from '@/components/JSDoITLoader';
 
 // Define a generic type parameter for the component props
@@ -18,6 +18,29 @@ export default function withAdminAuth<P extends object>(WrappedComponent: React.
     useEffect(() => {
       const checkAuth = async () => {
         try {
+          // Consume non-popup Entra callback (token is placed in URL fragment).
+          // This allows full-page redirects (auto-login) to work for any admin page.
+          try {
+            if (typeof window !== 'undefined') {
+              const hash = window.location.hash || '';
+              if (hash.startsWith('#')) {
+                const params = new URLSearchParams(hash.substring(1));
+                const token = params.get('token');
+                const u = params.get('username');
+                if (token) {
+                  persistAdminSession(token, u || 'Microsoft SSO');
+                  window.location.hash = '';
+                  const clean = window.location.pathname + window.location.search;
+                  // Avoid adding another entry to history.
+                  router.replace(clean);
+                  return;
+                }
+              }
+            }
+          } catch {
+            // ignore
+          }
+
           // Check service account admin access directly
           const hasAccess = await hasAdminAccess();
           if (dbg()) {

@@ -1,9 +1,17 @@
 ﻿import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
+import { useRouter } from 'next/router';
 import AdminSubpageLayout from '@/components/AdminSubpageLayout';
-import withAdminAuth from '@/components/withAdminAuth';
-import { getAdminSessionToken } from '@/utils/auth';
+import JSDoITLoader from '@/components/JSDoITLoader';
+import SiteFooter from '@/components/SiteFooter';
+import SiteHeader from '@/components/SiteHeader';
+import {
+  buildInstanceAwareUrl,
+  getAdminSessionToken,
+  hasAdminAccess,
+  persistAdminSession,
+} from '@/utils/auth';
 import type { RoadmapInstanceSummary } from '@/types/roadmapInstance';
 import { SHAREPOINT_LIST_DEFINITIONS } from '@/utils/sharePointLists';
 
@@ -189,6 +197,79 @@ const resolveListStatus = (
   if (created.some(matches)) return 'created';
   if (ensured.some(matches)) return 'ensured';
   return 'unknown';
+};
+
+const InstancesLanding = (props: {
+  returnUrl: string;
+  entraEnabled: boolean;
+  onStartSso: () => void;
+}) => {
+  return (
+    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+      <SiteHeader activeRoute="admin" />
+      <main className="flex-1">
+        <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-16 sm:px-8">
+          <header className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-sky-300/90">
+              Roadmap Administration
+            </p>
+            <h1 className="text-3xl font-semibold text-white sm:text-4xl">Instanzen verwalten</h1>
+            <p className="max-w-3xl text-sm text-slate-300 sm:text-base">
+              Die Roadmap bündelt Projekte, Status und Planung zentral — mit SharePoint-Integration,
+              Kategorien, Teamzuordnung und übersichtlicher Timeline. Melde dich an, um Instanzen zu
+              erstellen, zu konfigurieren und zu migrieren.
+            </p>
+          </header>
+
+          <section className="rounded-3xl border border-slate-800/80 bg-slate-900/70 p-8 shadow-xl shadow-slate-950/40 sm:p-10">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-3">
+                <h2 className="text-lg font-semibold text-white">Warum Roadmap?</h2>
+                <ul className="space-y-2 text-sm text-slate-300">
+                  <li>• SharePoint als Backend (On-Prem kompatibel)</li>
+                  <li>• Rollen/Allowlist & Admin-Bereich</li>
+                  <li>• Kategorien, Links, Team Members, Attachments</li>
+                  <li>• Instanzbetrieb (mehrere Organisationen/Teams)</li>
+                </ul>
+              </div>
+
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-white">Anmeldung</h2>
+                <div className="flex flex-wrap gap-3">
+                  {props.entraEnabled ? (
+                    <button
+                      onClick={props.onStartSso}
+                      className="rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+                    >
+                      Mit Microsoft anmelden (SSO)
+                    </button>
+                  ) : (
+                    <span className="text-sm text-slate-400">
+                      Microsoft SSO ist nicht konfiguriert.
+                    </span>
+                  )}
+
+                  <Link
+                    href={buildInstanceAwareUrl(
+                      `/admin/login?manual=1&returnUrl=${encodeURIComponent(props.returnUrl)}`
+                    )}
+                    className="rounded-full border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
+                  >
+                    Admin Login
+                  </Link>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Hinweis: Wenn du automatisch per SSO eingeloggt werden möchtest, setze
+                  <span className="font-mono"> NEXT_PUBLIC_ENTRA_AUTO_LOGIN=true</span>.
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+      <SiteFooter />
+    </div>
+  );
 };
 
 const AdminInstancesPage = () => {
@@ -1403,4 +1484,131 @@ const AdminInstancesPage = () => {
   );
 };
 
-export default withAdminAuth(AdminInstancesPage);
+const AdminInstancesGate = () => {
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+  const [authed, setAuthed] = useState(false);
+  const [entraEnabled, setEntraEnabled] = useState(false);
+  const [status, setStatus] = useState<string>('');
+
+  const returnUrl = useMemo(() => {
+    const raw = typeof router.asPath === 'string' ? router.asPath : '/admin/instances';
+    return raw.split('#')[0] || '/admin/instances';
+  }, [router.asPath]);
+
+  const manual = String(router.query.manual || '') === '1';
+  const autoEntraSso =
+    String(process.env.NEXT_PUBLIC_ENTRA_AUTO_LOGIN || '').toLowerCase() === 'true' ||
+    String(router.query.autoSso || '') === '1';
+
+  // Consume non-popup Entra callback token
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (typeof window === 'undefined') return;
+    try {
+      const hash = window.location.hash || '';
+      if (!hash.startsWith('#')) return;
+      const params = new URLSearchParams(hash.substring(1));
+      const token = params.get('token');
+      const u = params.get('username');
+      if (!token) return;
+
+      persistAdminSession(token, u || 'Microsoft SSO');
+      window.location.hash = '';
+      setStatus('Anmeldung erfolgreich. Lade Instanzen …');
+    } catch {
+      // ignore
+    }
+  }, [router.isReady]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        setChecking(true);
+
+        // Load Entra availability (used for landing + optional auto-login)
+        try {
+          const resp = await fetch(buildInstanceAwareUrl('/api/auth/entra/status'));
+          if (resp.ok) {
+            const data = await resp.json();
+            if (!cancelled) setEntraEnabled(Boolean(data.enabled));
+          }
+        } catch {
+          // ignore
+        }
+
+        const ok = await hasAdminAccess();
+        if (!cancelled) setAuthed(ok);
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [router.isReady]);
+
+  // Optional auto-start SSO (full page redirect)
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (typeof window === 'undefined') return;
+    if (checking) return;
+    if (authed) return;
+    if (!entraEnabled) return;
+    if (!autoEntraSso) return;
+    if (manual) return;
+
+    // Don't auto-retry if an error is present
+    if (
+      typeof router.query.error === 'string' ||
+      typeof router.query.error_description === 'string'
+    ) {
+      return;
+    }
+
+    setStatus('Weiterleitung zu Microsoft SSO …');
+    const loginUrl = buildInstanceAwareUrl(
+      `/api/auth/entra/login?returnUrl=${encodeURIComponent(returnUrl)}`
+    );
+    window.location.assign(loginUrl);
+  }, [
+    router.isReady,
+    checking,
+    authed,
+    entraEnabled,
+    autoEntraSso,
+    manual,
+    returnUrl,
+    router.query,
+  ]);
+
+  const startSso = () => {
+    const loginUrl = buildInstanceAwareUrl(
+      `/api/auth/entra/login?returnUrl=${encodeURIComponent(returnUrl)}`
+    );
+    window.location.assign(loginUrl);
+  };
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
+        <JSDoITLoader sizeRem={2.5} message={status || 'Anmeldung wird geprüft …'} />
+      </div>
+    );
+  }
+
+  if (!authed) {
+    return (
+      <InstancesLanding returnUrl={returnUrl} entraEnabled={entraEnabled} onStartSso={startSso} />
+    );
+  }
+
+  return <AdminInstancesPage />;
+};
+
+export default AdminInstancesGate;

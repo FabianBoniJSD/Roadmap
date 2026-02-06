@@ -2,6 +2,9 @@
   "name": "roadmap-next",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -28,6 +31,7 @@
     "prisma:seed": "prisma db seed"
   },
   "dependencies": {
+    "@roadmap/entra-sso": "0.1.0",
     "@fluentui/react": "^8.121.2",
     "@pnp/sp": "^3.20.0",
     "@prisma/client": "^5.20.0",

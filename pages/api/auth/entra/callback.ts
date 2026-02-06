@@ -1,15 +1,23 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import jwt from 'jsonwebtoken';
 import {
-  buildSetCookie,
-  entraSsoEnabled,
   exchangeCodeForTokens,
   fetchGraphMe,
+  isUserAllowedByUpnAllowlist,
+} from '@roadmap/entra-sso/core';
+import {
+  buildSetCookie,
   getEntraRedirectUri,
-  isEntraUserAllowed,
   parseCookies,
   shouldUseSecureCookies,
-} from '@/utils/entraSso';
+  type EntraRedirectEnv,
+} from '@roadmap/entra-sso/next';
+
+function entraSsoEnabled(): boolean {
+  return Boolean(
+    process.env.ENTRA_TENANT_ID && process.env.ENTRA_CLIENT_ID && process.env.ENTRA_CLIENT_SECRET
+  );
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'roadmap-secret-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
@@ -139,7 +147,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const clientId = String(process.env.ENTRA_CLIENT_ID);
     const clientSecret = String(process.env.ENTRA_CLIENT_SECRET);
 
-    const redirectUri = getEntraRedirectUri(req);
+    const redirectUri = getEntraRedirectUri({ req, env: process.env as EntraRedirectEnv });
 
     const tokens = await exchangeCodeForTokens({
       tenantId,
@@ -156,7 +164,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const me = await fetchGraphMe(tokens.accessToken);
 
-    if (!isEntraUserAllowed(me)) {
+    const allowAll = String(process.env.ENTRA_ALLOW_ALL || '').toLowerCase() === 'true';
+    const allowed = isUserAllowedByUpnAllowlist({
+      profile: me,
+      allowAll,
+      allowedUpnsCsv: process.env.ENTRA_ADMIN_UPNS,
+    });
+
+    if (!allowed) {
       throw new Error(
         'Nicht berechtigt. Setze ENTRA_ADMIN_UPNS (oder ENTRA_ALLOW_ALL=true) für Admin-Zugriff.'
       );

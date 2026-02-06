@@ -137,6 +137,35 @@ export function getAdminSessionToken(): string | null {
   return getStoredToken();
 }
 
+/**
+ * Strict session check: returns true ONLY when a JWT admin session token exists and is valid.
+ * Does not fall back to the SharePoint service-account permission check.
+ */
+export async function hasValidAdminSession(): Promise<boolean> {
+  try {
+    if (typeof window === 'undefined') return false;
+
+    const token = getStoredToken();
+    if (!token) return false;
+
+    const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin-session'), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      clearStoredSession();
+      return false;
+    }
+
+    const data = (await response.json().catch(() => null)) as null | { isAdmin?: unknown };
+    const ok = Boolean(data && typeof data.isAdmin === 'boolean' ? data.isAdmin : false);
+    if (!ok) clearStoredSession();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 // Check if the current browser session has admin access
 export async function hasAdminAccess(): Promise<boolean> {
   try {

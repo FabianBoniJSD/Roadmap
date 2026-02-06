@@ -24,6 +24,10 @@ const AdminLogin: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const returnUrl = (router.query.returnUrl as string) || '/admin';
+  const manual = String(router.query.manual || '') === '1';
+  const autoEntraSso =
+    String(process.env.NEXT_PUBLIC_ENTRA_AUTO_LOGIN || '').toLowerCase() === 'true' ||
+    String(router.query.autoSso || '') === '1';
 
   const fetchEntraStatus = async () => {
     try {
@@ -100,6 +104,36 @@ const AdminLogin: React.FC = () => {
     fetchEntraStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Optional: auto-start Entra SSO (full page redirect).
+  // Popup login can't be relied upon because most browsers block it without user interaction.
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (typeof window === 'undefined') return;
+    if (!autoEntraSso) return;
+    if (manual) return;
+
+    // If the callback produced an error, do not auto-retry.
+    if (
+      typeof router.query.error === 'string' ||
+      typeof router.query.error_description === 'string'
+    ) {
+      return;
+    }
+
+    // Only auto-redirect when a user session is required (otherwise service-account flow will handle it).
+    if (!requiresSession) return;
+    if (!entraStatus.enabled) return;
+
+    setError('');
+    setStatus('Weiterleitung zu Microsoft SSO …');
+
+    const loginUrl = buildInstanceAwareUrl(
+      `/api/auth/entra/login?returnUrl=${encodeURIComponent(returnUrl)}`
+    );
+    window.location.assign(loginUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, autoEntraSso, manual, requiresSession, entraStatus.enabled, returnUrl]);
 
   // Handle non-popup Entra callback (token is placed in URL fragment).
   useEffect(() => {

@@ -1,10 +1,13 @@
 import Head from 'next/head';
 import Link from 'next/link';
 import type { GetServerSideProps } from 'next';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import prisma from '@/lib/prisma';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
+import JSDoITLoader from '@/components/JSDoITLoader';
+import { buildInstanceAwareUrl, hasValidAdminSession, persistAdminSession } from '@/utils/auth';
 
 const HTTP_URL_REGEX = /^https?:\/\//i;
 
@@ -117,10 +120,118 @@ const highlightCards = [
 ];
 
 const LandingPage = ({ instances }: LandingPageProps) => {
+  const router = useRouter();
   const [selectingSlug, setSelectingSlug] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authed, setAuthed] = useState(false);
+  const [entraEnabled, setEntraEnabled] = useState(false);
+  const [authStatus, setAuthStatus] = useState<string>('');
 
   const defaultInstance = useMemo(() => instances[0], [instances]);
+
+  const returnUrl = useMemo(() => {
+    const raw = typeof router.asPath === 'string' ? router.asPath : '/';
+    return raw.split('#')[0] || '/';
+  }, [router.asPath]);
+
+  const manual = String(router.query.manual || '') === '1';
+  const autoEntraSso =
+    String(process.env.NEXT_PUBLIC_ENTRA_AUTO_LOGIN || '').toLowerCase() === 'true' ||
+    String(router.query.autoSso || '') === '1';
+
+  // Consume non-popup Entra callback token (fragment)
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (typeof window === 'undefined') return;
+    try {
+      const hash = window.location.hash || '';
+      if (!hash.startsWith('#')) return;
+      const params = new URLSearchParams(hash.substring(1));
+      const token = params.get('token');
+      const u = params.get('username');
+      if (!token) return;
+
+      persistAdminSession(token, u || 'Microsoft SSO');
+      window.location.hash = '';
+      setAuthStatus('Anmeldung erfolgreich. Lade Instanzen …');
+      router.replace(returnUrl);
+    } catch {
+      // ignore
+    }
+  }, [router.isReady, router, returnUrl]);
+
+  // Load Entra availability and validate session
+  useEffect(() => {
+    if (!router.isReady) return;
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        // Entra availability (controls SSO button & auto-login)
+        try {
+          const resp = await fetch(buildInstanceAwareUrl('/api/auth/entra/status'));
+          if (resp.ok) {
+            const data = await resp.json();
+            if (!cancelled) setEntraEnabled(Boolean(data.enabled));
+          }
+        } catch {
+          // ignore
+        }
+
+        const ok = await hasValidAdminSession();
+        if (!cancelled) setAuthed(ok);
+      } finally {
+        if (!cancelled) setAuthChecked(true);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [router.isReady]);
+
+  // Optional auto-start SSO (full page redirect)
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (typeof window === 'undefined') return;
+    if (!authChecked) return;
+    if (authed) return;
+    if (!entraEnabled) return;
+    if (!autoEntraSso) return;
+    if (manual) return;
+
+    // Don't auto-retry if an error is present
+    if (
+      typeof router.query.error === 'string' ||
+      typeof router.query.error_description === 'string'
+    ) {
+      return;
+    }
+
+    setAuthStatus('Weiterleitung zu Microsoft SSO …');
+    const loginUrl = buildInstanceAwareUrl(
+      `/api/auth/entra/login?returnUrl=${encodeURIComponent(returnUrl)}`
+    );
+    window.location.assign(loginUrl);
+  }, [
+    router.isReady,
+    authChecked,
+    authed,
+    entraEnabled,
+    autoEntraSso,
+    manual,
+    returnUrl,
+    router.query,
+  ]);
+
+  const startSso = () => {
+    const loginUrl = buildInstanceAwareUrl(
+      `/api/auth/entra/login?returnUrl=${encodeURIComponent(returnUrl)}`
+    );
+    window.location.assign(loginUrl);
+  };
 
   const buildClientRedirectUrl = (target?: string | null): string | null => {
     if (!target) return null;
@@ -147,6 +258,7 @@ const LandingPage = ({ instances }: LandingPageProps) => {
 
   const openInstance = async (instance?: LandingInstance) => {
     if (typeof window === 'undefined' || !instance?.slug) return;
+    if (!authed) return;
     setSelectingSlug(instance.slug);
     setErrorMessage(null);
     try {
@@ -187,18 +299,35 @@ const LandingPage = ({ instances }: LandingPageProps) => {
                   welche Verantwortlichen bereits aktiv sind.
                 </p>
                 <div className="flex flex-wrap items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={() => openInstance(defaultInstance)}
-                    disabled={!instances.length || selectingSlug !== null}
-                    className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {!instances.length
-                      ? 'Keine Instanzen vorhanden'
-                      : selectingSlug
-                        ? 'Weiterleitung wird vorbereitet …'
-                        : 'Roadmap starten'}
-                  </button>
+                  {authed ? (
+                    <button
+                      type="button"
+                      onClick={() => openInstance(defaultInstance)}
+                      disabled={!instances.length || selectingSlug !== null}
+                      className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {!instances.length
+                        ? 'Keine Instanzen vorhanden'
+                        : selectingSlug
+                          ? 'Weiterleitung wird vorbereitet …'
+                          : 'Roadmap starten'}
+                    </button>
+                  ) : entraEnabled ? (
+                    <button
+                      type="button"
+                      onClick={startSso}
+                      className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
+                    >
+                      Mit Microsoft anmelden (SSO)
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}`}
+                      className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
+                    >
+                      Anmelden
+                    </Link>
+                  )}
                   <Link
                     href="/help"
                     className="rounded-full border border-slate-700 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
@@ -235,92 +364,135 @@ const LandingPage = ({ instances }: LandingPageProps) => {
             </div>
           </section>
 
-          <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
-            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div className="space-y-2">
-                <h2 className="text-2xl font-semibold text-white sm:text-3xl">Aktive Instanzen</h2>
-                <p className="text-sm text-slate-300">
-                  {instances.length
-                    ? 'Wähle eine Instanz, um dich mit der passenden Roadmap zu verbinden.'
-                    : 'Noch keine Instanzen angelegt. Lege die erste im Adminbereich an.'}
-                </p>
+          {!authChecked ? (
+            <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
+              <div className="flex items-center justify-center">
+                <JSDoITLoader sizeRem={2.2} message={authStatus || 'Anmeldung wird geprüft …'} />
               </div>
-              <Link
-                href="/admin/instances"
-                className="w-full rounded-full border border-slate-700 px-5 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-400 hover:text-white sm:w-auto"
-              >
-                Instanzen verwalten
-              </Link>
-            </div>
-
-            {errorMessage && (
-              <div className="mb-6 rounded-xl border border-red-500/40 bg-red-600/10 px-4 py-3 text-sm text-red-200">
-                {errorMessage}
-              </div>
-            )}
-
-            <div className="grid gap-6 md:grid-cols-2">
-              {instances.map((instance) => (
-                <article
-                  key={instance.slug}
-                  className="group rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow shadow-slate-950/40 transition hover:border-sky-500/50 hover:shadow-sky-900/40"
+            </section>
+          ) : authed ? (
+            <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
+              <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-semibold text-white sm:text-3xl">
+                    Aktive Instanzen
+                  </h2>
+                  <p className="text-sm text-slate-300">
+                    {instances.length
+                      ? 'Wähle eine Instanz, um dich mit der passenden Roadmap zu verbinden.'
+                      : 'Noch keine Instanzen angelegt. Lege die erste im Adminbereich an.'}
+                  </p>
+                </div>
+                <Link
+                  href="/admin/instances"
+                  className="w-full rounded-full border border-slate-700 px-5 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-400 hover:text-white sm:w-auto"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="text-xl font-semibold text-white">{instance.displayName}</h3>
-                      {instance.department && (
-                        <p className="text-sm text-sky-300/90">{instance.department}</p>
-                      )}
-                    </div>
-                    <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
-                      {instance.strategy}
-                    </span>
-                  </div>
+                  Instanzen verwalten
+                </Link>
+              </div>
 
-                  {instance.description && (
-                    <p className="mt-4 text-sm text-slate-300">{instance.description}</p>
-                  )}
+              {errorMessage && (
+                <div className="mb-6 rounded-xl border border-red-500/40 bg-red-600/10 px-4 py-3 text-sm text-red-200">
+                  {errorMessage}
+                </div>
+              )}
 
-                  <dl className="mt-4 space-y-2 text-xs sm:text-sm">
-                    <div className="flex gap-2 text-slate-400">
-                      <span className="font-semibold text-slate-200">SharePoint</span>
-                      <span className="truncate text-slate-300">{instance.sharePointUrl}</span>
-                    </div>
-                    {instance.hosts.length > 0 && (
-                      <div className="flex gap-2 text-slate-400">
-                        <span className="font-semibold text-slate-200">Hosts</span>
-                        <span>{instance.hosts.join(', ')}</span>
+              <div className="grid gap-6 md:grid-cols-2">
+                {instances.map((instance) => (
+                  <article
+                    key={instance.slug}
+                    className="group rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow shadow-slate-950/40 transition hover:border-sky-500/50 hover:shadow-sky-900/40"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-xl font-semibold text-white">{instance.displayName}</h3>
+                        {instance.department && (
+                          <p className="text-sm text-sky-300/90">{instance.department}</p>
+                        )}
                       </div>
-                    )}
-                  </dl>
+                      <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
+                        {instance.strategy}
+                      </span>
+                    </div>
 
-                  <div className="mt-6 flex flex-wrap items-center gap-3">
+                    {instance.description && (
+                      <p className="mt-4 text-sm text-slate-300">{instance.description}</p>
+                    )}
+
+                    <dl className="mt-4 space-y-2 text-xs sm:text-sm">
+                      <div className="flex gap-2 text-slate-400">
+                        <span className="font-semibold text-slate-200">SharePoint</span>
+                        <span className="truncate text-slate-300">{instance.sharePointUrl}</span>
+                      </div>
+                      {instance.hosts.length > 0 && (
+                        <div className="flex gap-2 text-slate-400">
+                          <span className="font-semibold text-slate-200">Hosts</span>
+                          <span>{instance.hosts.join(', ')}</span>
+                        </div>
+                      )}
+                    </dl>
+
+                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => openInstance(instance)}
+                        disabled={selectingSlug === instance.slug}
+                        className="flex-1 rounded-xl bg-sky-500 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {selectingSlug === instance.slug ? 'Öffne Roadmap …' : 'Roadmap öffnen'}
+                      </button>
+                      <div className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
+                        {instance.slug}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              {!instances.length && (
+                <div className="mt-12 rounded-2xl border border-dashed border-slate-700/80 bg-slate-900/70 p-8 text-center text-slate-300">
+                  <p className="text-lg font-medium text-white">Noch keine Instanzen vorhanden</p>
+                  <p className="mt-2 text-sm">
+                    Erstelle im Adminbereich eine neue Roadmap-Instanz und verknüpfe den passenden
+                    SharePoint-Endpunkt.
+                  </p>
+                </div>
+              )}
+            </section>
+          ) : (
+            <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
+              <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-8 shadow-lg shadow-slate-950/40">
+                <h2 className="text-2xl font-semibold text-white sm:text-3xl">Anmelden</h2>
+                <p className="mt-3 text-sm text-slate-300">
+                  Die Instanzübersicht ist erst nach Anmeldung sichtbar.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  {entraEnabled ? (
                     <button
                       type="button"
-                      onClick={() => openInstance(instance)}
-                      disabled={selectingSlug === instance.slug}
-                      className="flex-1 rounded-xl bg-sky-500 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={startSso}
+                      className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
                     >
-                      {selectingSlug === instance.slug ? 'Öffne Roadmap …' : 'Roadmap öffnen'}
+                      Mit Microsoft anmelden (SSO)
                     </button>
-                    <div className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
-                      {instance.slug}
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            {!instances.length && (
-              <div className="mt-12 rounded-2xl border border-dashed border-slate-700/80 bg-slate-900/70 p-8 text-center text-slate-300">
-                <p className="text-lg font-medium text-white">Noch keine Instanzen vorhanden</p>
-                <p className="mt-2 text-sm">
-                  Erstelle im Adminbereich eine neue Roadmap-Instanz und verknüpfe den passenden
-                  SharePoint-Endpunkt.
-                </p>
+                  ) : (
+                    <Link
+                      href={`/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}`}
+                      className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
+                    >
+                      Admin Login
+                    </Link>
+                  )}
+                  <Link
+                    href={`/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}`}
+                    className="rounded-full border border-slate-700 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
+                  >
+                    Alternative Anmeldung
+                  </Link>
+                </div>
               </div>
-            )}
-          </section>
+            </section>
+          )}
         </main>
         <SiteFooter />
       </div>
