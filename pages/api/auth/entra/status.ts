@@ -12,6 +12,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const override = String(process.env.ENTRA_REDIRECT_URI || '').trim();
+  const overrideValid = override ? override.includes('/api/auth/entra/callback') : null;
+
   return res.status(200).json({
     enabled: entraSsoEnabled(),
     tenantIdConfigured: Boolean(process.env.ENTRA_TENANT_ID),
@@ -19,6 +22,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     redirectUriConfigured: Boolean(
       process.env.ENTRA_REDIRECT_URI && process.env.ENTRA_REDIRECT_URI.trim()
     ),
+    redirectUriOverride: override || null,
+    redirectUriOverrideValid: overrideValid,
     computedRedirectUri: getEntraRedirectUri({ req, env: process.env as EntraRedirectEnv }),
     allowlistConfigured: Boolean(
       (process.env.ENTRA_ADMIN_UPNS && process.env.ENTRA_ADMIN_UPNS.trim()) ||

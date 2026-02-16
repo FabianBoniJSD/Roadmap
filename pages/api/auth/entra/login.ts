@@ -17,6 +17,28 @@ function entraSsoEnabled(): boolean {
   );
 }
 
+function normalizeReturnUrl(input: string | undefined | null, fallback = '/admin'): string {
+  const raw = typeof input === 'string' ? input.trim() : '';
+  if (!raw) return fallback;
+  if (!raw.startsWith('/')) return fallback;
+  if (raw.startsWith('//')) return fallback;
+
+  // Defensive: if a misconfigured Entra redirect sent code/state to an app page,
+  // the returnUrl may contain huge OIDC query params. Drop them.
+  const [pathOnly] = raw.split('?', 1);
+  return pathOnly || fallback;
+}
+
+function isRedirectUriLikelyMisconfigured(envRedirectUri: string): boolean {
+  try {
+    const u = new URL(envRedirectUri);
+    // We expect the callback route, not an app page like /admin.
+    return !u.pathname.includes('/api/auth/entra/callback');
+  } catch {
+    return true;
+  }
+}
+
 const COOKIE_STATE = 'entra_state';
 const COOKIE_NONCE = 'entra_nonce';
 const COOKIE_VERIFIER = 'entra_pkce_verifier';
@@ -44,10 +66,35 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     });
   }
 
-  const returnUrlRaw =
-    typeof req.query.returnUrl === 'string' && req.query.returnUrl.trim()
-      ? req.query.returnUrl.trim()
-      : '/admin';
+  const envRedirectUri = String(process.env.ENTRA_REDIRECT_URI || '').trim();
+  if (envRedirectUri && isRedirectUriLikelyMisconfigured(envRedirectUri)) {
+    // Compute the expected callback URL (ignore the override).
+    const envWithoutOverride = {
+      ...(process.env as EntraRedirectEnv),
+      ENTRA_REDIRECT_URI: undefined,
+    };
+    const expected = getEntraRedirectUri({ req, env: envWithoutOverride });
+
+    const returnUrl = normalizeReturnUrl(
+      typeof req.query.returnUrl === 'string' ? req.query.returnUrl : null,
+      '/admin'
+    );
+
+    const msg =
+      `ENTRA_REDIRECT_URI is misconfigured. ` +
+      `It must point to the callback route (/api/auth/entra/callback), not "${envRedirectUri}". ` +
+      `Fix .env and Entra App Registration redirect URI to: ${expected}`;
+
+    return res.redirect(
+      302,
+      `/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}&error=${encodeURIComponent(msg)}`
+    );
+  }
+
+  const returnUrlRaw = normalizeReturnUrl(
+    typeof req.query.returnUrl === 'string' ? req.query.returnUrl : null,
+    '/admin'
+  );
   const popup = String(req.query.popup || '') === '1';
 
   const state = generateRandomBase64Url(32);

@@ -27,6 +27,15 @@ const COOKIE_VERIFIER = 'entra_pkce_verifier';
 const COOKIE_RETURN_URL = 'entra_return_url';
 const COOKIE_POPUP = 'entra_popup';
 
+function normalizeReturnUrl(input: string | undefined | null, fallback = '/admin'): string {
+  const raw = typeof input === 'string' ? input.trim() : '';
+  if (!raw) return fallback;
+  if (!raw.startsWith('/')) return fallback;
+  if (raw.startsWith('//')) return fallback;
+  const [pathOnly] = raw.split('?', 1);
+  return pathOnly || fallback;
+}
+
 function escapeHtml(input: string): string {
   return input
     .replace(/&/g, '&amp;')
@@ -106,7 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   ];
 
   const popup = cookies[COOKIE_POPUP] === '1';
-  const returnUrl = cookies[COOKIE_RETURN_URL] || '/admin';
+  const returnUrl = normalizeReturnUrl(cookies[COOKIE_RETURN_URL], '/admin');
 
   const error = typeof req.query.error === 'string' ? req.query.error : '';
   const errorDesc =

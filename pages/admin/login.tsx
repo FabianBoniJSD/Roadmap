@@ -23,11 +23,32 @@ const AdminLogin: React.FC = () => {
   const [password, setPassword] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const returnUrl = (router.query.returnUrl as string) || '/admin';
+  const normalizeReturnUrl = (value: unknown, fallback = '/admin') => {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    if (!raw) return fallback;
+    if (!raw.startsWith('/')) return fallback;
+    if (raw.startsWith('//')) return fallback;
+    const [pathOnly] = raw.split('?', 1);
+    return pathOnly || fallback;
+  };
+
+  const returnUrl = normalizeReturnUrl(router.query.returnUrl, '/admin');
   const manual = String(router.query.manual || '') === '1';
   const autoEntraSso =
     String(process.env.NEXT_PUBLIC_ENTRA_AUTO_LOGIN || '').toLowerCase() === 'true' ||
     String(router.query.autoSso || '') === '1';
+
+  // Surface errors passed as query params (e.g. redirect URI misconfiguration).
+  useEffect(() => {
+    if (!router.isReady) return;
+    const errorParam = typeof router.query.error === 'string' ? router.query.error : '';
+    const descParam =
+      typeof router.query.error_description === 'string' ? router.query.error_description : '';
+    const msg = descParam || errorParam;
+    if (msg) {
+      setError(msg);
+    }
+  }, [router.isReady, router.query.error, router.query.error_description]);
 
   const fetchEntraStatus = async () => {
     try {
