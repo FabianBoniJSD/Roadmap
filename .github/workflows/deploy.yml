@@ -137,6 +137,13 @@ jobs:
           echo "Writing .env file to workspace root..."
           printf "%s" "$ENV_FILE_CONTENT" > .env
 
+          # Prevent confusing overrides when the base env secret already contains USER_/ENTRA_ keys.
+          # Next.js/dotenv will take the last assignment, so duplicates can silently flip values.
+          # We treat the explicitly injected secrets below as the source of truth.
+          tmpEnvFile="$(mktemp)"
+          grep -v -E '^(USER_[A-Z0-9_]+=|ENTRA_[A-Z0-9_]+=|PUBLIC_PROJECTS_API_KEYS=|# Admin users injected from GitHub Actions secrets|# Microsoft Entra ID SSO injected from GitHub Actions secrets|# Public projects API keys injected from GH Actions)' .env > "$tmpEnvFile" || true
+          mv "$tmpEnvFile" .env
+
           userLines="$(env | grep -E '^USER_[A-Z0-9_]+=' || true)"
           if [ -n "$userLines" ]; then
             printf "\n# Admin users injected from GitHub Actions secrets\n" >> .env
@@ -153,6 +160,10 @@ jobs:
             printf "\n# Public projects API keys injected from GH Actions\n" >> .env
             printf "PUBLIC_PROJECTS_API_KEYS=%s\n" "$PUBLIC_PROJECTS_API_KEYS" >> .env
           fi
+
+          # Diagnostic (safe): show the effective redirect URI that ended up in the file.
+          effectiveRedirect="$(grep -E '^ENTRA_REDIRECT_URI=' .env | tail -n 1 || true)"
+          echo "Effective ENTRA_REDIRECT_URI in generated .env: ${effectiveRedirect:-<not set>}"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
