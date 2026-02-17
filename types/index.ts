@@ -29,6 +29,12 @@ export interface Project {
     | 'einfuehrung'
     | 'abschluss';
   naechster_meilenstein?: string;
+  // Informational text for each phase
+  phaseninfo_initialisierung?: string;
+  phaseninfo_konzept?: string;
+  phaseninfo_realisierung?: string;
+  phaseninfo_einfuehrung?: string;
+  phaseninfo_abschluss?: string;
 }
 
 export interface Category {

@@ -162,7 +162,7 @@ const ProjectDetailPage: FC = () => {
   const projectFields = sanitizeProjectFields(project.ProjectFields);
   const hasLeadImage = Boolean(project.projektleitungImageUrl) && !leadImageBroken;
 
-  const timeline = renderPhaseTimeline(project.projektphase);
+  const timeline = renderPhaseTimeline(project);
 
   return (
     <PageShell>
@@ -442,37 +442,48 @@ const TeamCard: FC<TeamCardProps> = ({ name, role, imageUrl, fallbackInitial, on
   </div>
 );
 
-const renderPhaseTimeline = (phase?: string | null) => {
+const renderPhaseTimeline = (project: Project) => {
+  const phase = project.projektphase;
   const normalized = (phase || '')
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '');
 
-  const steps: Array<{ key: string; label: string; desc: string }> = [
+  const steps: Array<{
+    key: string;
+    label: string;
+    desc: string;
+    infoField: keyof Project;
+  }> = [
     {
       key: 'initialisierung',
       label: 'Initialisierung',
       desc: 'Ziele, Scope und Machbarkeit klären.',
+      infoField: 'phaseninfo_initialisierung',
     },
     {
       key: 'konzept',
       label: 'Konzept',
       desc: 'Lösungsskizze, Architektur, Planung.',
+      infoField: 'phaseninfo_konzept',
     },
     {
       key: 'realisierung',
       label: 'Realisierung',
       desc: 'Umsetzung, Tests und Integration.',
+      infoField: 'phaseninfo_realisierung',
     },
     {
       key: 'einfuehrung',
       label: 'Einführung',
       desc: 'Rollout, Schulung, Change Management.',
+      infoField: 'phaseninfo_einfuehrung',
     },
     {
       key: 'abschluss',
       label: 'Abschluss',
       desc: 'Review, Dokumentation, Übergabe.',
+      infoField: 'phaseninfo_abschluss',
     },
   ];
 
@@ -483,6 +494,7 @@ const renderPhaseTimeline = (phase?: string | null) => {
       {steps.map((step, index) => {
         const matchKey = step.key.replace('ue', 'u').replace('oe', 'o').replace('ae', 'a');
         const isActive = activeKey === matchKey;
+        const phaseInfo = project[step.infoField] as string | undefined;
 
         return (
           <div
@@ -505,6 +517,11 @@ const renderPhaseTimeline = (phase?: string | null) => {
             </div>
             <h3 className="mt-3 text-base font-semibold">{step.label}</h3>
             <p className="mt-2 text-xs leading-relaxed text-slate-300">{step.desc}</p>
+            {phaseInfo && (
+              <div className="mt-3 rounded-lg border border-slate-700/50 bg-slate-950/50 px-3 py-2">
+                <p className="text-xs leading-relaxed text-slate-200">{phaseInfo}</p>
+              </div>
+            )}
           </div>
         );
       })}

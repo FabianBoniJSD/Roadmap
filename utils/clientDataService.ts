@@ -549,6 +549,11 @@ class ClientDataService {
       'ProjectFields',
       'Projektphase',
       'NaechsterMeilenstein',
+      'PhaseninfoInitialisierung',
+      'PhaseninfoKonzept',
+      'PhaseninfoRealisierung',
+      'PhaseninfoEinfuehrung',
+      'PhaseninfoAbschluss',
     ];
 
     const buildSelect = (fields: string[]) => {
@@ -975,6 +980,11 @@ class ClientDataService {
           ? String(item.Projektphase).toLowerCase()
           : undefined) as any,
         naechster_meilenstein: item.NaechsterMeilenstein || undefined,
+        phaseninfo_initialisierung: item.PhaseninfoInitialisierung || undefined,
+        phaseninfo_konzept: item.PhaseninfoKonzept || undefined,
+        phaseninfo_realisierung: item.PhaseninfoRealisierung || undefined,
+        phaseninfo_einfuehrung: item.PhaseninfoEinfuehrung || undefined,
+        phaseninfo_abschluss: item.PhaseninfoAbschluss || undefined,
         links: [],
         teamMembers: [],
       };
@@ -1108,6 +1118,12 @@ class ClientDataService {
       if (listFields?.has('ProjectType')) baseSelectFields.push('ProjectType');
       if (listFields?.has('Projektphase')) baseSelectFields.push('Projektphase');
       if (listFields?.has('NaechsterMeilenstein')) baseSelectFields.push('NaechsterMeilenstein');
+      if (listFields?.has('PhaseninfoInitialisierung'))
+        baseSelectFields.push('PhaseninfoInitialisierung');
+      if (listFields?.has('PhaseninfoKonzept')) baseSelectFields.push('PhaseninfoKonzept');
+      if (listFields?.has('PhaseninfoRealisierung')) baseSelectFields.push('PhaseninfoRealisierung');
+      if (listFields?.has('PhaseninfoEinfuehrung')) baseSelectFields.push('PhaseninfoEinfuehrung');
+      if (listFields?.has('PhaseninfoAbschluss')) baseSelectFields.push('PhaseninfoAbschluss');
 
       const selectFields = baseSelectFields.join(',');
       const endpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedProjects}')/items(${id})?$select=${selectFields}`;
@@ -1266,6 +1282,11 @@ class ClientDataService {
       endDate: item.EndDate || '',
       projektphase: (item.Projektphase?.toLowerCase?.() || undefined) as any,
       naechster_meilenstein: item.NaechsterMeilenstein || undefined,
+      phaseninfo_initialisierung: item.PhaseninfoInitialisierung || undefined,
+      phaseninfo_konzept: item.PhaseninfoKonzept || undefined,
+      phaseninfo_realisierung: item.PhaseninfoRealisierung || undefined,
+      phaseninfo_einfuehrung: item.PhaseninfoEinfuehrung || undefined,
+      phaseninfo_abschluss: item.PhaseninfoAbschluss || undefined,
       links,
     };
     // derive dates from quarters if missing
@@ -1434,6 +1455,36 @@ class ClientDataService {
             (existingProject as any).naechster_meilenstein ||
             '';
         }
+        if (fields.has('PhaseninfoInitialisierung')) {
+          body['PhaseninfoInitialisierung'] =
+            (projectData as any).phaseninfo_initialisierung ||
+            (existingProject as any).phaseninfo_initialisierung ||
+            '';
+        }
+        if (fields.has('PhaseninfoKonzept')) {
+          body['PhaseninfoKonzept'] =
+            (projectData as any).phaseninfo_konzept ||
+            (existingProject as any).phaseninfo_konzept ||
+            '';
+        }
+        if (fields.has('PhaseninfoRealisierung')) {
+          body['PhaseninfoRealisierung'] =
+            (projectData as any).phaseninfo_realisierung ||
+            (existingProject as any).phaseninfo_realisierung ||
+            '';
+        }
+        if (fields.has('PhaseninfoEinfuehrung')) {
+          body['PhaseninfoEinfuehrung'] =
+            (projectData as any).phaseninfo_einfuehrung ||
+            (existingProject as any).phaseninfo_einfuehrung ||
+            '';
+        }
+        if (fields.has('PhaseninfoAbschluss')) {
+          body['PhaseninfoAbschluss'] =
+            (projectData as any).phaseninfo_abschluss ||
+            (existingProject as any).phaseninfo_abschluss ||
+            '';
+        }
         // Category handling: decide between CategoryId (lookup) vs Category (number/text)
         const catVal = projectData.category || existingProject.category || '';
         const num = parseInt(String(catVal).trim(), 10);
@@ -1521,6 +1572,26 @@ class ClientDataService {
           (body as any).NaechsterMeilenstein ||
           (projectData as any).naechster_meilenstein ||
           (existingProject as any).naechster_meilenstein,
+        phaseninfo_initialisierung:
+          (body as any).PhaseninfoInitialisierung ||
+          (projectData as any).phaseninfo_initialisierung ||
+          (existingProject as any).phaseninfo_initialisierung,
+        phaseninfo_konzept:
+          (body as any).PhaseninfoKonzept ||
+          (projectData as any).phaseninfo_konzept ||
+          (existingProject as any).phaseninfo_konzept,
+        phaseninfo_realisierung:
+          (body as any).PhaseninfoRealisierung ||
+          (projectData as any).phaseninfo_realisierung ||
+          (existingProject as any).phaseninfo_realisierung,
+        phaseninfo_einfuehrung:
+          (body as any).PhaseninfoEinfuehrung ||
+          (projectData as any).phaseninfo_einfuehrung ||
+          (existingProject as any).phaseninfo_einfuehrung,
+        phaseninfo_abschluss:
+          (body as any).PhaseninfoAbschluss ||
+          (projectData as any).phaseninfo_abschluss ||
+          (existingProject as any).phaseninfo_abschluss,
       } as Project;
 
       // Read-back minimal fields to confirm persistence (esp. Category)
@@ -2158,6 +2229,21 @@ class ClientDataService {
         if (fields.has('NaechsterMeilenstein')) {
           body['NaechsterMeilenstein'] = (projectData as any).naechster_meilenstein || '';
         }
+        if (fields.has('PhaseninfoInitialisierung')) {
+          body['PhaseninfoInitialisierung'] = (projectData as any).phaseninfo_initialisierung || '';
+        }
+        if (fields.has('PhaseninfoKonzept')) {
+          body['PhaseninfoKonzept'] = (projectData as any).phaseninfo_konzept || '';
+        }
+        if (fields.has('PhaseninfoRealisierung')) {
+          body['PhaseninfoRealisierung'] = (projectData as any).phaseninfo_realisierung || '';
+        }
+        if (fields.has('PhaseninfoEinfuehrung')) {
+          body['PhaseninfoEinfuehrung'] = (projectData as any).phaseninfo_einfuehrung || '';
+        }
+        if (fields.has('PhaseninfoAbschluss')) {
+          body['PhaseninfoAbschluss'] = (projectData as any).phaseninfo_abschluss || '';
+        }
         const catVal = projectData.category || '';
         const num = parseInt(String(catVal).trim(), 10);
         if (!isNaN(num)) {
@@ -2226,6 +2312,16 @@ class ClientDataService {
           projektphase: (body as any).Projektphase || (projectData as any).projektphase,
           naechster_meilenstein:
             (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein,
+          phaseninfo_initialisierung:
+            (body as any).PhaseninfoInitialisierung || (projectData as any).phaseninfo_initialisierung,
+          phaseninfo_konzept:
+            (body as any).PhaseninfoKonzept || (projectData as any).phaseninfo_konzept,
+          phaseninfo_realisierung:
+            (body as any).PhaseninfoRealisierung || (projectData as any).phaseninfo_realisierung,
+          phaseninfo_einfuehrung:
+            (body as any).PhaseninfoEinfuehrung || (projectData as any).phaseninfo_einfuehrung,
+          phaseninfo_abschluss:
+            (body as any).PhaseninfoAbschluss || (projectData as any).phaseninfo_abschluss,
         };
       } else {
         savedProject = {
@@ -2237,6 +2333,16 @@ class ClientDataService {
           projektphase: (body as any).Projektphase || (projectData as any).projektphase,
           naechster_meilenstein:
             (body as any).NaechsterMeilenstein || (projectData as any).naechster_meilenstein,
+          phaseninfo_initialisierung:
+            (body as any).PhaseninfoInitialisierung || (projectData as any).phaseninfo_initialisierung,
+          phaseninfo_konzept:
+            (body as any).PhaseninfoKonzept || (projectData as any).phaseninfo_konzept,
+          phaseninfo_realisierung:
+            (body as any).PhaseninfoRealisierung || (projectData as any).phaseninfo_realisierung,
+          phaseninfo_einfuehrung:
+            (body as any).PhaseninfoEinfuehrung || (projectData as any).phaseninfo_einfuehrung,
+          phaseninfo_abschluss:
+            (body as any).PhaseninfoAbschluss || (projectData as any).phaseninfo_abschluss,
         };
       }
 
