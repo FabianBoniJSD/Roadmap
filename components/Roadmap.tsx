@@ -33,7 +33,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   const [activeCategories, setActiveCategories] = useState<string[]>([]);
   const [hoveredProject, setHoveredProject] = useState<Project | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-  const [viewType, setViewType] = useState<'quarters' | 'months' | 'weeks'>('quarters');
+  const [viewType, setViewType] = useState<'quarters' | 'months' | 'weeks' | 'years'>('quarters');
   const [mobileCategoriesOpen, setMobileCategoriesOpen] = useState(false);
   const [siteTitle, setSiteTitle] = useState('IT + Digital Roadmap');
   const [themeColors, setThemeColors] = useState<{ gradientFrom: string; gradientTo: string }>({
@@ -535,6 +535,59 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
     return { startPosition, width };
   };
 
+  // Calculate position for year view (multi-year timeline)
+  const calculateYearPosition = (project: Project): { startPosition: number; width: number } => {
+    if (!project.startDate || !project.endDate) {
+      return { startPosition: 0, width: 0 };
+    }
+
+    const startDate = new Date(project.startDate);
+    const endDate = new Date(project.endDate);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return { startPosition: 0, width: 0 };
+    }
+
+    // Display range: currentYear - 2 to currentYear + 2 (5 years total)
+    const startYear = currentYear - 2;
+    const endYear = currentYear + 2;
+    const totalYears = 5;
+
+    const projectStartYear = startDate.getFullYear();
+    const projectEndYear = endDate.getFullYear();
+
+    let startPosition = 0;
+    let width = 0;
+
+    // Calculate start position
+    if (projectStartYear < startYear) {
+      // Project started before visible range
+      startPosition = 0;
+    } else if (projectStartYear <= endYear) {
+      // Project starts within visible range
+      const yearOffset = projectStartYear - startYear;
+      startPosition = (yearOffset / totalYears) * 100;
+    } else {
+      // Project starts after visible range - don't display
+      return { startPosition: 0, width: 0 };
+    }
+
+    // Calculate width
+    if (projectEndYear > endYear) {
+      // Project ends after visible range
+      width = 100 - startPosition;
+    } else if (projectEndYear >= startYear) {
+      // Project ends within visible range
+      const endYearOffset = projectEndYear - startYear + 1; // +1 because end is inclusive
+      width = (endYearOffset / totalYears) * 100 - startPosition;
+    } else {
+      // Project ends before visible range - don't display
+      return { startPosition: 0, width: 0 };
+    }
+
+    return { startPosition, width };
+  };
+
   return (
     <>
       {/* Top Navigation Bar */}
@@ -608,6 +661,12 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                 onClick={() => setViewType('weeks')}
               >
                 Wochen
+              </button>
+              <button
+                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition md:flex-none ${viewType === 'years' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                onClick={() => setViewType('years')}
+              >
+                Jahre
               </button>
             </div>
 
@@ -790,7 +849,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                           Dez
                         </div>
                       </div>
-                    ) : (
+                    ) : viewType === 'weeks' ? (
                       <div
                         className="mb-4 md:mb-6 overflow-x-auto"
                         style={{
@@ -815,6 +874,39 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                             {week}
                           </div>
                         ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-5 gap-2 md:gap-4 mb-4 md:mb-6">
+                        <div
+                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          style={{ background: 'linear-gradient(to right, #eab308, #d97706)' }}
+                        >
+                          {currentYear - 2}
+                        </div>
+                        <div
+                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          style={{ background: 'linear-gradient(to right, #d97706, #ea580c)' }}
+                        >
+                          {currentYear - 1}
+                        </div>
+                        <div
+                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          style={{ background: 'linear-gradient(to right, #ea580c, #c2410c)' }}
+                        >
+                          {currentYear}
+                        </div>
+                        <div
+                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          style={{ background: 'linear-gradient(to right, #c2410c, #b91c1c)' }}
+                        >
+                          {currentYear + 1}
+                        </div>
+                        <div
+                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          style={{ background: 'linear-gradient(to right, #b91c1c, #991b1b)' }}
+                        >
+                          {currentYear + 2}
+                        </div>
                       </div>
                     )}
                   </>
@@ -854,7 +946,9 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                                     ? calculateQuarterPosition(project)
                                     : viewType === 'months'
                                       ? calculateMonthPosition(project)
-                                      : calculateWeekPosition(project);
+                                      : viewType === 'weeks'
+                                        ? calculateWeekPosition(project)
+                                        : calculateYearPosition(project);
 
                                 // Skip projects with invalid positions
                                 if (width <= 0) {
@@ -884,7 +978,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                                             ></div>
                                           ))}
                                         </div>
-                                      ) : (
+                                      ) : viewType === 'weeks' ? (
                                         <div
                                           className="h-full"
                                           style={{
@@ -902,6 +996,14 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
                                               ></div>
                                             )
                                           )}
+                                        </div>
+                                      ) : (
+                                        <div className="grid grid-cols-5 gap-2 md:gap-4 h-full">
+                                          <div className="bg-slate-800 rounded-lg opacity-30"></div>
+                                          <div className="bg-slate-800 rounded-lg opacity-30"></div>
+                                          <div className="bg-slate-800 rounded-lg opacity-30"></div>
+                                          <div className="bg-slate-800 rounded-lg opacity-30"></div>
+                                          <div className="bg-slate-800 rounded-lg opacity-30"></div>
                                         </div>
                                       )}
                                     </div>
