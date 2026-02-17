@@ -75,6 +75,23 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     initialProject?.naechster_meilenstein || ''
   );
 
+  // Phase info texts
+  const [phaseninfoInitialisierung, setPhaseninfoInitialisierung] = useState(
+    initialProject?.phaseninfo_initialisierung || ''
+  );
+  const [phaseninfoKonzept, setPhaseninfoKonzept] = useState(
+    initialProject?.phaseninfo_konzept || ''
+  );
+  const [phaseninfoRealisierung, setPhaseninfoRealisierung] = useState(
+    initialProject?.phaseninfo_realisierung || ''
+  );
+  const [phaseninfoEinfuehrung, setPhaseninfoEinfuehrung] = useState(
+    initialProject?.phaseninfo_einfuehrung || ''
+  );
+  const [phaseninfoAbschluss, setPhaseninfoAbschluss] = useState(
+    initialProject?.phaseninfo_abschluss || ''
+  );
+
   // Team member search functionality
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<TeamMember[]>([]);
@@ -238,6 +255,12 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     // Phase & Meilenstein
     setProjektphase(normalizePhase(initialProject.projektphase));
     setNaechsterMeilenstein(initialProject.naechster_meilenstein || '');
+    // Phase info texts
+    setPhaseninfoInitialisierung(initialProject.phaseninfo_initialisierung || '');
+    setPhaseninfoKonzept(initialProject.phaseninfo_konzept || '');
+    setPhaseninfoRealisierung(initialProject.phaseninfo_realisierung || '');
+    setPhaseninfoEinfuehrung(initialProject.phaseninfo_einfuehrung || '');
+    setPhaseninfoAbschluss(initialProject.phaseninfo_abschluss || '');
   }, [initialProject, categories]);
 
   // Function to add a team member to the project
@@ -411,6 +434,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       budget,
       projektphase: projektphase === 'einführung' ? 'einfuehrung' : projektphase,
       naechster_meilenstein: naechsterMeilenstein || undefined,
+      phaseninfo_initialisierung: phaseninfoInitialisierung || undefined,
+      phaseninfo_konzept: phaseninfoKonzept || undefined,
+      phaseninfo_realisierung: phaseninfoRealisierung || undefined,
+      phaseninfo_einfuehrung: phaseninfoEinfuehrung || undefined,
+      phaseninfo_abschluss: phaseninfoAbschluss || undefined,
       teamMembers,
       links,
       ProjectFields: selectedFields,
@@ -664,7 +692,97 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                 placeholder="z.B. Go-Live Q3 2025"
               />
             </div>
+          </div>
 
+          {/* Phaseninformationen Section */}
+          <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-900/50 p-6">
+            <h3 className="text-base font-semibold text-slate-100">
+              Phaseninformationen (optional)
+            </h3>
+            <p className="text-xs text-slate-400">
+              Fügen Sie für jede Projektphase einen kurzen beschreibenden Text hinzu.
+            </p>
+
+            {/* Initialisierung Phase Info */}
+            <div>
+              <label
+                htmlFor="phaseninfoInitialisierung"
+                className="block text-sm font-medium mb-1"
+              >
+                Initialisierung
+              </label>
+              <textarea
+                id="phaseninfoInitialisierung"
+                value={phaseninfoInitialisierung}
+                onChange={(e) => setPhaseninfoInitialisierung(e.target.value)}
+                rows={2}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                placeholder="Informationen zur Initialisierungsphase"
+              />
+            </div>
+
+            {/* Konzept Phase Info */}
+            <div>
+              <label htmlFor="phaseninfoKonzept" className="block text-sm font-medium mb-1">
+                Konzept
+              </label>
+              <textarea
+                id="phaseninfoKonzept"
+                value={phaseninfoKonzept}
+                onChange={(e) => setPhaseninfoKonzept(e.target.value)}
+                rows={2}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                placeholder="Informationen zur Konzeptphase"
+              />
+            </div>
+
+            {/* Realisierung Phase Info */}
+            <div>
+              <label htmlFor="phaseninfoRealisierung" className="block text-sm font-medium mb-1">
+                Realisierung
+              </label>
+              <textarea
+                id="phaseninfoRealisierung"
+                value={phaseninfoRealisierung}
+                onChange={(e) => setPhaseninfoRealisierung(e.target.value)}
+                rows={2}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                placeholder="Informationen zur Realisierungsphase"
+              />
+            </div>
+
+            {/* Einführung Phase Info */}
+            <div>
+              <label htmlFor="phaseninfoEinfuehrung" className="block text-sm font-medium mb-1">
+                Einführung
+              </label>
+              <textarea
+                id="phaseninfoEinfuehrung"
+                value={phaseninfoEinfuehrung}
+                onChange={(e) => setPhaseninfoEinfuehrung(e.target.value)}
+                rows={2}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                placeholder="Informationen zur Einführungsphase"
+              />
+            </div>
+
+            {/* Abschluss Phase Info */}
+            <div>
+              <label htmlFor="phaseninfoAbschluss" className="block text-sm font-medium mb-1">
+                Abschluss
+              </label>
+              <textarea
+                id="phaseninfoAbschluss"
+                value={phaseninfoAbschluss}
+                onChange={(e) => setPhaseninfoAbschluss(e.target.value)}
+                rows={2}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                placeholder="Informationen zur Abschlussphase"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
             {/* Bisher */}
             <div>
               <label htmlFor="bisher" className="block text-sm font-medium mb-1">
@@ -996,6 +1114,91 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
               className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
               placeholder="z.B. Go-Live Q3 2025"
             />
+          </div>
+
+          {/* Phaseninformationen Section */}
+          <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-900/50 p-6">
+            <h3 className="text-base font-semibold text-slate-100">
+              Phaseninformationen (optional)
+            </h3>
+            <p className="text-xs text-slate-400">
+              Fügen Sie für jede Projektphase einen kurzen beschreibenden Text hinzu.
+            </p>
+
+            {/* Initialisierung Phase Info */}
+            <div>
+              <label htmlFor="phaseninfoInitialisierung-short" className="block text-sm font-medium mb-1">
+                Initialisierung
+              </label>
+              <textarea
+                id="phaseninfoInitialisierung-short"
+                value={phaseninfoInitialisierung}
+                onChange={(e) => setPhaseninfoInitialisierung(e.target.value)}
+                rows={2}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                placeholder="Informationen zur Initialisierungsphase"
+              />
+            </div>
+
+            {/* Konzept Phase Info */}
+            <div>
+              <label htmlFor="phaseninfoKonzept-short" className="block text-sm font-medium mb-1">
+                Konzept
+              </label>
+              <textarea
+                id="phaseninfoKonzept-short"
+                value={phaseninfoKonzept}
+                onChange={(e) => setPhaseninfoKonzept(e.target.value)}
+                rows={2}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                placeholder="Informationen zur Konzeptphase"
+              />
+            </div>
+
+            {/* Realisierung Phase Info */}
+            <div>
+              <label htmlFor="phaseninfoRealisierung-short" className="block text-sm font-medium mb-1">
+                Realisierung
+              </label>
+              <textarea
+                id="phaseninfoRealisierung-short"
+                value={phaseninfoRealisierung}
+                onChange={(e) => setPhaseninfoRealisierung(e.target.value)}
+                rows={2}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                placeholder="Informationen zur Realisierungsphase"
+              />
+            </div>
+
+            {/* Einführung Phase Info */}
+            <div>
+              <label htmlFor="phaseninfoEinfuehrung-short" className="block text-sm font-medium mb-1">
+                Einführung
+              </label>
+              <textarea
+                id="phaseninfoEinfuehrung-short"
+                value={phaseninfoEinfuehrung}
+                onChange={(e) => setPhaseninfoEinfuehrung(e.target.value)}
+                rows={2}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                placeholder="Informationen zur Einführungsphase"
+              />
+            </div>
+
+            {/* Abschluss Phase Info */}
+            <div>
+              <label htmlFor="phaseninfoAbschluss-short" className="block text-sm font-medium mb-1">
+                Abschluss
+              </label>
+              <textarea
+                id="phaseninfoAbschluss-short"
+                value={phaseninfoAbschluss}
+                onChange={(e) => setPhaseninfoAbschluss(e.target.value)}
+                rows={2}
+                className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                placeholder="Informationen zur Abschlussphase"
+              />
+            </div>
           </div>
 
           {/* Bisher */}
