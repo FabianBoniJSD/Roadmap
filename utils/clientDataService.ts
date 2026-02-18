@@ -2804,7 +2804,12 @@ class ClientDataService {
    */
   async isUserInSharePointGroupByTitle(
     groupTitle: string,
-    identifiers: { username?: string | null; upn?: string | null; mail?: string | null }
+    identifiers: {
+      username?: string | null;
+      upn?: string | null;
+      mail?: string | null;
+      displayName?: string | null;
+    }
   ): Promise<boolean> {
     try {
       const webUrl = this.getWebUrl();
@@ -2813,12 +2818,17 @@ class ClientDataService {
 
       const candidates = Array.from(
         new Set(
-          [identifiers.username, identifiers.upn, identifiers.mail]
+          [identifiers.username, identifiers.upn, identifiers.mail, identifiers.displayName]
             .map((v) => this.normalizeIdentifier(v))
             .filter(Boolean)
         )
       );
       if (candidates.length === 0) return false;
+
+      const nameCandidates = candidates
+        .filter((c) => c && !c.includes('@'))
+        .map((c) => c.replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
 
       const fetchJson = async (accept: string): Promise<unknown> => {
         const resp = await this.spFetch(endpoint, {
@@ -2866,9 +2876,14 @@ class ClientDataService {
         const email = typeof u.Email === 'string' ? this.normalizeIdentifier(u.Email) : '';
         const login = typeof u.LoginName === 'string' ? String(u.LoginName) : '';
         const logins = login ? normalizeLogin(login) : [];
+        const title = typeof u.Title === 'string' ? this.normalizeIdentifier(u.Title) : '';
 
         if (email && candidates.includes(email)) return true;
         if (logins.some((l) => candidates.includes(l))) return true;
+        if (title) {
+          const normalizedTitle = title.replace(/\s+/g, ' ').trim();
+          if (candidates.includes(title) || nameCandidates.includes(normalizedTitle)) return true;
+        }
 
         // Extra heuristic: match local-part against login tails
         const localParts = candidates

@@ -12,10 +12,11 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
 
 const extractIdentifiers = (session: AdminSessionPayload | null | undefined) => {
   const username = typeof session?.username === 'string' ? session.username : null;
+  const displayName = typeof session?.displayName === 'string' ? session.displayName : null;
   const entra = asRecord(session?.entra);
   const upn = entra && typeof entra.upn === 'string' ? entra.upn : null;
   const mail = entra && typeof entra.mail === 'string' ? entra.mail : null;
-  return { username, upn, mail };
+  return { username, upn, mail, displayName };
 };
 
 export async function isAdminSessionAllowedForInstance(opts: {
