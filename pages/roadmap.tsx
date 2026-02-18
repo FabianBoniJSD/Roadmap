@@ -7,11 +7,8 @@ import SiteHeader from '@/components/SiteHeader';
 import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
-import {
-  getInstanceConfigFromRequest,
-  INSTANCE_QUERY_PARAM,
-  setInstanceCookieHeader,
-} from '@/utils/instanceConfig';
+import { INSTANCE_QUERY_PARAM, setInstanceCookieHeader } from '@/utils/instanceConfig';
+import { resolveInstanceForAdminSession } from '@/utils/instanceSelection';
 import type { Project } from '../types';
 
 type RoadmapPageProps = {
@@ -89,11 +86,16 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
       };
     }
 
-    const instance = await getInstanceConfigFromRequest(ctx.req, { fallbackToDefault: true });
+    const instance = await resolveInstanceForAdminSession(ctx.req, session);
     if (!instance) {
       return {
         redirect: { destination: '/', permanent: false },
       };
+    }
+
+    // Persist cookie early so subsequent reloads keep the same instance
+    if (ctx.res) {
+      ctx.res.setHeader('Set-Cookie', setInstanceCookieHeader(instance.slug));
     }
 
     if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
@@ -108,11 +110,6 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
     const projects = await clientDataService.withInstance(instance.slug, () =>
       clientDataService.getAllProjects()
     );
-
-    // Persist cookie so subsequent client requests carry the active instance
-    if (ctx.res) {
-      ctx.res.setHeader('Set-Cookie', setInstanceCookieHeader(instance.slug));
-    }
 
     const safeProjects = Array.isArray(projects) ? projects : [];
 

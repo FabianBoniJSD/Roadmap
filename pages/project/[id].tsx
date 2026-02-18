@@ -12,8 +12,9 @@ import { hasAdminAccess } from '@/utils/auth';
 import { clientDataService } from '@/utils/clientDataService';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
-import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
+import { setInstanceCookieHeader } from '@/utils/instanceConfig';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { resolveInstanceForAdminSession } from '@/utils/instanceSelection';
 
 const statusStyles: Record<string, string> = {
   completed: 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-200',
@@ -439,9 +440,13 @@ export const getServerSideProps: GetServerSideProps<{ accessDenied?: boolean }> 
     };
   }
 
-  const instance = await getInstanceConfigFromRequest(ctx.req, { fallbackToDefault: true });
+  const instance = await resolveInstanceForAdminSession(ctx.req, session);
   if (!instance) {
     return { props: {} };
+  }
+
+  if (ctx.res) {
+    ctx.res.setHeader('Set-Cookie', setInstanceCookieHeader(instance.slug));
   }
 
   if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
