@@ -112,7 +112,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
-  // Felder-Verwaltung
+  // Felder-Verwaltung (Tags)
   const [selectedFields, setSelectedFields] = useState<string[]>(() => {
     if (!initialProject?.ProjectFields) return [];
 
@@ -135,6 +135,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
 
     return [];
   });
+
+  // Custom tag input
+  const [newTag, setNewTag] = useState('');
 
   // Validierung
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -284,6 +287,20 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         return [...prev, fieldValue];
       }
     });
+  };
+
+  // Custom tag hinzufügen
+  const addCustomTag = () => {
+    const trimmedTag = newTag.trim();
+    if (trimmedTag && !selectedFields.includes(trimmedTag)) {
+      setSelectedFields((prev) => [...prev, trimmedTag]);
+      setNewTag('');
+    }
+  };
+
+  // Tag entfernen
+  const removeTag = (tagValue: string) => {
+    setSelectedFields((prev) => prev.filter((tag) => tag !== tagValue));
   };
 
   // Link hinzufügen
@@ -727,34 +744,90 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
               )}
             </div>
 
-            {/* Felder */}
+            {/* Tags */}
             <div className="mt-2">
-              <h3 className="text-lg font-medium mb-2">Felder (optional)</h3>
+              <h3 className="text-lg font-medium mb-2">Tags (optional)</h3>
               <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
-                <p className="mb-4 text-sm text-slate-300">
-                  Wählen Sie die Felder aus, die für dieses Projekt relevant sind:
-                </p>
-                <p className="mb-2 text-xs text-slate-500">
-                  Selected fields: {selectedFields.join(', ')}
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {availableFields.map((field) => (
-                    <div key={field.id} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id={`field-${field.id}`}
-                        checked={selectedFields.includes(field.name)}
-                        onChange={() => toggleField(field.name)}
-                        className="h-4 w-4 rounded border-slate-700 bg-slate-900/70 text-sky-400 focus:ring-2 focus:ring-sky-500"
-                      />
-                      <label htmlFor={`field-${field.id}`} className="text-sm">
-                        {field.name}
-                        {field.description && (
-                          <span className="block text-xs text-slate-400">{field.description}</span>
-                        )}
-                      </label>
+                {/* Selected tags display */}
+                {selectedFields.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-sm text-slate-300 mb-2">Ausgewählte Tags:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedFields.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-1 bg-sky-500/20 border border-sky-400/30 text-sky-300 px-3 py-1 rounded-full text-sm"
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => removeTag(tag)}
+                            className="ml-1 hover:text-red-400 transition-colors"
+                            aria-label={`Remove ${tag}`}
+                          >
+                            <FaTrash className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+                )}
+
+                {/* Custom tag input */}
+                <div className="mb-4">
+                  <label htmlFor="newTag" className="block text-sm text-slate-300 mb-2">
+                    Eigenen Tag erstellen:
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="newTag"
+                      type="text"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addCustomTag();
+                        }
+                      }}
+                      placeholder="Tag-Name eingeben..."
+                      className="flex-1 rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={addCustomTag}
+                      className="rounded-2xl bg-sky-500 hover:bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors flex items-center gap-2"
+                    >
+                      <FaPlus className="h-3 w-3" />
+                      Hinzufügen
+                    </button>
+                  </div>
+                </div>
+
+                {/* Predefined fields */}
+                <div className="border-t border-slate-700/50 pt-4">
+                  <p className="mb-3 text-sm text-slate-300">
+                    Oder vordefinierte Felder auswählen:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {availableFields.map((field) => (
+                      <div key={field.id} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`field-${field.id}`}
+                          checked={selectedFields.includes(field.name)}
+                          onChange={() => toggleField(field.name)}
+                          className="h-4 w-4 rounded border-slate-700 bg-slate-900/70 text-sky-400 focus:ring-2 focus:ring-sky-500"
+                        />
+                        <label htmlFor={`field-${field.id}`} className="text-sm">
+                          {field.name}
+                          {field.description && (
+                            <span className="block text-xs text-slate-400">{field.description}</span>
+                          )}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1063,34 +1136,90 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
             )}
           </div>
 
-          {/* Felder */}
+          {/* Tags */}
           <div className="mt-6">
-            <h3 className="text-lg font-medium mb-2">Felder</h3>
+            <h3 className="text-lg font-medium mb-2">Tags</h3>
             <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
-              <p className="mb-4 text-sm text-slate-300">
-                Wählen Sie die Felder aus, die für dieses Projekt relevant sind:
-              </p>
-              <p className="mb-2 text-xs text-slate-500">
-                Selected fields: {selectedFields.join(', ')}
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {availableFields.map((field) => (
-                  <div key={field.id} className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id={`field-${field.id}`}
-                      checked={selectedFields.includes(field.name)}
-                      onChange={() => toggleField(field.name)}
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-900/70 text-sky-400 focus:ring-2 focus:ring-sky-500"
-                    />
-                    <label htmlFor={`field-${field.id}`} className="text-sm">
-                      {field.name}
-                      {field.description && (
-                        <span className="block text-xs text-slate-400">{field.description}</span>
-                      )}
-                    </label>
+              {/* Selected tags display */}
+              {selectedFields.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-sm text-slate-300 mb-2">Ausgewählte Tags:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedFields.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1 bg-sky-500/20 border border-sky-400/30 text-sky-300 px-3 py-1 rounded-full text-sm"
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => removeTag(tag)}
+                          className="ml-1 hover:text-red-400 transition-colors"
+                          aria-label={`Remove ${tag}`}
+                        >
+                          <FaTrash className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
                   </div>
-                ))}
+                </div>
+              )}
+
+              {/* Custom tag input */}
+              <div className="mb-4">
+                <label htmlFor="newTag-short" className="block text-sm text-slate-300 mb-2">
+                  Eigenen Tag erstellen:
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="newTag-short"
+                    type="text"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomTag();
+                      }
+                    }}
+                    placeholder="Tag-Name eingeben..."
+                    className="flex-1 rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomTag}
+                    className="rounded-2xl bg-sky-500 hover:bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors flex items-center gap-2"
+                  >
+                    <FaPlus className="h-3 w-3" />
+                    Hinzufügen
+                  </button>
+                </div>
+              </div>
+
+              {/* Predefined fields */}
+              <div className="border-t border-slate-700/50 pt-4">
+                <p className="mb-3 text-sm text-slate-300">
+                  Oder vordefinierte Felder auswählen:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {availableFields.map((field) => (
+                    <div key={field.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`field-${field.id}`}
+                        checked={selectedFields.includes(field.name)}
+                        onChange={() => toggleField(field.name)}
+                        className="h-4 w-4 rounded border-slate-700 bg-slate-900/70 text-sky-400 focus:ring-2 focus:ring-sky-500"
+                      />
+                      <label htmlFor={`field-${field.id}`} className="text-sm">
+                        {field.name}
+                        {field.description && (
+                          <span className="block text-xs text-slate-400">{field.description}</span>
+                        )}
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

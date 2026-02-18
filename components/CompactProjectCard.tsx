@@ -58,9 +58,16 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({
       {/* Footer meta */}
       <div className="mt-auto pt-2 text-[11px] text-gray-300 flex flex-wrap gap-2">
         {project.ProjectFields && project.ProjectFields.length > 0 && (
-          <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">
-            {project.ProjectFields.length} Tags
-          </span>
+          <div className="flex flex-wrap gap-1">
+            {project.ProjectFields.map((tag, index) => (
+              <span
+                key={index}
+                className="bg-sky-500/20 border border-sky-400/30 text-sky-300 px-2 py-0.5 rounded-full"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
         )}
         {project.links && project.links.length > 0 && (
           <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">
