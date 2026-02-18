@@ -1,9 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { extractAdminSession } from '@/utils/apiAuth';
-import { clientDataService } from '@/utils/clientDataService';
+import { requireSuperAdminSession } from '@/utils/apiAuth';
 import { mapInstanceRecord, toInstanceSummary } from '@/utils/instanceConfig';
-import { isAdminUserAllowedForInstance } from '@/utils/instanceAccess';
 import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
 import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
 import { sanitizeSlug } from '../helpers';
@@ -25,6 +23,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  try {
+    requireSuperAdminSession(req);
+  } catch {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
   const record = await prisma.roadmapInstance.findUnique({
     where: { slug },
     include: { hosts: true },
@@ -34,31 +38,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const mapped = mapInstanceRecord(record);
-
-  // Allow either JWT-based admin session or service-account admin on this instance
-  const session = extractAdminSession(req);
-
-  const sessionUsername =
-    (typeof session?.username === 'string' && session.username) ||
-    (typeof session?.displayName === 'string' && session.displayName) ||
-    null;
-
-  if (session?.isAdmin && !isAdminUserAllowedForInstance(sessionUsername, mapped)) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  if (!session?.isAdmin) {
-    try {
-      const allowed = await clientDataService.withInstance(mapped.slug, () =>
-        clientDataService.isCurrentUserAdmin()
-      );
-      if (!allowed) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-    } catch (error) {
-      console.error('[instances:health] service-account admin check failed', error);
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-  }
   let health: RoadmapInstanceHealth;
   try {
     health = await provisionSharePointForInstance(mapped);

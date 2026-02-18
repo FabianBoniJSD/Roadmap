@@ -1,12 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { requireAdminSession } from '@/utils/apiAuth';
+import { requireSuperAdminSession } from '@/utils/apiAuth';
 import { mapInstanceRecord, type PrismaInstanceWithHosts } from '@/utils/instanceConfig';
-import {
-  coerceAllowedUsersPayload,
-  getInstanceAdminAccessConfig,
-  isAdminPrincipalAllowedForInstance,
-} from '@/utils/instanceAccess';
+import { coerceAllowedUsersPayload, getInstanceAdminAccessConfig } from '@/utils/instanceAccess';
 
 const sanitizeSlug = (value: string) => value.trim().toLowerCase();
 
@@ -38,18 +34,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!slug) return res.status(400).json({ error: 'Invalid slug' });
 
-  let sessionUser;
   try {
-    sessionUser = requireAdminSession(req);
+    requireSuperAdminSession(req);
   } catch {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(403).json({ error: 'Forbidden' });
   }
-
-  const username =
-    (typeof sessionUser?.username === 'string' && sessionUser.username) ||
-    (typeof sessionUser?.displayName === 'string' && sessionUser.displayName) ||
-    null;
-  const groups = Array.isArray(sessionUser?.groups) ? sessionUser.groups : null;
 
   const record = (await prisma.roadmapInstance.findUnique({
     where: { slug },
@@ -59,11 +48,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!record) return res.status(404).json({ error: 'Instance not found' });
 
   const mapped = mapInstanceRecord(record);
-
-  // If an allowlist exists, only members can view/edit it.
-  if (!isAdminPrincipalAllowedForInstance({ username, groups }, mapped)) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
 
   if (req.method === 'GET') {
     const cfg = getInstanceAdminAccessConfig(mapped.metadata);

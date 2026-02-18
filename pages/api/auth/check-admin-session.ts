@@ -25,11 +25,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         isAdmin?: boolean;
         displayName?: string;
         username?: string;
+        groups?: unknown;
       };
+
+      const groups = Array.isArray(decoded.groups)
+        ? decoded.groups.filter((g): g is string => typeof g === 'string')
+        : [];
+      const isSuperAdmin = groups.map((g) => g.trim().toLowerCase()).includes('superadmin');
 
       return res.status(200).json({
         isAdmin: decoded.isAdmin || false,
         username: decoded.displayName || decoded.username,
+        groups,
+        isSuperAdmin,
       });
     } catch (jwtError) {
       const errorMessage = jwtError instanceof Error ? jwtError.message : 'Unknown error';

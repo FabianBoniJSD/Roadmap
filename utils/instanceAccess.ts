@@ -51,7 +51,15 @@ const normalizeGroups = (groups: unknown): string[] => {
   );
 };
 
-const getImplicitInstanceGroupsFromPrincipal = (groups: string[]): string[] => {
+export const isSuperAdminGroup = (groupName: string): boolean =>
+  normalize(groupName) === 'superadmin';
+
+export const isSuperAdminPrincipal = (principal: AdminPrincipal): boolean => {
+  const groups = normalizeGroups(principal.groups);
+  return groups.some(isSuperAdminGroup);
+};
+
+export const getImplicitInstanceGroupsFromPrincipal = (groups: string[]): string[] => {
   // Convention: group display name "admin-<instanceSlug>" grants access to that instance.
   // Example: admin-finance
   const out: string[] = [];
@@ -62,38 +70,23 @@ const getImplicitInstanceGroupsFromPrincipal = (groups: string[]): string[] => {
   return Array.from(new Set(out));
 };
 
+export const getInstanceSlugsFromPrincipal = (principal: AdminPrincipal): string[] => {
+  const groups = normalizeGroups(principal.groups);
+  if (groups.length === 0) return [];
+  return getImplicitInstanceGroupsFromPrincipal(groups);
+};
+
 export const isAdminPrincipalAllowedForInstance = (
   principal: AdminPrincipal,
   instance: Pick<RoadmapInstanceConfig, 'metadata' | 'slug'>
 ): boolean => {
-  const normalizedUser = normalize(principal.username);
   const groups = normalizeGroups(principal.groups);
-  const cfg = getInstanceAdminAccessConfig(instance.metadata);
-  const allowedUsers = cfg?.allowedUsers ?? [];
-  const allowedGroups = cfg?.allowedGroups ?? [];
+  if (groups.some(isSuperAdminGroup)) return true;
 
-  // Backwards compatible: no allowlist config => allow.
-  if (!allowedUsers.length && !allowedGroups.length && groups.length === 0) return true;
-
-  // If user has any implicit admin-<slug> groups, constrain them to those instances.
+  // Strict model: non-superadmins only get access via implicit instance groups.
   const implicitSlugs = getImplicitInstanceGroupsFromPrincipal(groups);
-  if (implicitSlugs.length > 0) {
-    return implicitSlugs.includes(String(instance.slug || '').toLowerCase());
-  }
-
-  if (allowedGroups.length > 0 && groups.length > 0) {
-    if (groups.some((g) => allowedGroups.includes(g))) return true;
-  }
-
-  if (!allowedUsers.length && allowedGroups.length > 0) {
-    // Group allowlist configured but no username => deny.
-    return false;
-  }
-
-  // No allowlist configured => allow.
-  if (!allowedUsers.length && !allowedGroups.length) return true;
-  if (!normalizedUser) return false;
-  return allowedUsers.includes(normalizedUser);
+  if (implicitSlugs.length === 0) return false;
+  return implicitSlugs.includes(String(instance.slug || '').toLowerCase());
 };
 
 export const isAdminUserAllowedForInstance = (

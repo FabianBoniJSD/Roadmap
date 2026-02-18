@@ -74,3 +74,33 @@ export function requireAdminSession(req: NextApiRequest): AdminSessionPayload {
   }
   return payload;
 }
+
+const normalize = (value: unknown): string => {
+  if (typeof value !== 'string') return '';
+  return value.trim().toLowerCase();
+};
+
+const normalizeGroups = (groups: unknown): string[] => {
+  if (!Array.isArray(groups)) return [];
+  return Array.from(
+    new Set(
+      groups
+        .map((g) => (typeof g === 'string' ? g : g != null ? String(g) : ''))
+        .map((g) => normalize(g))
+        .filter(Boolean)
+    )
+  );
+};
+
+export function isSuperAdminSession(session: AdminSessionPayload | null | undefined): boolean {
+  const groups = normalizeGroups(session?.groups);
+  return groups.includes('superadmin');
+}
+
+export function requireSuperAdminSession(req: NextApiRequest): AdminSessionPayload {
+  const payload = requireAdminSession(req);
+  if (!isSuperAdminSession(payload)) {
+    throw new Error('Forbidden');
+  }
+  return payload;
+}

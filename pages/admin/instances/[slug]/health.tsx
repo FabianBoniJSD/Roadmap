@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useState } from 'react';
 import AdminSubpageLayout from '@/components/AdminSubpageLayout';
-import withAdminAuth from '@/components/withAdminAuth';
+import withSuperAdminAuth from '@/components/withSuperAdminAuth';
 import type { RoadmapInstanceSummary } from '@/types/roadmapInstance';
 import { getAdminSessionToken } from '@/utils/auth';
 
@@ -951,4 +951,4 @@ const InstanceHealthPage = () => {
   );
 };
 
-export default withAdminAuth(InstanceHealthPage);
+export default withSuperAdminAuth(InstanceHealthPage);

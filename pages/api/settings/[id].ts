@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSession } from '@/utils/apiAuth';
-import { isAdminUserAllowedForInstance } from '@/utils/instanceAccess';
+import { isAdminPrincipalAllowedForInstance } from '@/utils/instanceAccess';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
@@ -25,9 +25,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         (typeof session?.username === 'string' && session.username) ||
         (typeof session?.displayName === 'string' && session.displayName) ||
         null;
+      const sessionGroups = Array.isArray(session?.groups) ? session.groups : null;
 
       if (session?.isAdmin) {
-        if (!isAdminUserAllowedForInstance(sessionUsername, instance)) {
+        if (
+          !isAdminPrincipalAllowedForInstance(
+            { username: sessionUsername, groups: sessionGroups },
+            instance
+          )
+        ) {
           return res.status(403).json({ message: 'Forbidden' });
         }
       } else {

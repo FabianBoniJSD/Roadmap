@@ -6,6 +6,7 @@ import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
+import { isAdminPrincipalAllowedForInstance } from '@/utils/instanceAccess';
 import {
   getInstanceConfigFromRequest,
   INSTANCE_QUERY_PARAM,
@@ -15,9 +16,10 @@ import type { Project } from '../types';
 
 type RoadmapPageProps = {
   projects: Project[];
+  accessDenied?: boolean;
 };
 
-const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects }) => {
+const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects, accessDenied }) => {
   const router = useRouter();
   const instanceSlug = useMemo(() => {
     const raw = router.query?.[INSTANCE_QUERY_PARAM];
@@ -48,7 +50,21 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects }) => {
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteHeader activeRoute="roadmap" />
       <main className="flex-1 pt-12">
-        <Roadmap initialProjects={projectsState} />
+        {accessDenied ? (
+          <div className="mx-auto w-full max-w-4xl px-6 py-16 sm:px-8">
+            <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-8 shadow-xl shadow-slate-950/40">
+              <h1 className="text-xl font-semibold text-white">Kein Zugriff</h1>
+              <p className="mt-3 text-sm text-slate-200">
+                Du hast keinen Zugriff auf eine Roadmap-Instanz. Bitte lasse dir eine Gruppe im
+                Format <span className="font-mono">admin-&lt;instanz&gt;</span> (z.B.
+                <span className="font-mono"> admin-bdm-projects</span>) zuweisen oder verwende die
+                Gruppe <span className="font-mono">superadmin</span> für Vollzugriff.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <Roadmap initialProjects={projectsState} />
+        )}
       </main>
       <SiteFooter />
     </div>
@@ -77,6 +93,23 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
     if (!instance) {
       return {
         redirect: { destination: '/', permanent: false },
+      };
+    }
+
+    const principal = {
+      username:
+        (typeof session?.username === 'string' && session.username) ||
+        (typeof session?.displayName === 'string' && session.displayName) ||
+        null,
+      groups: session?.groups,
+    };
+
+    if (!isAdminPrincipalAllowedForInstance(principal, instance)) {
+      return {
+        props: {
+          projects: [],
+          accessDenied: true,
+        },
       };
     }
 

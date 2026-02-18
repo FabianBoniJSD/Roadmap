@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import { getAdminSessionToken } from '@/utils/auth';
 
 export type InstanceOption = { slug: string; displayName: string };
 
@@ -40,20 +41,39 @@ const InstanceSwitcher = () => {
     }
   }, [querySlug]);
 
-  // Load available instances (public slugs)
+  // Load available instances (admin-only; filtered by group membership)
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
       setLoading(true);
       setError(null);
       try {
-        const resp = await fetch('/api/instances/slugs');
+        const token = getAdminSessionToken();
+        if (!token) {
+          if (!cancelled) setOptions([]);
+          return;
+        }
+
+        const resp = await fetch('/api/instances/slugs', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!resp.ok) {
+          if (resp.status === 401 || resp.status === 403) {
+            if (!cancelled) {
+              setOptions([]);
+              setError('Kein Zugriff auf Roadmap-Instanzen.');
+            }
+            return;
+          }
           const payload = await resp.json().catch(() => null);
           throw new Error(payload?.error || 'Konnte Instanzen nicht laden');
         }
         const data = await resp.json();
-        if (!cancelled) setOptions(Array.isArray(data.instances) ? data.instances : []);
+        const next = Array.isArray(data.instances) ? data.instances : [];
+        if (!cancelled) {
+          setOptions(next);
+          if (next.length === 0) setError('Kein Zugriff auf Roadmap-Instanzen.');
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
         if (!cancelled) setError(message);

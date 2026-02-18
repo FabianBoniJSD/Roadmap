@@ -12,6 +12,8 @@ import { hasAdminAccess } from '@/utils/auth';
 import { clientDataService } from '@/utils/clientDataService';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
+import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
+import { isAdminPrincipalAllowedForInstance } from '@/utils/instanceAccess';
 
 const statusStyles: Record<string, string> = {
   completed: 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-200',
@@ -63,7 +65,7 @@ const PageShell: FC<{ children: ReactNode }> = ({ children }) => (
   </div>
 );
 
-const ProjectDetailPage: FC = () => {
+const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => {
   const router = useRouter();
   const { id } = router.query;
 
@@ -90,6 +92,7 @@ const ProjectDetailPage: FC = () => {
   useEffect(() => {
     const fetchProject = async () => {
       if (!id) return;
+      if (accessDenied) return;
       try {
         setLoading(true);
         const data = await clientDataService.getProjectById(id as string);
@@ -113,7 +116,7 @@ const ProjectDetailPage: FC = () => {
     };
 
     fetchProject();
-  }, [id]);
+  }, [id, accessDenied]);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -127,6 +130,32 @@ const ProjectDetailPage: FC = () => {
 
     checkAdmin();
   }, []);
+
+  if (accessDenied) {
+    return (
+      <PageShell>
+        <main className="flex flex-1 items-center justify-center px-6 py-16">
+          <div className="max-w-lg rounded-3xl border border-amber-500/30 bg-amber-500/10 p-10 text-center shadow-xl shadow-slate-950/40">
+            <FiInfo className="mx-auto h-10 w-10 text-amber-200" aria-hidden="true" />
+            <h1 className="mt-4 text-xl font-semibold text-white">Kein Zugriff</h1>
+            <p className="mt-3 text-sm text-slate-200">
+              Du hast keinen Zugriff auf diese Roadmap-Instanz. Bitte lasse dir eine Gruppe im
+              Format <span className="font-mono">admin-&lt;instanz&gt;</span> zuweisen oder verwende{' '}
+              <span className="font-mono">superadmin</span> für Vollzugriff.
+            </p>
+            <div className="mt-6">
+              <Link
+                href="/admin"
+                className="inline-flex items-center justify-center rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+              >
+                Zum Adminbereich
+              </Link>
+            </div>
+          </div>
+        </main>
+      </PageShell>
+    );
+  }
 
   if (loading) {
     return (
@@ -393,6 +422,42 @@ const ProjectDetailPage: FC = () => {
 };
 
 export default ProjectDetailPage;
+
+export const getServerSideProps: GetServerSideProps<{ accessDenied?: boolean }> = async (ctx) => {
+  const session = extractAdminSessionFromHeaders({
+    authorization: ctx.req.headers.authorization,
+    cookie: ctx.req.headers.cookie,
+  });
+
+  if (!session?.isAdmin) {
+    const returnUrl = typeof ctx.resolvedUrl === 'string' ? ctx.resolvedUrl : '/project';
+    return {
+      redirect: {
+        destination: `/admin/login?returnUrl=${encodeURIComponent(returnUrl)}`,
+        permanent: false,
+      },
+    };
+  }
+
+  const instance = await getInstanceConfigFromRequest(ctx.req, { fallbackToDefault: true });
+  if (!instance) {
+    return { props: {} };
+  }
+
+  const principal = {
+    username:
+      (typeof session?.username === 'string' && session.username) ||
+      (typeof session?.displayName === 'string' && session.displayName) ||
+      null,
+    groups: session?.groups,
+  };
+
+  if (!isAdminPrincipalAllowedForInstance(principal, instance)) {
+    return { props: { accessDenied: true } };
+  }
+
+  return { props: {} };
+};
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = extractAdminSessionFromHeaders({

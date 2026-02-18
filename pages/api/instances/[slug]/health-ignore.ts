@@ -1,13 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { extractAdminSession } from '@/utils/apiAuth';
-import { clientDataService } from '@/utils/clientDataService';
+import { requireSuperAdminSession } from '@/utils/apiAuth';
 import {
   mapInstanceRecord,
   toInstanceSummary,
   type PrismaInstanceWithHosts,
 } from '@/utils/instanceConfig';
-import { isAdminUserAllowedForInstance } from '@/utils/instanceAccess';
 
 type IgnoreOp = 'ignore' | 'unignore';
 type IgnoreKind = 'missing' | 'unexpected' | 'typeMismatch';
@@ -67,7 +65,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 
-  const session = extractAdminSession(req);
+  try {
+    requireSuperAdminSession(req);
+  } catch {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
 
   const record = (await prisma.roadmapInstance.findUnique({
     where: { slug },
@@ -77,26 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!record) return res.status(404).json({ error: 'Instance not found' });
 
   const mappedForAccess = mapInstanceRecord(record);
-  const sessionUsername =
-    (typeof session?.username === 'string' && session.username) ||
-    (typeof session?.displayName === 'string' && session.displayName) ||
-    null;
-  if (session?.isAdmin && !isAdminUserAllowedForInstance(sessionUsername, mappedForAccess)) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
-  const ensureAdminForInstance = async () => {
-    if (session?.isAdmin) return true;
-    try {
-      return await clientDataService.withInstance(mappedForAccess.slug, () =>
-        clientDataService.isCurrentUserAdmin()
-      );
-    } catch {
-      return false;
-    }
-  };
-
-  if (!(await ensureAdminForInstance())) return res.status(401).json({ error: 'Unauthorized' });
+  void mappedForAccess;
 
   const rawBody = (req.body ?? {}) as Record<string, unknown>;
   const op: IgnoreOp = rawBody.op === 'unignore' ? 'unignore' : 'ignore';

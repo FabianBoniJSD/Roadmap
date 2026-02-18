@@ -1484,10 +1484,158 @@ const AdminInstancesPage = () => {
   );
 };
 
+type SlugInstance = { slug: string; displayName: string };
+
+const AdminInstancePicker = () => {
+  const router = useRouter();
+  const [instances, setInstances] = useState<SlugInstance[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selecting, setSelecting] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = getAdminSessionToken();
+        if (!token) {
+          setInstances([]);
+          setError('Keine gültige Admin-Session gefunden.');
+          return;
+        }
+        const resp = await fetch(buildInstanceAwareUrl('/api/instances/slugs'), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const payload = await resp.json().catch(() => null);
+        if (!resp.ok) {
+          throw new Error(payload?.error || `Fehler ${resp.status}`);
+        }
+        const list = Array.isArray(payload?.instances) ? payload.instances : [];
+        const next = list
+          .map((e: unknown) => (e && typeof e === 'object' ? (e as Record<string, unknown>) : {}))
+          .map((e) => ({
+            slug: typeof e.slug === 'string' ? e.slug : '',
+            displayName: typeof e.displayName === 'string' ? e.displayName : '',
+          }))
+          .filter((e) => Boolean(e.slug));
+        if (!cancelled) setInstances(next);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+        if (!cancelled) setError(message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectInstance = async (slug: string) => {
+    setSelecting(slug);
+    setError(null);
+    try {
+      const resp = await fetch(buildInstanceAwareUrl('/api/instances/select'), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug }),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error(payload?.error || `Fehler ${resp.status}`);
+      await router.push(
+        buildInstanceAwareUrl(`/admin?roadmapInstance=${encodeURIComponent(slug)}`)
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setError(message);
+    } finally {
+      setSelecting(null);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+      <SiteHeader activeRoute="admin" />
+      <main className="flex-1">
+        <div className="mx-auto max-w-4xl px-6 py-16 sm:px-8">
+          <div className="space-y-6">
+            <header className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.4em] text-sky-300/90">
+                Roadmap Administration
+              </p>
+              <h1 className="text-3xl font-semibold text-white">Instanz wählen</h1>
+              <p className="text-sm text-slate-300">
+                Du siehst nur Instanzen, für die du eine Gruppe im Format{' '}
+                <span className="font-mono">admin-&lt;instanz&gt;</span> hast.
+              </p>
+            </header>
+
+            <section className="rounded-3xl border border-slate-800/80 bg-slate-900/70 p-8 shadow-xl shadow-slate-950/40">
+              {loading ? (
+                <JSDoITLoader message="Instanzen werden geladen …" />
+              ) : instances.length === 0 ? (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6">
+                  <h2 className="text-lg font-semibold text-white">Kein Zugriff</h2>
+                  <p className="mt-2 text-sm text-slate-200">
+                    Du hast keinen Zugriff auf eine Roadmap-Instanz. Bitte lasse dir eine passende
+                    Gruppe (z.B. <span className="font-mono">admin-bdm-projects</span>) zuweisen.
+                    Für Vollzugriff gibt es die Gruppe <span className="font-mono">superadmin</span>
+                    .
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {instances.map((inst) => (
+                    <button
+                      key={inst.slug}
+                      type="button"
+                      onClick={() => void selectInstance(inst.slug)}
+                      disabled={Boolean(selecting)}
+                      className={clsx(
+                        'flex items-center justify-between rounded-2xl border px-5 py-4 text-left transition',
+                        selecting === inst.slug
+                          ? 'border-sky-400 bg-sky-500/10'
+                          : 'border-slate-800 bg-slate-950/40 hover:border-sky-500/60'
+                      )}
+                    >
+                      <div>
+                        <div className="text-sm font-semibold text-white">
+                          {inst.displayName || inst.slug}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-400">{inst.slug}</div>
+                      </div>
+                      <div className="text-xs font-semibold text-sky-200">
+                        {selecting === inst.slug ? 'wird gesetzt…' : 'Auswählen'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {error && !loading && <p className="mt-4 text-sm text-amber-200">{error}</p>}
+            </section>
+
+            <p className="text-xs text-slate-500">
+              Hinweis: Instanzen verwalten (Create/Provisioning) ist nur für{' '}
+              <span className="font-mono">superadmin</span> möglich.
+            </p>
+          </div>
+        </div>
+      </main>
+      <SiteFooter />
+    </div>
+  );
+};
+
 const AdminInstancesGate = () => {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
   const [authed, setAuthed] = useState(false);
+  const [superAdmin, setSuperAdmin] = useState(false);
   const [entraEnabled, setEntraEnabled] = useState(false);
   const [status, setStatus] = useState<string>('');
 
@@ -1542,6 +1690,25 @@ const AdminInstancesGate = () => {
 
         const ok = await hasAdminAccess();
         if (!cancelled) setAuthed(ok);
+
+        if (ok) {
+          const token = getAdminSessionToken();
+          if (!token) {
+            if (!cancelled) setSuperAdmin(false);
+          } else {
+            try {
+              const resp = await fetch(buildInstanceAwareUrl('/api/auth/check-admin-session'), {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const data = await resp.json().catch(() => null);
+              if (!cancelled) setSuperAdmin(Boolean(data && data.isSuperAdmin));
+            } catch {
+              if (!cancelled) setSuperAdmin(false);
+            }
+          }
+        } else {
+          if (!cancelled) setSuperAdmin(false);
+        }
       } finally {
         if (!cancelled) setChecking(false);
       }
@@ -1606,6 +1773,10 @@ const AdminInstancesGate = () => {
     return (
       <InstancesLanding returnUrl={returnUrl} entraEnabled={entraEnabled} onStartSso={startSso} />
     );
+  }
+
+  if (!superAdmin) {
+    return <AdminInstancePicker />;
   }
 
   return <AdminInstancesPage />;

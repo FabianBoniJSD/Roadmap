@@ -1,12 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { requireAdminSession } from '@/utils/apiAuth';
+import { requireSuperAdminSession } from '@/utils/apiAuth';
 import {
   getInstanceConfigBySlug,
   mapInstanceRecord,
   toInstanceSummary,
 } from '@/utils/instanceConfig';
-import { isAdminPrincipalAllowedForInstance } from '@/utils/instanceAccess';
 import {
   buildSettingsPayload,
   coerceBool,
@@ -19,18 +18,13 @@ import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
 import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  let sessionUser;
   try {
-    sessionUser = requireAdminSession(req);
-  } catch {
-    return res.status(401).json({ error: 'Unauthorized' });
+    requireSuperAdminSession(req);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Forbidden';
+    const status = msg === 'Unauthorized' ? 401 : 403;
+    return res.status(status).json({ error: status === 401 ? 'Unauthorized' : 'Forbidden' });
   }
-
-  const username =
-    (typeof sessionUser?.username === 'string' && sessionUser.username) ||
-    (typeof sessionUser?.displayName === 'string' && sessionUser.displayName) ||
-    null;
-  const groups = Array.isArray(sessionUser?.groups) ? sessionUser.groups : null;
 
   if (req.method === 'GET') {
     const instances = await prisma.roadmapInstance.findMany({
@@ -40,7 +34,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const summaries = instances
       .map((record) => mapInstanceRecord(record))
-      .filter((instance) => isAdminPrincipalAllowedForInstance({ username, groups }, instance))
       .map((instance) => toInstanceSummary(instance));
 
     return res.status(200).json({ instances: summaries });

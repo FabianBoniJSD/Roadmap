@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { extractAdminSession } from '@/utils/apiAuth';
+import { extractAdminSession, requireSuperAdminSession } from '@/utils/apiAuth';
 import { clientDataService } from '@/utils/clientDataService';
 import {
   mapInstanceRecord,
@@ -86,23 +86,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === 'PUT') {
+    try {
+      requireSuperAdminSession(req);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Forbidden';
+      const status = msg === 'Unauthorized' ? 401 : 403;
+      return res.status(status).json({ error: status === 401 ? 'Unauthorized' : 'Forbidden' });
+    }
+
     const existing = (await prisma.roadmapInstance.findUnique({
       where: { slug },
       include: { hosts: true },
     })) as PrismaInstanceWithHosts | null;
     if (!existing) return res.status(404).json({ error: 'Instance not found' });
-    const existingMapped = mapInstanceRecord(existing);
-    if (
-      session?.isAdmin &&
-      !isAdminPrincipalAllowedForInstance(
-        { username: sessionUsername, groups: sessionGroups },
-        existingMapped
-      )
-    ) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-    if (!(await ensureAdminForInstance(existing)))
-      return res.status(401).json({ error: 'Unauthorized' });
+    void mapInstanceRecord(existing);
 
     const sharePoint = req.body?.sharePoint || {};
     const data: Record<string, unknown> = {};
