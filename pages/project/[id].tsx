@@ -459,23 +459,6 @@ export const getServerSideProps: GetServerSideProps<{ accessDenied?: boolean }> 
   return { props: {} };
 };
 
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const session = extractAdminSessionFromHeaders({
-    authorization: ctx.req.headers.authorization,
-    cookie: ctx.req.headers.cookie,
-  });
-  if (!session?.isAdmin) {
-    const returnUrl = typeof ctx.resolvedUrl === 'string' ? ctx.resolvedUrl : '/roadmap';
-    return {
-      redirect: {
-        destination: `/admin/login?returnUrl=${encodeURIComponent(returnUrl)}`,
-        permanent: false,
-      },
-    };
-  }
-  return { props: {} };
-};
-
 type InfoCardProps = {
   title: string;
   children: ReactNode;
