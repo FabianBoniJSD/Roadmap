@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useEffect, useState, type FC, type ReactNode } from 'react';
+import type { GetServerSideProps } from 'next';
 import { FiArrowLeft, FiExternalLink, FiInfo } from 'react-icons/fi';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
@@ -10,6 +11,7 @@ import { Project, TeamMember } from '@/types';
 import { hasAdminAccess } from '@/utils/auth';
 import { clientDataService } from '@/utils/clientDataService';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
+import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 
 const statusStyles: Record<string, string> = {
   completed: 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-200',
@@ -391,6 +393,23 @@ const ProjectDetailPage: FC = () => {
 };
 
 export default ProjectDetailPage;
+
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const session = extractAdminSessionFromHeaders({
+    authorization: ctx.req.headers.authorization,
+    cookie: ctx.req.headers.cookie,
+  });
+  if (!session?.isAdmin) {
+    const returnUrl = typeof ctx.resolvedUrl === 'string' ? ctx.resolvedUrl : '/roadmap';
+    return {
+      redirect: {
+        destination: `/admin/login?returnUrl=${encodeURIComponent(returnUrl)}`,
+        permanent: false,
+      },
+    };
+  }
+  return { props: {} };
+};
 
 type InfoCardProps = {
   title: string;

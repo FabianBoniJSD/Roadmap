@@ -5,6 +5,7 @@ import Roadmap from '../components/Roadmap';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import { clientDataService } from '@/utils/clientDataService';
+import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import {
   getInstanceConfigFromRequest,
   INSTANCE_QUERY_PARAM,
@@ -23,7 +24,6 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects }) => {
     return Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
   }, [router.query]);
   const [projectsState, setProjectsState] = useState<Project[]>(projects);
-  const [loadingInstance, setLoadingInstance] = useState(false);
 
   useEffect(() => {
     // Keep client state in sync if SSR provided data changes (e.g., hot reload)
@@ -33,7 +33,6 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects }) => {
   useEffect(() => {
     // When switching instances client-side, refetch projects immediately
     if (!router.isReady) return;
-    setLoadingInstance(true);
     clientDataService
       .getAllProjects()
       .then((next) => {
@@ -41,8 +40,7 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects }) => {
       })
       .catch((err) => {
         console.error('[roadmap] client refetch failed after instance change', err);
-      })
-      .finally(() => setLoadingInstance(false));
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instanceSlug]);
 
@@ -61,6 +59,20 @@ export default RoadmapPage;
 
 export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (ctx) => {
   try {
+    const session = extractAdminSessionFromHeaders({
+      authorization: ctx.req.headers.authorization,
+      cookie: ctx.req.headers.cookie,
+    });
+    if (!session?.isAdmin) {
+      const returnUrl = typeof ctx.resolvedUrl === 'string' ? ctx.resolvedUrl : '/roadmap';
+      return {
+        redirect: {
+          destination: `/admin/login?returnUrl=${encodeURIComponent(returnUrl)}`,
+          permanent: false,
+        },
+      };
+    }
+
     const instance = await getInstanceConfigFromRequest(ctx.req, { fallbackToDefault: true });
     if (!instance) {
       return {

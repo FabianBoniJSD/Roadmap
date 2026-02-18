@@ -7,7 +7,7 @@ import {
   toInstanceSummary,
   type PrismaInstanceWithHosts,
 } from '@/utils/instanceConfig';
-import { isAdminUserAllowedForInstance } from '@/utils/instanceAccess';
+import { isAdminPrincipalAllowedForInstance } from '@/utils/instanceAccess';
 import {
   buildSettingsPayload,
   coerceBool,
@@ -48,6 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     (typeof session?.username === 'string' && session.username) ||
     (typeof session?.displayName === 'string' && session.displayName) ||
     null;
+  const sessionGroups = Array.isArray(session?.groups) ? session.groups : null;
 
   const ensureAdminForInstance = async (record: PrismaInstanceWithHosts | null) => {
     if (session?.isAdmin) return true;
@@ -70,7 +71,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })) as PrismaInstanceWithHosts | null;
     if (!record) return res.status(404).json({ error: 'Instance not found' });
     const mapped = mapInstanceRecord(record);
-    if (session?.isAdmin && !isAdminUserAllowedForInstance(sessionUsername, mapped)) {
+    if (
+      session?.isAdmin &&
+      !isAdminPrincipalAllowedForInstance(
+        { username: sessionUsername, groups: sessionGroups },
+        mapped
+      )
+    ) {
       return res.status(403).json({ error: 'Forbidden' });
     }
     if (!(await ensureAdminForInstance(record)))
@@ -85,7 +92,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })) as PrismaInstanceWithHosts | null;
     if (!existing) return res.status(404).json({ error: 'Instance not found' });
     const existingMapped = mapInstanceRecord(existing);
-    if (session?.isAdmin && !isAdminUserAllowedForInstance(sessionUsername, existingMapped)) {
+    if (
+      session?.isAdmin &&
+      !isAdminPrincipalAllowedForInstance(
+        { username: sessionUsername, groups: sessionGroups },
+        existingMapped
+      )
+    ) {
       return res.status(403).json({ error: 'Forbidden' });
     }
     if (!(await ensureAdminForInstance(existing)))
@@ -252,7 +265,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })) as PrismaInstanceWithHosts | null;
     if (!existing) return res.status(404).json({ error: 'Instance not found' });
     const existingMapped = mapInstanceRecord(existing);
-    if (session?.isAdmin && !isAdminUserAllowedForInstance(sessionUsername, existingMapped)) {
+    if (
+      session?.isAdmin &&
+      !isAdminPrincipalAllowedForInstance(
+        { username: sessionUsername, groups: sessionGroups },
+        existingMapped
+      )
+    ) {
       return res.status(403).json({ error: 'Forbidden' });
     }
     if (!(await ensureAdminForInstance(existing)))

@@ -5,7 +5,7 @@ import { mapInstanceRecord, type PrismaInstanceWithHosts } from '@/utils/instanc
 import {
   coerceAllowedUsersPayload,
   getInstanceAdminAccessConfig,
-  isAdminUserAllowedForInstance,
+  isAdminPrincipalAllowedForInstance,
 } from '@/utils/instanceAccess';
 
 const sanitizeSlug = (value: string) => value.trim().toLowerCase();
@@ -38,7 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!slug) return res.status(400).json({ error: 'Invalid slug' });
 
-  let sessionUser: { username?: string; displayName?: string } | null = null;
+  let sessionUser;
   try {
     sessionUser = requireAdminSession(req);
   } catch {
@@ -49,6 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     (typeof sessionUser?.username === 'string' && sessionUser.username) ||
     (typeof sessionUser?.displayName === 'string' && sessionUser.displayName) ||
     null;
+  const groups = Array.isArray(sessionUser?.groups) ? sessionUser.groups : null;
 
   const record = (await prisma.roadmapInstance.findUnique({
     where: { slug },
@@ -60,7 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const mapped = mapInstanceRecord(record);
 
   // If an allowlist exists, only members can view/edit it.
-  if (!isAdminUserAllowedForInstance(username, mapped)) {
+  if (!isAdminPrincipalAllowedForInstance({ username, groups }, mapped)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 

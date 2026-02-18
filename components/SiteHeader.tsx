@@ -13,7 +13,6 @@ type SiteHeaderProps = {
 
 const NAV_ITEMS: Array<{ key: RouteKey; href: string; label: string }> = [
   { key: 'home', href: '/', label: 'Start' },
-  { key: 'roadmap', href: '/roadmap', label: 'Roadmap' },
   { key: 'help', href: '/help', label: 'Hilfe' },
   { key: 'docs', href: '/docs', label: 'Dokumentation' },
 ];

@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import {
   exchangeCodeForTokens,
   fetchGraphMe,
+  fetchGraphMyGroupDisplayNames,
   isUserAllowedByUpnAllowlist,
 } from '@roadmap/entra-sso/core';
 import {
@@ -173,6 +174,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const me = await fetchGraphMe(tokens.accessToken);
 
+    let groupNames: string[] = [];
+    try {
+      groupNames = await fetchGraphMyGroupDisplayNames(tokens.accessToken);
+    } catch (e: unknown) {
+      // Not fatal: many tenants don't grant GroupMember.Read.All.
+      const msg = e instanceof Error ? e.message : 'unknown';
+      // eslint-disable-next-line no-console
+      console.warn('[entra] group fetch skipped/failed:', msg);
+      groupNames = [];
+    }
+
     const allowAll = String(process.env.ENTRA_ALLOW_ALL || '').toLowerCase() === 'true';
     const allowed = isUserAllowedByUpnAllowlist({
       profile: me,
@@ -195,6 +207,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         displayName,
         isAdmin: true,
         source: 'entra',
+        groups: groupNames,
         entra: { id: me.id, upn: me.userPrincipalName, mail: me.mail },
       },
       JWT_SECRET,

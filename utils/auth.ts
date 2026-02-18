@@ -6,6 +6,7 @@
 const TOKEN_KEY = 'adminToken';
 const USERNAME_KEY = 'adminUsername';
 const INSTANCE_COOKIE_KEY = 'roadmap-instance';
+const ADMIN_TOKEN_COOKIE_KEY = 'roadmap-admin-token';
 
 // Lightweight debug switch for verbose console logs around auth/admin flows
 function debugAuthEnabled(): boolean {
@@ -43,25 +44,70 @@ function getSessionStorage(): Storage | null {
   }
 }
 
+function setAdminTokenCookie(token: string) {
+  if (typeof document === 'undefined') return;
+  try {
+    const secure = typeof window !== 'undefined' ? window.location.protocol === 'https:' : false;
+    const parts = [
+      `${ADMIN_TOKEN_COOKIE_KEY}=${encodeURIComponent(token)}`,
+      'Path=/',
+      'SameSite=Lax',
+    ];
+    if (secure) parts.push('Secure');
+    document.cookie = parts.join('; ');
+  } catch {
+    // ignore
+  }
+}
+
+function clearAdminTokenCookie() {
+  if (typeof document === 'undefined') return;
+  try {
+    const secure = typeof window !== 'undefined' ? window.location.protocol === 'https:' : false;
+    const parts = [`${ADMIN_TOKEN_COOKIE_KEY}=`, 'Path=/', 'SameSite=Lax', 'Max-Age=0'];
+    if (secure) parts.push('Secure');
+    document.cookie = parts.join('; ');
+  } catch {
+    // ignore
+  }
+}
+
+function getTokenFromCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    const cookies = document.cookie.split(';').map((c) => c.trim());
+    for (const cookie of cookies) {
+      if (cookie.toLowerCase().startsWith(`${ADMIN_TOKEN_COOKIE_KEY}=`)) {
+        return decodeURIComponent(cookie.substring(ADMIN_TOKEN_COOKIE_KEY.length + 1)).trim();
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 function getStoredToken(): string | null {
   const storage = getSessionStorage();
-  if (!storage) return null;
+  if (!storage) return getTokenFromCookie();
   try {
-    return storage.getItem(TOKEN_KEY);
+    return storage.getItem(TOKEN_KEY) || getTokenFromCookie();
   } catch {
-    return null;
+    return getTokenFromCookie();
   }
 }
 
 function clearStoredSession() {
   const storage = getSessionStorage();
-  if (!storage) return;
-  try {
-    storage.removeItem(TOKEN_KEY);
-    storage.removeItem(USERNAME_KEY);
-  } catch {
-    // ignore
+  if (storage) {
+    try {
+      storage.removeItem(TOKEN_KEY);
+      storage.removeItem(USERNAME_KEY);
+    } catch {
+      // ignore
+    }
   }
+  clearAdminTokenCookie();
 }
 
 function setStoredSession(token: string, username: string) {
@@ -77,6 +123,7 @@ function setStoredSession(token: string, username: string) {
 
 export function persistAdminSession(token: string, username: string) {
   setStoredSession(token, username);
+  setAdminTokenCookie(token);
 }
 
 function getBrowserInstanceSlug(): string | null {

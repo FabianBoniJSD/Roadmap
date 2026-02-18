@@ -69,6 +69,7 @@ const InstanceSwitcher = () => {
 
   const buildQuery = (slug: string) => {
     const { roadmapInstance, ...rest } = router.query;
+    void roadmapInstance;
     return slug ? { ...rest, roadmapInstance: slug } : { ...rest };
   };
 

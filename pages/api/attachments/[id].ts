@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
+import { requireAdminSession } from '@/utils/apiAuth';
 import {
   getInstanceConfigFromRequest,
   INSTANCE_COOKIE_NAME,
@@ -104,6 +105,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const name = (req.query.name as string) || '';
 
   if (!id || Array.isArray(id)) return res.status(400).json({ error: 'Invalid id' });
+
+  try {
+    requireAdminSession(req);
+  } catch {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   try {
     let instance: RoadmapInstanceConfig | null = null;
