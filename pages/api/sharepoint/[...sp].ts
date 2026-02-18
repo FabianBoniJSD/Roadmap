@@ -91,6 +91,26 @@ function isAllowedPath(path: string) {
   if (cleaned === '/_api/web/currentuser/Groups') return true;
   // Allow querying the site's associated owners group (Id/Title)
   if (cleaned === '/_api/web/AssociatedOwnerGroup') return true;
+
+  // Allow membership checks for scoped admin site groups only.
+  // This is used for instance authorization when Entra group claims are missing.
+  // Restrict to group names admin-* or superadmin to avoid enabling general group enumeration.
+  const siteGroupMatch = cleaned.match(
+    /^\/\_api\/web\/sitegroups\/getByName\('([^']+)'\)(?:\/users)?$/i
+  );
+  if (siteGroupMatch && siteGroupMatch[1]) {
+    let rawTitle = siteGroupMatch[1];
+    try {
+      rawTitle = decodeURIComponent(rawTitle);
+    } catch {
+      /* ignore */
+    }
+    const normalizedTitle = String(rawTitle).replace(/''/g, "'").trim().toLowerCase();
+    if (normalizedTitle === 'superadmin' || normalizedTitle.startsWith('admin-')) {
+      return true;
+    }
+    return false;
+  }
   // Allow People Picker API used by admin search
   if (
     /^\/_api\/SP\.UI\.ApplicationPages\.ClientPeoplePickerWebServiceInterface\.clientPeoplePickerSearchUser$/i.test(

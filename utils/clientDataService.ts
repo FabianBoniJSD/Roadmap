@@ -2900,6 +2900,100 @@ class ClientDataService {
     }
   }
 
+  /**
+   * Debug helper: checks group existence and tries to resolve a user by email, then checks
+   * whether that user is a direct member of the SharePoint site group.
+   *
+   * Returns only booleans/counts to avoid leaking other users.
+   */
+  async debugSharePointGroupMembershipByTitle(opts: {
+    groupTitle: string;
+    identifiers: { username?: string | null; upn?: string | null; mail?: string | null };
+  }): Promise<{
+    web?: { title?: string; url?: string };
+    group: { title: string; exists: boolean; status?: number };
+    members?: { count: number; principalTypes: Record<string, number> };
+  }> {
+    const title = String(opts.groupTitle || '');
+    const webUrl = this.getWebUrl();
+    const escaped = this.escapeODataStringLiteral(title);
+    const groupBase = `${webUrl}/_api/web/sitegroups/getByName('${escaped}')`;
+
+    const out: {
+      web?: { title?: string; url?: string };
+      group: { title: string; exists: boolean; status?: number };
+      members?: { count: number; principalTypes: Record<string, number> };
+    } = {
+      group: { title, exists: false },
+    };
+
+    try {
+      // Identify web (helps detect wrong instance/site)
+      try {
+        const w = await this.spFetch(`${webUrl}/_api/web?$select=Title,Url`, {
+          headers: { Accept: 'application/json;odata=nometadata' },
+          credentials: 'same-origin',
+        });
+        if (w.ok) {
+          const j = await w.json().catch(() => ({}));
+          out.web = {
+            title:
+              typeof j?.Title === 'string'
+                ? j.Title
+                : typeof j?.d?.Title === 'string'
+                  ? j.d.Title
+                  : undefined,
+            url:
+              typeof j?.Url === 'string'
+                ? j.Url
+                : typeof j?.d?.Url === 'string'
+                  ? j.d.Url
+                  : undefined,
+          };
+        }
+      } catch {
+        /* ignore */
+      }
+
+      // Check group exists
+      const g = await this.spFetch(`${groupBase}?$select=Id,Title`, {
+        headers: { Accept: 'application/json;odata=nometadata' },
+        credentials: 'same-origin',
+      });
+      out.group.status = g.status;
+      if (!g.ok) {
+        return out;
+      }
+      out.group.exists = true;
+
+      // Fetch members (counts only)
+      const membersResp = await this.spFetch(`${groupBase}/users?$select=Id,PrincipalType`, {
+        headers: { Accept: 'application/json;odata=nometadata' },
+        credentials: 'same-origin',
+      });
+      if (membersResp.ok) {
+        const j = await membersResp.json().catch(() => ({}));
+        const arr = Array.isArray(j?.value)
+          ? j.value
+          : Array.isArray(j?.d?.results)
+            ? j.d.results
+            : [];
+        const principalTypes: Record<string, number> = {};
+        for (const entry of arr) {
+          const pt = entry && typeof entry === 'object' ? (entry as any).PrincipalType : undefined;
+          const key = pt === undefined || pt === null ? 'unknown' : String(pt);
+          principalTypes[key] = (principalTypes[key] || 0) + 1;
+        }
+        out.members = { count: Array.isArray(arr) ? arr.length : 0, principalTypes };
+      }
+
+      return out;
+    } catch (e) {
+      // Keep it safe/quiet: return what we have.
+      return out;
+    }
+  }
+
   // Add this method to the ClientDataService class
 
   async searchUsers(query: string): Promise<TeamMember[]> {

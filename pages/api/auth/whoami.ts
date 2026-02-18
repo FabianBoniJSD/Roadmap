@@ -34,7 +34,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 mail: entraMail,
                 displayName: typeof session.displayName === 'string' ? session.displayName : null,
               });
-              return { instance: debugInstance, group: debugGroup, isMember: ok };
+              const debug = await clientDataService.debugSharePointGroupMembershipByTitle({
+                groupTitle: debugGroup,
+                identifiers: {
+                  username: typeof session.username === 'string' ? session.username : null,
+                  upn: entraUpn,
+                  mail: entraMail,
+                },
+              });
+              return { instance: debugInstance, group: debugGroup, isMember: ok, debug };
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : 'Unknown error';
               return { instance: debugInstance, group: debugGroup, isMember: false, error: msg };
