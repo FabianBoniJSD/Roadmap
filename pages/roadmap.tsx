@@ -6,7 +6,7 @@ import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
-import { isAdminPrincipalAllowedForInstance } from '@/utils/instanceAccess';
+import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import {
   getInstanceConfigFromRequest,
   INSTANCE_QUERY_PARAM,
@@ -96,15 +96,7 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
       };
     }
 
-    const principal = {
-      username:
-        (typeof session?.username === 'string' && session.username) ||
-        (typeof session?.displayName === 'string' && session.displayName) ||
-        null,
-      groups: session?.groups,
-    };
-
-    if (!isAdminPrincipalAllowedForInstance(principal, instance)) {
+    if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
       return {
         props: {
           projects: [],

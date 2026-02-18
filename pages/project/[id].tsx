@@ -13,7 +13,7 @@ import { clientDataService } from '@/utils/clientDataService';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
-import { isAdminPrincipalAllowedForInstance } from '@/utils/instanceAccess';
+import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 
 const statusStyles: Record<string, string> = {
   completed: 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-200',
@@ -444,15 +444,7 @@ export const getServerSideProps: GetServerSideProps<{ accessDenied?: boolean }> 
     return { props: {} };
   }
 
-  const principal = {
-    username:
-      (typeof session?.username === 'string' && session.username) ||
-      (typeof session?.displayName === 'string' && session.displayName) ||
-      null,
-    groups: session?.groups,
-  };
-
-  if (!isAdminPrincipalAllowedForInstance(principal, instance)) {
+  if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
     return { props: { accessDenied: true } };
   }
 

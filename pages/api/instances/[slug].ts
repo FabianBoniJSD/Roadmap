@@ -7,7 +7,7 @@ import {
   toInstanceSummary,
   type PrismaInstanceWithHosts,
 } from '@/utils/instanceConfig';
-import { isAdminPrincipalAllowedForInstance } from '@/utils/instanceAccess';
+import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import {
   buildSettingsPayload,
   coerceBool,
@@ -44,12 +44,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = extractAdminSession(req);
 
-  const sessionUsername =
-    (typeof session?.username === 'string' && session.username) ||
-    (typeof session?.displayName === 'string' && session.displayName) ||
-    null;
-  const sessionGroups = Array.isArray(session?.groups) ? session.groups : null;
-
   const ensureAdminForInstance = async (record: PrismaInstanceWithHosts | null) => {
     if (session?.isAdmin) return true;
     if (!record) return false;
@@ -73,10 +67,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const mapped = mapInstanceRecord(record);
     if (
       session?.isAdmin &&
-      !isAdminPrincipalAllowedForInstance(
-        { username: sessionUsername, groups: sessionGroups },
-        mapped
-      )
+      !(await isAdminSessionAllowedForInstance({ session, instance: mapped }))
     ) {
       return res.status(403).json({ error: 'Forbidden' });
     }
@@ -256,23 +247,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === 'DELETE') {
+    try {
+      requireSuperAdminSession(req);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Forbidden';
+      const status = msg === 'Unauthorized' ? 401 : 403;
+      return res.status(status).json({ error: status === 401 ? 'Unauthorized' : 'Forbidden' });
+    }
+
     const existing = (await prisma.roadmapInstance.findUnique({
       where: { slug },
       include: { hosts: true },
     })) as PrismaInstanceWithHosts | null;
     if (!existing) return res.status(404).json({ error: 'Instance not found' });
-    const existingMapped = mapInstanceRecord(existing);
-    if (
-      session?.isAdmin &&
-      !isAdminPrincipalAllowedForInstance(
-        { username: sessionUsername, groups: sessionGroups },
-        existingMapped
-      )
-    ) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-    if (!(await ensureAdminForInstance(existing)))
-      return res.status(401).json({ error: 'Unauthorized' });
     try {
       await prisma.roadmapInstance.delete({ where: { slug } });
       return res.status(204).end();

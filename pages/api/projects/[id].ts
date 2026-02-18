@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSession, requireAdminSession } from '@/utils/apiAuth';
-import { isAdminPrincipalAllowedForInstance } from '@/utils/instanceAccess';
+import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
@@ -26,17 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'GET') {
     try {
       const session = requireAdminSession(req);
-      const sessionUsername =
-        (typeof session?.username === 'string' && session.username) ||
-        (typeof session?.displayName === 'string' && session.displayName) ||
-        null;
-      const sessionGroups = Array.isArray(session?.groups) ? session.groups : null;
-      if (
-        !isAdminPrincipalAllowedForInstance(
-          { username: sessionUsername, groups: sessionGroups },
-          instance
-        )
-      ) {
+      if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
@@ -59,19 +49,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   else if (req.method === 'PUT') {
     try {
       const session = extractAdminSession(req);
-      const sessionUsername =
-        (typeof session?.username === 'string' && session.username) ||
-        (typeof session?.displayName === 'string' && session.displayName) ||
-        null;
-      const sessionGroups = Array.isArray(session?.groups) ? session.groups : null;
 
       if (session?.isAdmin) {
-        if (
-          !isAdminPrincipalAllowedForInstance(
-            { username: sessionUsername, groups: sessionGroups },
-            instance
-          )
-        ) {
+        if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
           return res.status(403).json({ error: 'Forbidden' });
         }
       } else {
@@ -98,19 +78,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   else if (req.method === 'DELETE') {
     try {
       const session = extractAdminSession(req);
-      const sessionUsername =
-        (typeof session?.username === 'string' && session.username) ||
-        (typeof session?.displayName === 'string' && session.displayName) ||
-        null;
-      const sessionGroups = Array.isArray(session?.groups) ? session.groups : null;
 
       if (session?.isAdmin) {
-        if (
-          !isAdminPrincipalAllowedForInstance(
-            { username: sessionUsername, groups: sessionGroups },
-            instance
-          )
-        ) {
+        if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
           return res.status(403).json({ error: 'Forbidden' });
         }
       } else {

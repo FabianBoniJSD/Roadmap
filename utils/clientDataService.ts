@@ -2771,6 +2771,120 @@ class ClientDataService {
     }
   }
 
+  private normalizeIdentifier(value: unknown): string {
+    if (typeof value !== 'string') return '';
+    return value.trim().toLowerCase();
+  }
+
+  private escapeODataStringLiteral(value: string): string {
+    return value.replace(/'/g, "''");
+  }
+
+  private extractSharePointUsersArray(raw: unknown): Array<Record<string, unknown>> {
+    if (!raw || typeof raw !== 'object') return [];
+    const obj = raw as Record<string, unknown>;
+    const value = obj['value'];
+    if (Array.isArray(value)) {
+      return value.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object');
+    }
+    const d = obj['d'];
+    if (d && typeof d === 'object') {
+      const dObj = d as Record<string, unknown>;
+      const results = dObj['results'];
+      if (Array.isArray(results)) {
+        return results.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object');
+      }
+    }
+    return [];
+  }
+
+  /**
+   * Checks whether a user is a member of the given SharePoint site group.
+   * This uses the server-side SharePoint proxy (service account) and compares by Email/LoginName.
+   */
+  async isUserInSharePointGroupByTitle(
+    groupTitle: string,
+    identifiers: { username?: string | null; upn?: string | null; mail?: string | null }
+  ): Promise<boolean> {
+    try {
+      const webUrl = this.getWebUrl();
+      const escaped = this.escapeODataStringLiteral(groupTitle);
+      const endpoint = `${webUrl}/_api/web/sitegroups/getByName('${escaped}')/users?$select=Email,LoginName,Title`;
+
+      const candidates = Array.from(
+        new Set(
+          [identifiers.username, identifiers.upn, identifiers.mail]
+            .map((v) => this.normalizeIdentifier(v))
+            .filter(Boolean)
+        )
+      );
+      if (candidates.length === 0) return false;
+
+      const fetchJson = async (accept: string): Promise<unknown> => {
+        const resp = await this.spFetch(endpoint, {
+          method: 'GET',
+          headers: { Accept: accept },
+          credentials: 'same-origin',
+        });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          const invalid = /InvalidClientQuery|Invalid argument/i.test(text);
+          if (invalid) throw new Error('invalid-query');
+          throw new Error(`SharePoint group fetch failed: ${resp.status}`);
+        }
+        return await resp.json().catch(() => ({}));
+      };
+
+      let raw: unknown;
+      try {
+        raw = await fetchJson('application/json;odata=nometadata');
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : '';
+        if (msg === 'invalid-query') {
+          raw = await fetchJson('application/json;odata=verbose');
+        } else {
+          throw e;
+        }
+      }
+
+      const users = this.extractSharePointUsersArray(raw);
+      if (users.length === 0) return false;
+
+      const normalizeLogin = (login: string): string[] => {
+        const normalized = this.normalizeIdentifier(login);
+        if (!normalized) return [];
+        const parts = normalized
+          .split(/[|\\]/)
+          .map((p) => p.trim())
+          .filter(Boolean);
+        const last = parts.length ? parts[parts.length - 1] : normalized;
+        const beforeAt = normalized.includes('@') ? normalized.split('@')[0] : '';
+        return Array.from(new Set([normalized, last, beforeAt].filter(Boolean)));
+      };
+
+      for (const u of users) {
+        const email = typeof u.Email === 'string' ? this.normalizeIdentifier(u.Email) : '';
+        const login = typeof u.LoginName === 'string' ? String(u.LoginName) : '';
+        const logins = login ? normalizeLogin(login) : [];
+
+        if (email && candidates.includes(email)) return true;
+        if (logins.some((l) => candidates.includes(l))) return true;
+
+        // Extra heuristic: match local-part against login tails
+        const localParts = candidates
+          .filter((c) => c.includes('@'))
+          .map((c) => c.split('@')[0])
+          .filter(Boolean);
+        if (localParts.length > 0 && logins.some((l) => localParts.includes(l))) return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('[clientDataService] group membership check failed', error);
+      return false;
+    }
+  }
+
   // Add this method to the ClientDataService class
 
   async searchUsers(query: string): Promise<TeamMember[]> {
