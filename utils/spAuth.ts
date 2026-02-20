@@ -73,11 +73,6 @@ export async function getSharePointAuthHeaders(
   const strategy = String(strategyRaw).trim().toLowerCase();
 
   if (strategy === 'kerberos') {
-    if (process.env.SP_USE_CURL !== 'true') {
-      throw new Error(
-        'SP_STRATEGY=kerberos requires SP_USE_CURL=true (Kerberos/SPNEGO is only supported via curl in the proxy).'
-      );
-    }
     return { headers: { Accept: 'application/json;odata=nometadata' } };
   }
 

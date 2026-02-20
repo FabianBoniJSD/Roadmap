@@ -280,16 +280,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   applyNoCacheHeaders(res);
 
   try {
-    // Optional curl path: Kerberos only (legacy modes removed)
-    const strategy = instance.sharePoint.strategy || process.env.SP_STRATEGY || '';
-    if (process.env.SP_USE_CURL === 'true') {
-      const isKerb = String(strategy).trim().toLowerCase() === 'kerberos';
-      if (!isKerb) {
-        return res.status(400).json({
-          error: 'curl-mode-requires-kerberos',
-          detail: 'Legacy curl auth mode has been removed; use SP_STRATEGY=kerberos.',
-        });
-      }
+    // Hardcoded Kerberos/SPNEGO via curl (no env flags). Legacy fetch-based auth modes are deprecated.
+    {
       // In negotiate mode curl uses the process identity (Kerberos ticket).
       const cred = ':';
       const targetUrl = site.replace(/\/$/, '') + fullPath;
@@ -303,7 +295,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (req.method === 'GET' && cacheSeconds > 0) {
         const ent = curlCache[cacheKey];
         if (ent && ent.expires > Date.now()) {
-          return res.status(200).json({ ...ent.payload, mode: 'curl', cached: true });
+          return res.status(200).json(ent.payload);
         }
       }
       // Handle non-GET. Treat HEAD as safe (no digest) and not a write.
@@ -583,9 +575,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const authContext = await getSharePointAuthHeaders(instance);
     const authHeaders = authContext.headers;
-    if ((process.env.SP_STRATEGY || '') === 'kerberos') {
-      res.setHeader('x-sp-auth-mode', 'kerberos');
-    }
     const targetUrl = site.replace(/\/$/, '') + fullPath;
 
     const method = req.method || 'GET';

@@ -10,8 +10,8 @@ This project uses environment variables for SharePoint auth, app config, and dep
 
 ## Core Variables
 
-- `SP_STRATEGY`: `kerberos` | `fba` | `basic`.
-- `SP_USE_CURL`: `true` (required for `kerberos`).
+- `SP_STRATEGY`: deprecated for proxy (Kerberos is the hardcoded default).
+- `SP_USE_CURL`: deprecated (Kerberos proxy uses curl unconditionally).
 - `INTERNAL_API_BASE_URL`: Absolute server URL for SSR fetches.
 - `NEXT_PUBLIC_DEPLOYMENT_ENV`: `dev` | `production`.
 - `NEXT_PUBLIC_BASE_PATH_DEV` / `NEXT_PUBLIC_BASE_PATH_PROD`: Reverse proxy base paths.
@@ -46,6 +46,6 @@ This project uses environment variables for SharePoint auth, app config, and dep
 
 ## Troubleshooting
 
-- Admin check failing: ensure the service account has Site Collection Admin or Owners group membership; verify `SP_STRATEGY` matches the deployment mode.
-- Kerberos issues: ensure `SP_USE_CURL=true` and that the server process has a valid Kerberos ticket/context.
+- Admin check failing: ensure the service account has Site Collection Admin or Owners group membership; for Kerberos ensure the server process has a valid ticket/context.
+- Kerberos issues: ensure the server process has a valid Kerberos ticket/context (proxy always uses `curl --negotiate`).
 - Missing env vars: compare against `.env.example` and the instructions in `.github/copilot-instructions.md`.

@@ -92,13 +92,13 @@ Copy from `dataService.ts` (line ~108-130) if adding to new service.
 
 ## Authentication
 
-### Modes (`SP_STRATEGY` / `NEXT_PUBLIC_SP_AUTH_MODE`)
+### Modes (legacy `SP_STRATEGY` / `NEXT_PUBLIC_SP_AUTH_MODE`)
 
-- `kerberos` - Server-side SPNEGO via `curl --negotiate` (requires `SP_USE_CURL=true`)
+- `kerberos` - Server-side SPNEGO via `curl --negotiate` (hardcoded; env flags deprecated)
 - `fba` - Forms-based auth
 - `basic` - Basic auth header (only if supported by the SharePoint/IIS config)
 
-**Kerberos**: SharePoint proxy runs in curl mode only.
+**Kerberos**: SharePoint proxy runs in curl mode only (hardcoded).
 
 ### Admin Authorization
 
@@ -129,7 +129,7 @@ Auto-runs ESLint fix, Prettier, security audit. Configured in `package.json` `li
 
 - `NEXT_PUBLIC_DEPLOYMENT_ENV` - Controls `dev`/`production` mode
 - `INTERNAL_API_BASE_URL` - Server-side absolute URL for fetch (SSR)
-- `SP_STRATEGY` - Auth mode
+- `SP_STRATEGY` - Legacy auth mode (proxy defaults to Kerberos)
 - `NEXT_PUBLIC_BASE_PATH_PROD/DEV` - App base path (reverse proxy subdir)
 
 **Never hardcode URLs** - use `resolveSharePointSiteUrl()` or `clientDataService.getWebUrl()`.
