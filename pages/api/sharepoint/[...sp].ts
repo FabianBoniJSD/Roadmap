@@ -454,7 +454,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
           let parsed: any = output.stdout;
           try {
-            parsed = JSON.parse(output.stdout);
+            const trimmed = String(output.stdout || '')
+              .replace(/^\uFEFF/, '')
+              .trimStart();
+            parsed = JSON.parse(trimmed);
           } catch {
             /* ignore */
           }
@@ -502,11 +505,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
       const duration = Date.now() - start;
       const rawOut = output.stdout;
+      const rawOutTrimmed = String(rawOut || '')
+        .replace(/^\uFEFF/, '')
+        .trimStart();
       let normalized: any = null;
-      // Attempt JSON parse first if looks like JSON
-      if (/^\s*\{/.test(rawOut)) {
+      // Attempt JSON parse first if looks like JSON (object or array). Some farms prepend a BOM.
+      if (rawOutTrimmed.startsWith('{') || rawOutTrimmed.startsWith('[')) {
         try {
-          normalized = JSON.parse(rawOut);
+          normalized = JSON.parse(rawOutTrimmed);
         } catch {
           /* ignore */
         }

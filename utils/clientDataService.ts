@@ -2815,7 +2815,20 @@ class ClientDataService {
   private extractSharePointUsersArray(raw: unknown): Array<Record<string, unknown>> {
     if (typeof raw === 'string') {
       // The SharePoint proxy may return Atom/XML as a JSON string.
+      // It may also (incorrectly) return JSON encoded as a string; try to decode it.
+      const trimmed = raw.replace(/^\uFEFF/, '').trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          return this.extractSharePointUsersArray(parsed);
+        } catch {
+          /* ignore */
+        }
+      }
       return this.extractAtomProperties(raw);
+    }
+    if (Array.isArray(raw)) {
+      return raw.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object');
     }
     if (!raw || typeof raw !== 'object') return [];
     const obj = raw as Record<string, unknown>;
@@ -2881,7 +2894,18 @@ class ClientDataService {
         const text = await resp.text().catch(() => '');
         if (!text) return {};
         try {
-          return JSON.parse(text);
+          const first = JSON.parse(text);
+          if (typeof first === 'string') {
+            const inner = first.replace(/^\uFEFF/, '').trim();
+            if (inner.startsWith('{') || inner.startsWith('[')) {
+              try {
+                return JSON.parse(inner);
+              } catch {
+                return first;
+              }
+            }
+          }
+          return first;
         } catch {
           return text;
         }
@@ -3175,22 +3199,37 @@ class ClientDataService {
       if (membersResp.ok) {
         const text = await membersResp.text().catch(() => '');
         let parsed: unknown = text;
-        if (text && text.trim().startsWith('{')) {
-          try {
-            parsed = JSON.parse(text);
-          } catch {
-            parsed = text;
+        if (text) {
+          const trimmed = text.replace(/^\uFEFF/, '').trimStart();
+          if (trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"')) {
+            try {
+              parsed = JSON.parse(trimmed);
+              if (typeof parsed === 'string') {
+                const inner = parsed.replace(/^\uFEFF/, '').trimStart();
+                if (inner.startsWith('{') || inner.startsWith('[')) {
+                  try {
+                    parsed = JSON.parse(inner);
+                  } catch {
+                    /* keep string */
+                  }
+                }
+              }
+            } catch {
+              parsed = text;
+            }
           }
         }
 
         const arr =
           typeof parsed === 'string'
             ? this.extractAtomProperties(parsed)
-            : Array.isArray((parsed as any)?.value)
-              ? (parsed as any).value
-              : Array.isArray((parsed as any)?.d?.results)
-                ? (parsed as any).d.results
-                : [];
+            : Array.isArray(parsed)
+              ? parsed
+              : Array.isArray((parsed as any)?.value)
+                ? (parsed as any).value
+                : Array.isArray((parsed as any)?.d?.results)
+                  ? (parsed as any).d.results
+                  : [];
         const principalTypes: Record<string, number> = {};
         for (const entry of arr) {
           const pt = entry && typeof entry === 'object' ? (entry as any).PrincipalType : undefined;
