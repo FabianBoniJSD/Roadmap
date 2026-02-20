@@ -173,11 +173,39 @@ export async function hasAdminAccessToCurrentInstance(): Promise<boolean> {
 }
 
 export function buildInstanceAwareUrl(path: string): string {
+  // When Next.js basePath is configured (reverse proxy subdir), API routes live under it.
+  const basePath = (() => {
+    try {
+      const deploymentEnv =
+        process.env.NEXT_PUBLIC_DEPLOYMENT_ENV || process.env.NODE_ENV || 'development';
+      const rawBasePath =
+        deploymentEnv === 'production'
+          ? process.env.NEXT_PUBLIC_BASE_PATH_PROD || ''
+          : process.env.NEXT_PUBLIC_BASE_PATH_DEV || '';
+      const trimmed = String(rawBasePath || '').trim();
+      if (!trimmed || trimmed === '/') return '';
+      const withLeading = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+      return withLeading.replace(/\/+$/, '');
+    } catch {
+      return '';
+    }
+  })();
+
+  const shouldPrefixBasePath = path.startsWith('/api/');
+  const withBasePath =
+    shouldPrefixBasePath &&
+    basePath &&
+    path.startsWith('/') &&
+    !path.startsWith(basePath + '/') &&
+    path !== basePath
+      ? `${basePath}${path}`
+      : path;
+
   const slug = getBrowserInstanceSlug();
-  if (!slug) return path;
-  const hasQuery = path.includes('?');
+  if (!slug) return withBasePath;
+  const hasQuery = withBasePath.includes('?');
   const separator = hasQuery ? '&' : '?';
-  return `${path}${separator}roadmapInstance=${encodeURIComponent(slug)}`;
+  return `${withBasePath}${separator}roadmapInstance=${encodeURIComponent(slug)}`;
 }
 
 export function getAdminSessionToken(): string | null {

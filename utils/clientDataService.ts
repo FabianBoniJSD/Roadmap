@@ -3,6 +3,7 @@ import type { AsyncLocalStorage } from 'async_hooks';
 import { AppSettings, Category, Project, ProjectLink, TeamMember } from '@/types';
 import { SHAREPOINT_LIST_DEFINITIONS } from '@/utils/sharePointLists';
 import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
+import { prefixBasePath } from '@/utils/nextBasePath';
 
 type NodeRequireFn = typeof require;
 type AsyncLocalStorageCtor = new <T>() => AsyncLocalStorage<T>;
@@ -137,9 +138,9 @@ class ClientDataService {
         /\/$/,
         ''
       );
-      return base + '/api/sharepoint';
+      return base + prefixBasePath('/api/sharepoint');
     }
-    return '/api/sharepoint';
+    return prefixBasePath('/api/sharepoint');
   }
 
   private getActiveInstanceSlug(): string | null {
