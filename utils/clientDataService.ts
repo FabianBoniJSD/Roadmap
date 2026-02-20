@@ -2781,7 +2781,42 @@ class ClientDataService {
     return value.replace(/'/g, "''");
   }
 
+  private decodeXmlText(value: string): string {
+    return value
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'");
+  }
+
+  private extractAtomProperties(xml: string): Array<Record<string, unknown>> {
+    if (!xml || typeof xml !== 'string') return [];
+    if (!/\<m:properties\>/i.test(xml)) return [];
+
+    const blocks = xml.match(/<m:properties>[\s\S]*?<\/m:properties>/gi) || [];
+    const out: Array<Record<string, unknown>> = [];
+    for (const block of blocks) {
+      const item: Record<string, unknown> = {};
+      const fields = block.match(/<d:([A-Za-z0-9_]+)(?:\s+[^>]*)?>([\s\S]*?)<\/d:\1>/g) || [];
+      for (const field of fields) {
+        const m = field.match(/<d:([A-Za-z0-9_]+)(?:\s+[^>]*)?>([\s\S]*?)<\/d:\1>/);
+        if (!m) continue;
+        const name = m[1];
+        const rawValue = m[2] ?? '';
+        if (/[<>]/.test(rawValue)) continue;
+        item[name] = this.decodeXmlText(String(rawValue));
+      }
+      if (Object.keys(item).length > 0) out.push(item);
+    }
+    return out;
+  }
+
   private extractSharePointUsersArray(raw: unknown): Array<Record<string, unknown>> {
+    if (typeof raw === 'string') {
+      // The SharePoint proxy may return Atom/XML as a JSON string.
+      return this.extractAtomProperties(raw);
+    }
     if (!raw || typeof raw !== 'object') return [];
     const obj = raw as Record<string, unknown>;
     const value = obj['value'];
@@ -2831,8 +2866,8 @@ class ClientDataService {
         .map((c) => c.replace(/\s+/g, ' ').trim())
         .filter(Boolean);
 
-      const fetchJson = async (accept: string): Promise<unknown> => {
-        const resp = await this.spFetch(endpoint, {
+      const fetchPayload = async (url: string, accept: string): Promise<unknown> => {
+        const resp = await this.spFetch(url, {
           method: 'GET',
           headers: { Accept: accept },
           credentials: 'same-origin',
@@ -2843,23 +2878,30 @@ class ClientDataService {
           if (invalid) throw new Error('invalid-query');
           throw new Error(`SharePoint group fetch failed: ${resp.status}`);
         }
-        return await resp.json().catch(() => ({}));
+        const text = await resp.text().catch(() => '');
+        if (!text) return {};
+        try {
+          return JSON.parse(text);
+        } catch {
+          return text;
+        }
       };
 
-      let raw: unknown;
-      try {
-        raw = await fetchJson('application/json;odata=nometadata');
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : '';
-        if (msg === 'invalid-query') {
-          raw = await fetchJson('application/json;odata=verbose');
-        } else {
+      const fetchAny = async (url: string): Promise<unknown> => {
+        try {
+          return await fetchPayload(url, 'application/json;odata=nometadata');
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : '';
+          if (msg === 'invalid-query') {
+            return await fetchPayload(url, 'application/json;odata=verbose');
+          }
           throw e;
         }
-      }
+      };
+
+      const raw = await fetchAny(endpoint);
 
       const users = this.extractSharePointUsersArray(raw);
-      if (users.length === 0) return false;
 
       const normalizeLogin = (login: string): string[] => {
         const normalized = this.normalizeIdentifier(login);
@@ -2873,11 +2915,13 @@ class ClientDataService {
         return Array.from(new Set([normalized, last, beforeAt].filter(Boolean)));
       };
 
-      for (const u of users) {
-        const email = typeof u.Email === 'string' ? this.normalizeIdentifier(u.Email) : '';
-        const login = typeof u.LoginName === 'string' ? String(u.LoginName) : '';
+      const matchesDirectEntry = (u: Record<string, unknown>): boolean => {
+        const email =
+          typeof (u as any).Email === 'string' ? this.normalizeIdentifier((u as any).Email) : '';
+        const login = typeof (u as any).LoginName === 'string' ? String((u as any).LoginName) : '';
         const logins = login ? normalizeLogin(login) : [];
-        const title = typeof u.Title === 'string' ? this.normalizeIdentifier(u.Title) : '';
+        const title =
+          typeof (u as any).Title === 'string' ? this.normalizeIdentifier((u as any).Title) : '';
 
         if (email && candidates.includes(email)) return true;
         if (logins.some((l) => candidates.includes(l))) return true;
@@ -2886,15 +2930,42 @@ class ClientDataService {
           if (candidates.includes(title) || nameCandidates.includes(normalizedTitle)) return true;
         }
 
-        // Extra heuristic: match local-part against login tails
         const localParts = candidates
           .filter((c) => c.includes('@'))
           .map((c) => c.split('@')[0])
           .filter(Boolean);
         if (localParts.length > 0 && logins.some((l) => localParts.includes(l))) return true;
+
+        return false;
+      };
+
+      if (users.length > 0) {
+        for (const u of users) {
+          if (matchesDirectEntry(u)) return true;
+        }
       }
 
-      return false;
+      // Transitive membership fallback:
+      // If the site group contains AD security groups, SharePoint can still treat the user as a member.
+      // Querying the user's Groups collection avoids enumerating the group's members.
+      const emailCandidate = candidates.find((c) => c.includes('@'));
+      if (!emailCandidate) return false;
+
+      const escapedEmail = this.escapeODataStringLiteral(emailCandidate);
+      const userLookupUrl = `${webUrl}/_api/web/siteusers?$select=Id,Email,LoginName,Title&$filter=Email eq '${escapedEmail}'`;
+      const rawUser = await fetchAny(userLookupUrl);
+      const siteUsers = this.extractSharePointUsersArray(rawUser);
+      const first = siteUsers[0] as any;
+      const idRaw = first?.Id;
+      const id =
+        typeof idRaw === 'number' ? idRaw : typeof idRaw === 'string' ? parseInt(idRaw, 10) : NaN;
+      if (!Number.isFinite(id)) return false;
+
+      const groupsUrl = `${webUrl}/_api/web/getuserbyid(${id})/groups?$select=Title`;
+      const rawGroups = await fetchAny(groupsUrl);
+      const groups = this.extractSharePointUsersArray(rawGroups);
+      const wanted = this.normalizeIdentifier(groupTitle);
+      return groups.some((g: any) => this.normalizeIdentifier(g?.Title) === wanted);
     } catch (error) {
       console.error('[clientDataService] group membership check failed', error);
       return false;
@@ -3012,11 +3083,14 @@ class ClientDataService {
       });
       if (membersResp.ok) {
         const j = await membersResp.json().catch(() => ({}));
-        const arr = Array.isArray(j?.value)
-          ? j.value
-          : Array.isArray(j?.d?.results)
-            ? j.d.results
-            : [];
+        const arr =
+          typeof j === 'string'
+            ? this.extractAtomProperties(j)
+            : Array.isArray((j as any)?.value)
+              ? (j as any).value
+              : Array.isArray((j as any)?.d?.results)
+                ? (j as any).d.results
+                : [];
         const principalTypes: Record<string, number> = {};
         for (const entry of arr) {
           const pt = entry && typeof entry === 'object' ? (entry as any).PrincipalType : undefined;
