@@ -2912,7 +2912,14 @@ class ClientDataService {
     identifiers: { username?: string | null; upn?: string | null; mail?: string | null };
   }): Promise<{
     web?: { title?: string; url?: string };
-    group: { title: string; exists: boolean; status?: number };
+    group: {
+      title: string;
+      exists: boolean;
+      status?: number;
+      proxyMode?: string;
+      proxyInstance?: string;
+      error?: { raw?: string; code?: string; detail?: string };
+    };
     members?: { count: number; principalTypes: Record<string, number> };
   }> {
     const title = String(opts.groupTitle || '');
@@ -2922,7 +2929,14 @@ class ClientDataService {
 
     const out: {
       web?: { title?: string; url?: string };
-      group: { title: string; exists: boolean; status?: number };
+      group: {
+        title: string;
+        exists: boolean;
+        status?: number;
+        proxyMode?: string;
+        proxyInstance?: string;
+        error?: { raw?: string; code?: string; detail?: string };
+      };
       members?: { count: number; principalTypes: Record<string, number> };
     } = {
       group: { title, exists: false },
@@ -2962,7 +2976,31 @@ class ClientDataService {
         credentials: 'same-origin',
       });
       out.group.status = g.status;
+      out.group.proxyMode = g.headers.get('x-sp-proxy-mode') || undefined;
+      out.group.proxyInstance = g.headers.get('x-roadmap-instance') || undefined;
       if (!g.ok) {
+        try {
+          const raw = await g.text().catch(() => '');
+          const trimmed = String(raw || '').trim();
+          if (trimmed) {
+            let code: string | undefined;
+            let detail: string | undefined;
+            try {
+              const parsed = JSON.parse(trimmed) as any;
+              code = typeof parsed?.error === 'string' ? parsed.error : undefined;
+              detail = typeof parsed?.detail === 'string' ? parsed.detail : undefined;
+            } catch {
+              /* ignore */
+            }
+            out.group.error = {
+              raw: trimmed.length > 1000 ? trimmed.slice(0, 1000) + '…' : trimmed,
+              code,
+              detail,
+            };
+          }
+        } catch {
+          /* ignore */
+        }
         return out;
       }
       out.group.exists = true;
