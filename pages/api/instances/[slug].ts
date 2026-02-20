@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { extractAdminSession, requireSuperAdminSession } from '@/utils/apiAuth';
+import { extractAdminSession } from '@/utils/apiAuth';
+import { requireSuperAdminAccess } from '@/utils/superAdminAccessServer';
 import { clientDataService } from '@/utils/clientDataService';
 import {
   mapInstanceRecord,
@@ -77,7 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'PUT') {
     try {
-      requireSuperAdminSession(req);
+      await requireSuperAdminAccess(req);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Forbidden';
       const status = msg === 'Unauthorized' ? 401 : 403;
@@ -214,7 +215,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'DELETE') {
     try {
-      requireSuperAdminSession(req);
+      await requireSuperAdminAccess(req);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Forbidden';
       const status = msg === 'Unauthorized' ? 401 : 403;

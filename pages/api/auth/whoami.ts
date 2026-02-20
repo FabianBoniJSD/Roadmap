@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { requireAdminSession, isSuperAdminSession } from '@/utils/apiAuth';
+import { requireAdminSession } from '@/utils/apiAuth';
 import { clientDataService } from '@/utils/clientDataService';
+import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -55,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       displayName: session.displayName ?? null,
       source: session.source ?? null,
       isAdmin: session.isAdmin === true,
-      isSuperAdmin: isSuperAdminSession(session),
+      isSuperAdmin: await isSuperAdminSessionWithSharePointFallback(session),
       groups,
       entra: session.entra ?? null,
       spGroupMembership,

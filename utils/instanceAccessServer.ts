@@ -40,7 +40,11 @@ export async function isAdminSessionAllowedForInstance(opts: {
   const ids = extractIdentifiers(session);
   const groupTitle = `admin-${String(instance.slug || '').toLowerCase()}`;
 
-  return await clientDataService.withInstance(String(instance.slug || ''), () =>
-    clientDataService.isUserInSharePointGroupByTitle(groupTitle, ids)
-  );
+  return await clientDataService.withInstance(String(instance.slug || ''), async () => {
+    const [inAdminGroup, inSuperAdminGroup] = await Promise.all([
+      clientDataService.isUserInSharePointGroupByTitle(groupTitle, ids),
+      clientDataService.isUserInSharePointGroupByTitle('superadmin', ids),
+    ]);
+    return Boolean(inAdminGroup || inSuperAdminGroup);
+  });
 }

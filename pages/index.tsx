@@ -11,6 +11,7 @@ import { buildInstanceAwareUrl, hasValidAdminSession, persistAdminSession } from
 import { extractAdminSessionFromHeaders, isSuperAdminSession } from '@/utils/apiAuth';
 import { getInstanceSlugsFromPrincipal, isSuperAdminPrincipal } from '@/utils/instanceAccess';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 const HTTP_URL_REGEX = /^https?:\/\//i;
 
@@ -522,7 +523,7 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
   }
 
   // Superadmin sees all instances.
-  if (isSuperAdminSession(session)) {
+  if (await isSuperAdminSessionWithSharePointFallback(session)) {
     const instances: LandingInstance[] = records.map((record) => {
       const hosts = record.hosts.map((host) => host.host);
       return {

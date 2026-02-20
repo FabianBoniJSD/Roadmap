@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { requireSuperAdminSession } from '@/utils/apiAuth';
+import { requireSuperAdminAccess } from '@/utils/superAdminAccessServer';
 import {
   getInstanceConfigBySlug,
   mapInstanceRecord,
@@ -18,7 +18,7 @@ import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    requireSuperAdminSession(req);
+    await requireSuperAdminAccess(req);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Forbidden';
     const status = msg === 'Unauthorized' ? 401 : 403;

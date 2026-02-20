@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { requireSuperAdminSession } from '@/utils/apiAuth';
+import { requireSuperAdminAccess } from '@/utils/superAdminAccessServer';
 import { mapInstanceRecord, type PrismaInstanceWithHosts } from '@/utils/instanceConfig';
 import { coerceAllowedUsersPayload, getInstanceAdminAccessConfig } from '@/utils/instanceAccess';
 
@@ -35,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!slug) return res.status(400).json({ error: 'Invalid slug' });
 
   try {
-    requireSuperAdminSession(req);
+    await requireSuperAdminAccess(req);
   } catch {
     return res.status(403).json({ error: 'Forbidden' });
   }

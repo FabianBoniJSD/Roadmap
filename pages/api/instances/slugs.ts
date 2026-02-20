@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { requireAdminSession } from '@/utils/apiAuth';
 import { getInstanceSlugsFromPrincipal, isSuperAdminPrincipal } from '@/utils/instanceAccess';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 /**
  * Public endpoint: returns minimal instance identifiers (slug + displayName) for UI switching.
@@ -27,7 +28,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       null;
 
     const principal = { username, groups: session?.groups };
-    const isSuperAdmin = isSuperAdminPrincipal(principal);
+    const tokenSuperAdmin = isSuperAdminPrincipal(principal);
+    const isSuperAdmin =
+      tokenSuperAdmin || (await isSuperAdminSessionWithSharePointFallback(session));
 
     // Fast path: token already contains instance groups.
     const tokenAllowedSlugs = isSuperAdmin ? null : getInstanceSlugsFromPrincipal(principal);
