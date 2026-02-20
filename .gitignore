@@ -46,13 +46,19 @@ roadmap-app-*.log
 prisma/dev.db
 prisma/dev.db-journal
 
+# Some deployments keep the SQLite DB under prisma/prisma/
+prisma/prisma/dev.db
+prisma/prisma/dev.db-journal
+prisma/prisma/*.db
+prisma/prisma/*.db-journal
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-prisma/prisma/dev.db 
+
 .pm2/
 
 .husky

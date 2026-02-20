@@ -323,15 +323,35 @@ jobs:
             fi
           fi
 
-          if ! npx prisma migrate deploy; then
+          deployOutput=""
+          if ! deployOutput="$(npx prisma migrate deploy 2>&1)"; then
+            echo "$deployOutput" >&2
+
             if [ "$isFileDb" = "true" ]; then
-              echo "[WARN] prisma migrate deploy failed. Trying prisma db push (SQLite fallback)." >&2
-              npx prisma db push
+              if echo "$deployOutput" | grep -q "P3005"; then
+                echo "[WARN] P3005: SQLite DB exists without migration history. Aligning schema via db push and baselining migrations..." >&2
+
+                # Ensure the schema matches the current Prisma schema first.
+                npx prisma db push --accept-data-loss
+
+                # Then baseline migration history so future deploys can use migrate deploy.
+                for migDir in prisma/migrations/*/; do
+                  migName="$(basename "$migDir")"
+                  npx prisma migrate resolve --applied "$migName" || true
+                done
+
+                # No-op (should be up-to-date), but keeps logs consistent.
+                npx prisma migrate deploy || true
+              else
+                echo "[WARN] prisma migrate deploy failed. Trying prisma db push --accept-data-loss (SQLite fallback)." >&2
+                npx prisma db push --accept-data-loss
+              fi
             else
               echo "prisma migrate deploy failed and no safe fallback is available." >&2
               exit 1
             fi
           else
+            echo "$deployOutput"
             echo "Prisma migrations applied successfully."
           fi
 
