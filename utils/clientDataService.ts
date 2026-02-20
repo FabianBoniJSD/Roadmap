@@ -2948,18 +2948,83 @@ class ClientDataService {
       // Transitive membership fallback:
       // If the site group contains AD security groups, SharePoint can still treat the user as a member.
       // Querying the user's Groups collection avoids enumerating the group's members.
-      const emailCandidate = candidates.find((c) => c.includes('@'));
-      if (!emailCandidate) return false;
+      const emailCandidate =
+        (typeof identifiers.mail === 'string' && identifiers.mail.includes('@')
+          ? identifiers.mail
+          : null) ||
+        (typeof identifiers.upn === 'string' && identifiers.upn.includes('@')
+          ? identifiers.upn
+          : null) ||
+        candidates.find((c) => c.includes('@')) ||
+        null;
+      const displayNameCandidate =
+        typeof identifiers.displayName === 'string' && identifiers.displayName.trim()
+          ? identifiers.displayName.trim()
+          : null;
 
-      const escapedEmail = this.escapeODataStringLiteral(emailCandidate);
-      const userLookupUrl = `${webUrl}/_api/web/siteusers?$select=Id,Email,LoginName,Title&$filter=Email eq '${escapedEmail}'`;
-      const rawUser = await fetchAny(userLookupUrl);
-      const siteUsers = this.extractSharePointUsersArray(rawUser);
-      const first = siteUsers[0] as any;
-      const idRaw = first?.Id;
-      const id =
-        typeof idRaw === 'number' ? idRaw : typeof idRaw === 'string' ? parseInt(idRaw, 10) : NaN;
-      if (!Number.isFinite(id)) return false;
+      const tryParseId = (rawValue: unknown): number | null => {
+        if (typeof rawValue === 'number' && Number.isFinite(rawValue)) return rawValue;
+        if (typeof rawValue === 'string') {
+          const n = parseInt(rawValue, 10);
+          return Number.isFinite(n) ? n : null;
+        }
+        return null;
+      };
+
+      const tryListUsers = async (filter: string): Promise<Array<Record<string, unknown>>> => {
+        const url = `${webUrl}/_api/web/siteusers?$select=Id,Email,LoginName,Title&$filter=${filter}`;
+        const rawUser = await fetchAny(url);
+        return this.extractSharePointUsersArray(rawUser);
+      };
+
+      const resolveUserId = async (): Promise<number | null> => {
+        // 1) getByEmail (most reliable when available)
+        if (emailCandidate) {
+          const escapedEmail = this.escapeODataStringLiteral(emailCandidate);
+          const byEmailUrl = `${webUrl}/_api/web/siteusers/getByEmail('${escapedEmail}')?$select=Id`;
+          try {
+            const rawByEmail = await fetchAny(byEmailUrl);
+            const id =
+              tryParseId((rawByEmail as any)?.Id) ?? tryParseId((rawByEmail as any)?.d?.Id);
+            if (id) return id;
+          } catch {
+            // ignore and continue
+          }
+        }
+
+        // 2) Search by LoginName substring (UPN/mail commonly appears in claims login)
+        if (emailCandidate) {
+          const escaped = this.escapeODataStringLiteral(emailCandidate);
+          try {
+            const list = await tryListUsers(`substringof('${escaped}', LoginName)`);
+            if (list.length === 1) {
+              const id = tryParseId((list[0] as any)?.Id);
+              if (id) return id;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        // 3) Search by display name (last resort; may be ambiguous)
+        if (displayNameCandidate) {
+          const escaped = this.escapeODataStringLiteral(displayNameCandidate);
+          try {
+            const list = await tryListUsers(`Title eq '${escaped}'`);
+            if (list.length === 1) {
+              const id = tryParseId((list[0] as any)?.Id);
+              if (id) return id;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        return null;
+      };
+
+      const id = await resolveUserId();
+      if (!id) return false;
 
       const groupsUrl = `${webUrl}/_api/web/getuserbyid(${id})/groups?$select=Title`;
       const rawGroups = await fetchAny(groupsUrl);
@@ -2991,7 +3056,20 @@ class ClientDataService {
       proxyInstance?: string;
       error?: { raw?: string; code?: string; detail?: string };
     };
-    members?: { count: number; principalTypes: Record<string, number> };
+    members?: {
+      count: number;
+      principalTypes: Record<string, number>;
+      debug?: {
+        status?: number;
+        proxyMode?: string;
+        contentType?: string;
+        payloadType?: 'object' | 'string' | 'empty' | 'unknown';
+        rawLength?: number;
+        hasValueArray?: boolean;
+        hasDResultsArray?: boolean;
+        atomPropertiesBlocks?: number;
+      };
+    };
   }> {
     const title = String(opts.groupTitle || '');
     const webUrl = this.getWebUrl();
@@ -3008,7 +3086,20 @@ class ClientDataService {
         proxyInstance?: string;
         error?: { raw?: string; code?: string; detail?: string };
       };
-      members?: { count: number; principalTypes: Record<string, number> };
+      members?: {
+        count: number;
+        principalTypes: Record<string, number>;
+        debug?: {
+          status?: number;
+          proxyMode?: string;
+          contentType?: string;
+          payloadType?: 'object' | 'string' | 'empty' | 'unknown';
+          rawLength?: number;
+          hasValueArray?: boolean;
+          hasDResultsArray?: boolean;
+          atomPropertiesBlocks?: number;
+        };
+      };
     } = {
       group: { title, exists: false },
     };
@@ -3082,14 +3173,23 @@ class ClientDataService {
         credentials: 'same-origin',
       });
       if (membersResp.ok) {
-        const j = await membersResp.json().catch(() => ({}));
+        const text = await membersResp.text().catch(() => '');
+        let parsed: unknown = text;
+        if (text && text.trim().startsWith('{')) {
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            parsed = text;
+          }
+        }
+
         const arr =
-          typeof j === 'string'
-            ? this.extractAtomProperties(j)
-            : Array.isArray((j as any)?.value)
-              ? (j as any).value
-              : Array.isArray((j as any)?.d?.results)
-                ? (j as any).d.results
+          typeof parsed === 'string'
+            ? this.extractAtomProperties(parsed)
+            : Array.isArray((parsed as any)?.value)
+              ? (parsed as any).value
+              : Array.isArray((parsed as any)?.d?.results)
+                ? (parsed as any).d.results
                 : [];
         const principalTypes: Record<string, number> = {};
         for (const entry of arr) {
@@ -3097,7 +3197,33 @@ class ClientDataService {
           const key = pt === undefined || pt === null ? 'unknown' : String(pt);
           principalTypes[key] = (principalTypes[key] || 0) + 1;
         }
-        out.members = { count: Array.isArray(arr) ? arr.length : 0, principalTypes };
+        out.members = {
+          count: Array.isArray(arr) ? arr.length : 0,
+          principalTypes,
+          debug: {
+            status: membersResp.status,
+            proxyMode: membersResp.headers.get('x-sp-proxy-mode') || undefined,
+            contentType: membersResp.headers.get('content-type') || undefined,
+            payloadType: !text
+              ? 'empty'
+              : typeof parsed === 'string'
+                ? 'string'
+                : parsed && typeof parsed === 'object'
+                  ? 'object'
+                  : 'unknown',
+            rawLength: typeof text === 'string' ? text.length : undefined,
+            hasValueArray:
+              parsed && typeof parsed === 'object' ? Array.isArray((parsed as any)?.value) : false,
+            hasDResultsArray:
+              parsed && typeof parsed === 'object'
+                ? Array.isArray((parsed as any)?.d?.results)
+                : false,
+            atomPropertiesBlocks:
+              typeof parsed === 'string'
+                ? (parsed.match(/<m:properties>/gi) || []).length
+                : undefined,
+          },
+        };
       }
 
       return out;
