@@ -1,5 +1,4 @@
 /* eslint-disable no-console */
-import got from 'got';
 import { getSharePointAuthHeaders } from '../utils/spAuth';
 import { resolveSharePointSiteUrl } from '../utils/sharepointEnv';
 
@@ -26,35 +25,16 @@ async function main() {
     console.log('[debugSpAuth] headers', redacted);
     const site = resolveSharePointSiteUrl().replace(/\/$/, '');
     const url = `${site}/_api/web/lists/getByTitle('RoadmapProjects')?$select=Id&$top=1`;
-    let status = 0;
-    let statusText = '';
-    let text = '';
-    if (auth.agent) {
-      const resp = await got(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json;odata=verbose',
-          ...headers,
-        },
-        throwHttpErrors: false,
-        responseType: 'text',
-        agent: { https: auth.agent, http: auth.agent },
-      });
-      status = resp.statusCode;
-      statusText = resp.statusMessage || '';
-      text = resp.body as string;
-    } else {
-      const res = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json;odata=verbose',
-          ...headers,
-        },
-      });
-      status = res.status;
-      statusText = res.statusText;
-      text = await res.text();
-    }
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json;odata=verbose',
+        ...headers,
+      },
+    });
+    const status = res.status;
+    const statusText = res.statusText;
+    const text = await res.text();
     console.log('[debugSpAuth] status', status, statusText);
     console.log('[debugSpAuth] body snippet', text.substring(0, 200));
   } catch (error) {

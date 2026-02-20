@@ -33,16 +33,20 @@ export function loadEncryptedSecrets(vaultPath?: string): boolean {
     }
 
     // Read and parse encrypted data
-    const encryptedData = JSON.parse(fs.readFileSync(resolvedPath, 'utf8'));
+    const encryptedData = JSON.parse(fs.readFileSync(resolvedPath, 'utf8')) as {
+      iv: string;
+      authTag: string;
+      encrypted: string;
+    };
+
+    const keyBytes = Uint8Array.from(Buffer.from(masterKey, 'hex'));
+    const ivBytes = Uint8Array.from(Buffer.from(encryptedData.iv, 'hex'));
+    const authTagBytes = Uint8Array.from(Buffer.from(encryptedData.authTag, 'hex'));
 
     // Decrypt
-    const decipher = crypto.createDecipheriv(
-      algorithm,
-      Buffer.from(masterKey, 'hex'),
-      Buffer.from(encryptedData.iv, 'hex')
-    );
+    const decipher = crypto.createDecipheriv(algorithm, keyBytes, ivBytes);
 
-    decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex'));
+    decipher.setAuthTag(authTagBytes);
 
     let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');

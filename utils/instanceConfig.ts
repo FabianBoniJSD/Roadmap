@@ -423,6 +423,6 @@ export function setInstanceCookieHeader(slug: string): string {
 }
 
 export function shouldSkipSharePointCache(config?: RoadmapInstanceConfig | null): boolean {
-  if (!config) return false;
-  return Boolean(config.sharePoint.authNoCache || config.sharePoint.forceSingleCreds);
+  void config;
+  return process.env.SP_AUTH_NO_CACHE === 'true';
 }

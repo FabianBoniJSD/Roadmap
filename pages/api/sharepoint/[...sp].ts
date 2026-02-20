@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-require-imports */
 import type { NextApiRequest, NextApiResponse } from 'next';
-import got, { type Method as GotMethod, type Response as GotResponse } from 'got';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import { getSharePointAuthHeaders, SharePointAuthContext } from '@/utils/spAuth';
 import { getInstanceConfigFromRequest, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
@@ -164,8 +163,6 @@ async function getDigest(site: string, auth: SharePointAuthContext): Promise<str
     'Content-Length': '0',
     ...auth.headers,
   };
-  const useGot = Boolean(auth.agent);
-  const authHeaderValue = String(headers.Authorization || headers.authorization || '');
   const makeFetchOpts = (insecure = false) => ({
     method: 'POST',
     headers,
@@ -176,22 +173,6 @@ async function getDigest(site: string, auth: SharePointAuthContext): Promise<str
     // @ts-ignore optional legacy agent
     agent: insecure ? new https.Agent({ rejectUnauthorized: false }) : sharePointHttpsAgent,
   });
-  if (useGot && !authHeaderValue.toLowerCase().startsWith('bearer ')) {
-    const gotResp = await got(url, {
-      method: 'POST',
-      headers,
-      body: '',
-      throwHttpErrors: false,
-      agent: auth.agent ? { https: auth.agent, http: auth.agent } : undefined,
-    });
-    if (gotResp.statusCode !== 200) throw new Error('Failed to get contextinfo');
-    const parsed = JSON.parse(gotResp.body as string);
-    digestCache[cacheKey] = {
-      value: parsed.FormDigestValue,
-      expires: now + parsed.FormDigestTimeoutSeconds * 1000 - 60000,
-    };
-    return digestCache[cacheKey].value;
-  }
   let r: Response;
   try {
     r = await fetch(url, makeFetchOpts(false) as any);
@@ -602,7 +583,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const authContext = await getSharePointAuthHeaders(instance);
     const authHeaders = authContext.headers;
-    const authAgent = authContext.agent;
     if ((process.env.SP_STRATEGY || '') === 'kerberos') {
       res.setHeader('x-sp-auth-mode', 'kerberos');
     }
@@ -677,18 +657,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const effectiveMethod = method === 'PATCH' ? 'POST' : method;
-    const shouldSendBody =
-      Boolean(preparedBody) && effectiveMethod !== 'GET' && effectiveMethod !== 'HEAD';
-    const normalizeBodyForGot = (body: BodyInit | undefined): Buffer | string | undefined => {
-      if (body == null) return undefined;
-      if (typeof body === 'string') return body;
-      if (Buffer.isBuffer(body)) return body;
-      if (body instanceof ArrayBuffer) return Buffer.from(body);
-      if (ArrayBuffer.isView(body))
-        return Buffer.from(body.buffer, body.byteOffset, body.byteLength);
-      return undefined;
-    };
-    const gotBodyPayload = normalizeBodyForGot(preparedBody);
     const logOutgoingHeaders = (h: Record<string, string>) => {
       if (process.env.SP_PROXY_DEBUG !== 'true') return;
       const redacted: Record<string, string> = {};
@@ -718,35 +686,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const h = { ...headers };
       if (acceptOverride) h['Accept'] = acceptOverride;
       logOutgoingHeaders(h);
-      if (authAgent && !insecure) {
-        const resp = (await got(targetUrl, {
-          method: effectiveMethod as GotMethod,
-          headers: h,
-          body: shouldSendBody ? (gotBodyPayload ?? '') : undefined,
-          throwHttpErrors: false,
-          responseType: 'buffer',
-          agent: { https: authAgent, http: authAgent },
-        })) as GotResponse<Buffer>;
-        const gotHeaders = new Headers();
-        Object.entries(resp.headers).forEach(([key, value]) => {
-          if (Array.isArray(value)) gotHeaders.set(key, value.join(', '));
-          else if (typeof value === 'string') gotHeaders.set(key, value);
-        });
-        const bufferBody = resp.body as Buffer;
-        const disallowBodyStatuses = new Set([204, 205, 304]);
-        let responseBody: ArrayBuffer | null = null;
-        if (!disallowBodyStatuses.has(resp.statusCode)) {
-          responseBody = bufferBody.buffer.slice(
-            bufferBody.byteOffset,
-            bufferBody.byteOffset + bufferBody.byteLength
-          ) as ArrayBuffer;
-        }
-        return new Response(responseBody, {
-          status: resp.statusCode,
-          statusText: resp.statusMessage || '',
-          headers: gotHeaders,
-        });
-      }
       return fetch(targetUrl, {
         method: effectiveMethod,
         headers: h,
