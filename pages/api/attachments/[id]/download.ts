@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { extname } from 'path';
 import { clientDataService } from '@/utils/clientDataService';
 import { requireAdminSession } from '@/utils/apiAuth';
+import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import {
   getInstanceConfigFromRequest,
@@ -63,8 +64,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  let session: ReturnType<typeof requireAdminSession>;
   try {
-    requireAdminSession(req);
+    session = requireAdminSession(req);
   } catch {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -86,6 +88,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (!instance) {
       return res.status(404).json({ error: 'No roadmap instance configured for this request' });
+    }
+
+    if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
     let listTitle = 'RoadmapProjects';

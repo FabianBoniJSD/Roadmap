@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
 import { requireAdminSession } from '@/utils/apiAuth';
+import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import {
   getInstanceConfigFromRequest,
   INSTANCE_COOKIE_NAME,
@@ -106,8 +107,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!id || Array.isArray(id)) return res.status(400).json({ error: 'Invalid id' });
 
+  let session: ReturnType<typeof requireAdminSession>;
   try {
-    requireAdminSession(req);
+    session = requireAdminSession(req);
   } catch {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -122,6 +124,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (!instance) {
       return res.status(404).json({ error: 'No roadmap instance configured for this request' });
+    }
+
+    if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
     const baseUrl =

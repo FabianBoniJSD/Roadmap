@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import type { GetServerSideProps } from 'next';
 import Roadmap from '../components/Roadmap';
@@ -23,6 +23,9 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects, accessDenied }) => 
     return Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
   }, [router.query]);
   const [projectsState, setProjectsState] = useState<Project[]>(projects);
+  const [accessDeniedState, setAccessDeniedState] = useState<boolean>(Boolean(accessDenied));
+  const [loading, setLoading] = useState<boolean>(false);
+  const prevInstanceSlugRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Keep client state in sync if SSR provided data changes (e.g., hot reload)
@@ -30,24 +33,73 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects, accessDenied }) => 
   }, [projects]);
 
   useEffect(() => {
-    // When switching instances client-side, refetch projects immediately
+    setAccessDeniedState(Boolean(accessDenied));
+  }, [accessDenied]);
+
+  useEffect(() => {
+    // When switching instances client-side, refetch via protected API routes
+    // (avoid direct SharePoint proxy calls which bypass instance access checks).
     if (!router.isReady) return;
-    clientDataService
-      .getAllProjects()
-      .then((next) => {
-        if (Array.isArray(next)) setProjectsState(next);
-      })
-      .catch((err) => {
+
+    const currentSlug = String(instanceSlug || '');
+    if (prevInstanceSlugRef.current === null) {
+      prevInstanceSlugRef.current = currentSlug;
+      return;
+    }
+    if (prevInstanceSlugRef.current === currentSlug) return;
+    prevInstanceSlugRef.current = currentSlug;
+
+    const controller = new AbortController();
+    const run = async () => {
+      setLoading(true);
+      setProjectsState([]);
+      try {
+        const url = instanceSlug
+          ? `/api/projects?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(instanceSlug)}`
+          : '/api/projects';
+        const resp = await fetch(url, {
+          credentials: 'same-origin',
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        });
+
+        if (resp.status === 401) {
+          const returnUrl = typeof router.asPath === 'string' ? router.asPath : '/roadmap';
+          void router.push(`/admin/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+          return;
+        }
+
+        if (resp.status === 403) {
+          setAccessDeniedState(true);
+          setProjectsState([]);
+          return;
+        }
+
+        if (!resp.ok) {
+          const payload = await resp.json().catch(() => null);
+          throw new Error(payload?.error || `Failed to fetch projects (${resp.status})`);
+        }
+
+        const data = await resp.json();
+        setAccessDeniedState(false);
+        setProjectsState(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if ((err as { name?: string })?.name === 'AbortError') return;
         console.error('[roadmap] client refetch failed after instance change', err);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instanceSlug]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void run();
+    return () => controller.abort();
+  }, [instanceSlug, router]);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteHeader activeRoute="roadmap" />
       <main className="flex-1 pt-12">
-        {accessDenied ? (
+        {accessDeniedState ? (
           <div className="mx-auto w-full max-w-4xl px-6 py-16 sm:px-8">
             <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-8 shadow-xl shadow-slate-950/40">
               <h1 className="text-xl font-semibold text-white">Kein Zugriff</h1>
@@ -60,7 +112,20 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects, accessDenied }) => 
             </div>
           </div>
         ) : (
-          <Roadmap initialProjects={projectsState} />
+          <>
+            {loading && projectsState.length === 0 ? (
+              <div className="mx-auto w-full max-w-4xl px-6 py-16 sm:px-8">
+                <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-8 shadow-xl shadow-slate-950/40">
+                  <h1 className="text-lg font-semibold text-white">Lade Roadmap …</h1>
+                  <p className="mt-3 text-sm text-slate-300">
+                    Projekte werden für die ausgewählte Instanz geladen.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <Roadmap initialProjects={projectsState} />
+            )}
+          </>
         )}
       </main>
       <SiteFooter />

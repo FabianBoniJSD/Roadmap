@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useEffect, useState, type FC, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FC, type ReactNode } from 'react';
 import type { GetServerSideProps } from 'next';
 import { FiArrowLeft, FiExternalLink, FiInfo } from 'react-icons/fi';
 import JSDoITLoader from '@/components/JSDoITLoader';
@@ -9,7 +9,6 @@ import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import { Project, TeamMember } from '@/types';
 import { hasAdminAccess } from '@/utils/auth';
-import { clientDataService } from '@/utils/clientDataService';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { setInstanceCookieHeader } from '@/utils/instanceConfig';
@@ -70,9 +69,15 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
   const router = useRouter();
   const { id } = router.query;
 
+  const instanceSlug = useMemo(() => {
+    const raw = router.query?.[INSTANCE_QUERY_PARAM];
+    return Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
+  }, [router.query]);
+
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [accessDeniedState, setAccessDeniedState] = useState<boolean>(Boolean(accessDenied));
   const [attachments, setAttachments] = useState<
     Array<{ FileName: string; ServerRelativeUrl: string }>
   >([]);
@@ -91,20 +96,72 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
   };
 
   useEffect(() => {
+    setAccessDeniedState(Boolean(accessDenied));
+  }, [accessDenied]);
+
+  useEffect(() => {
     const fetchProject = async () => {
       if (!id) return;
-      if (accessDenied) return;
+      if (accessDeniedState) return;
       try {
         setLoading(true);
-        const data = await clientDataService.getProjectById(id as string);
-        if (!data) {
-          setProject(null);
+
+        const projectUrl = instanceSlug
+          ? `/api/projects/${encodeURIComponent(String(id))}?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(instanceSlug)}`
+          : `/api/projects/${encodeURIComponent(String(id))}`;
+
+        const projectResp = await fetch(projectUrl, {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        });
+
+        if (projectResp.status === 401) {
+          const returnUrl = typeof router.asPath === 'string' ? router.asPath : '/roadmap';
+          void router.push(`/admin/login?returnUrl=${encodeURIComponent(returnUrl)}`);
           return;
         }
+
+        if (projectResp.status === 403) {
+          setAccessDeniedState(true);
+          setProject(null);
+          setAttachments([]);
+          return;
+        }
+
+        if (!projectResp.ok) {
+          if (projectResp.status === 404) {
+            setProject(null);
+            setAttachments([]);
+            return;
+          }
+          const payload = await projectResp.json().catch(() => null);
+          throw new Error(payload?.error || `Failed to fetch project (${projectResp.status})`);
+        }
+
+        const data = await projectResp.json();
+        setAccessDeniedState(false);
         setProject(data);
+
+        const attachmentsUrl = instanceSlug
+          ? `/api/attachments/${encodeURIComponent(String(id))}?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(instanceSlug)}`
+          : `/api/attachments/${encodeURIComponent(String(id))}`;
+
         try {
-          const files = await clientDataService.listAttachments(id as string);
-          setAttachments(files);
+          const attResp = await fetch(attachmentsUrl, {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          });
+
+          if (attResp.status === 401) {
+            setAttachments([]);
+          } else if (attResp.status === 403) {
+            setAttachments([]);
+          } else if (!attResp.ok) {
+            setAttachments([]);
+          } else {
+            const files = await attResp.json();
+            setAttachments(Array.isArray(files) ? files : []);
+          }
         } catch {
           setAttachments([]);
         }
@@ -117,7 +174,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
     };
 
     fetchProject();
-  }, [id, accessDenied]);
+  }, [id, accessDeniedState, instanceSlug, router]);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -132,7 +189,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
     checkAdmin();
   }, []);
 
-  if (accessDenied) {
+  if (accessDeniedState) {
     return (
       <PageShell>
         <main className="flex flex-1 items-center justify-center px-6 py-16">
