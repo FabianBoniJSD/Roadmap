@@ -751,7 +751,7 @@ export async function provisionSharePointForInstance(
   };
 
   const siteUrl = resolveSharePointSiteUrl(instance);
-  const strategy = instance?.sharePoint?.strategy || process.env.SP_STRATEGY || 'online';
+  const strategy = instance?.sharePoint?.strategy || process.env.SP_STRATEGY || 'kerberos';
 
   await clientDataService.withInstance(instance.slug, async () => {
     try {

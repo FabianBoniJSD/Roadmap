@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
+/* eslint-disable no-console */
+
 const algorithm = 'aes-256-gcm';
 const MASTER_KEY_ENV = 'SECRETS_MASTER_KEY';
 
@@ -14,7 +16,9 @@ export function loadEncryptedSecrets(vaultPath?: string): boolean {
   const masterKey = process.env[MASTER_KEY_ENV];
   if (!masterKey) {
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[Secrets] SECRETS_MASTER_KEY not set, skipping encrypted secrets (using .env.local)');
+      console.log(
+        '[Secrets] SECRETS_MASTER_KEY not set, skipping encrypted secrets (using .env.local)'
+      );
     }
     return false;
   }
@@ -34,11 +38,11 @@ export function loadEncryptedSecrets(vaultPath?: string): boolean {
     // Decrypt
     const decipher = crypto.createDecipheriv(
       algorithm,
-      Buffer.from(masterKey, 'hex') as any,
-      Buffer.from(encryptedData.iv, 'hex') as any
+      Buffer.from(masterKey, 'hex'),
+      Buffer.from(encryptedData.iv, 'hex')
     );
 
-    decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex') as any);
+    decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex'));
 
     let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
@@ -64,8 +68,9 @@ export function loadEncryptedSecrets(vaultPath?: string): boolean {
 
     console.log(`[Secrets] ✅ Loaded ${loadedCount} secret(s) from encrypted vault`);
     return true;
-  } catch (error: any) {
-    console.error('[Secrets] ❌ Failed to load encrypted secrets:', error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[Secrets] ❌ Failed to load encrypted secrets:', message);
     if (process.env.NODE_ENV === 'production') {
       // In production, fail hard if decryption fails
       throw new Error('Failed to decrypt production secrets. Check SECRETS_MASTER_KEY.');
@@ -130,7 +135,9 @@ export function validateSecretsConfiguration(): {
 export function maskSensitiveEnv(envVar: string | undefined): string {
   if (!envVar) return '(not set)';
   if (envVar.length <= 4) return '****';
-  return envVar.substring(0, 2) + '*'.repeat(envVar.length - 4) + envVar.substring(envVar.length - 2);
+  return (
+    envVar.substring(0, 2) + '*'.repeat(envVar.length - 4) + envVar.substring(envVar.length - 2)
+  );
 }
 
 /**
@@ -146,7 +153,7 @@ export function logEnvironmentStatus(): void {
   console.log('\n📋 Configuration:');
   console.log(`   Environment: ${process.env.NEXT_PUBLIC_DEPLOYMENT_ENV || 'development'}`);
   console.log(`   Node Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`   Auth Strategy: ${process.env.SP_STRATEGY || 'online'}`);
+  console.log(`   Auth Strategy: ${process.env.SP_STRATEGY || 'kerberos'}`);
   console.log(`   SharePoint User: ${maskSensitiveEnv(process.env.SP_USERNAME)}`);
   console.log(`   JWT Secret: ${maskSensitiveEnv(process.env.JWT_SECRET)}`);
   console.log(

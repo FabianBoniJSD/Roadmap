@@ -59,16 +59,7 @@ export interface RoadmapInstanceSharePointSettings {
   strategy: string;
   username?: string;
   password?: string;
-  domain?: string | null;
-  workstation?: string | null;
   allowSelfSigned?: boolean;
-  needsProxy?: boolean;
-  extraModes: string[];
-  forceSingleCreds?: boolean;
-  authNoCache?: boolean;
-  manualNtlmFallback?: boolean;
-  ntlmPersistentSocket?: boolean;
-  ntlmSocketProbe?: boolean;
   trustedCaPath?: string | null;
 }
 

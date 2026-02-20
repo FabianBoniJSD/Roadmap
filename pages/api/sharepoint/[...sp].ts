@@ -299,17 +299,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   applyNoCacheHeaders(res);
 
   try {
-    // Optional curl path: supports NTLM (with user/pass) and Kerberos (with system creds via kinit)
+    // Optional curl path: Kerberos only (legacy modes removed)
     const strategy = instance.sharePoint.strategy || process.env.SP_STRATEGY || '';
     if (process.env.SP_USE_CURL === 'true') {
-      const username = instance.sharePoint.username || process.env.SP_USERNAME || '';
-      const password = instance.sharePoint.password || process.env.SP_PASSWORD || '';
-      const isKerb = strategy === 'kerberos';
-      const allowNtlmFallback = process.env.SP_FALLBACK_NTLM === 'true' && !!username && !!password;
-      const domain =
-        instance.sharePoint.domain || (username.includes('\\') ? username.split('\\')[0] : '');
-      const userPart = username.includes('\\') ? username.split('\\')[1] : username;
-      const cred = domain ? `${domain}\\${userPart}:${password}` : `${userPart}:${password}`;
+      const isKerb = String(strategy).trim().toLowerCase() === 'kerberos';
+      if (!isKerb) {
+        return res.status(400).json({
+          error: 'curl-mode-requires-kerberos',
+          detail: 'Legacy curl auth mode has been removed; use SP_STRATEGY=kerberos.',
+        });
+      }
+      // In negotiate mode curl uses the process identity (Kerberos ticket).
+      const cred = ':';
       const targetUrl = site.replace(/\/$/, '') + fullPath;
       const clientAccept =
         typeof req.headers['accept'] === 'string'
@@ -331,7 +332,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (method === 'HEAD') {
           const headArgs: string[] = [
             '-sS',
-            '--ntlm',
+            '--negotiate',
             '--user',
             cred,
             '--noproxy',
@@ -357,84 +358,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               );
             });
             res.setHeader('x-sp-proxy-mode', 'curl');
-            if (process.env.SP_CURL_VERBOSE === 'true') res.setHeader('x-sp-proxy-ntlm', '1');
             return res.status(200).json({ ok: true });
           } catch (e: any) {
-            if (isKerb && allowNtlmFallback) {
-              try {
-                const ntlmHeadArgs: string[] = [
-                  '-sS',
-                  '--ntlm',
-                  '--user',
-                  cred,
-                  '--noproxy',
-                  '*',
-                  '-I',
-                  '-H',
-                  `Accept: ${clientAccept}`,
-                  targetUrl,
-                ];
-                if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ntlmHeadArgs.unshift('-k');
-                else if (caPath) ntlmHeadArgs.unshift('--cacert', caPath);
-                if (process.env.SP_CURL_VERBOSE === 'true') ntlmHeadArgs.unshift('-v');
-                await new Promise((resolveExec, rejectExec) => {
-                  execFile('curl', ntlmHeadArgs, { timeout: 15000 }, (err: any) => {
-                    if (err) return rejectExec(err);
-                    resolveExec(null);
-                  });
-                });
-                res.setHeader('x-sp-proxy-mode', 'curl');
-                res.setHeader('x-sp-proxy-fallback', 'ntlm');
-                return res.status(200).json({ ok: true });
-              } catch (ee: any) {
-                return res.status(500).json({
-                  error: 'curl-head-failed',
-                  detail: ee.message,
-                  stderr: ee.stderr,
-                  fallbackTried: 'ntlm',
-                });
-              }
-            }
             return res
               .status(500)
               .json({ error: 'curl-head-failed', detail: e.message, stderr: e.stderr });
           }
         }
         // Prepare common args
-        const curlArgs: string[] = isKerb
-          ? [
-              '-sS',
-              '--negotiate',
-              '--user',
-              cred,
-              '--noproxy',
-              '*',
-              '-X',
-              method,
-              '-H',
-              `Accept: ${clientAccept}`,
-            ]
-          : [
-              '-sS',
-              '--ntlm',
-              '--user',
-              cred,
-              '--noproxy',
-              '*',
-              '-X',
-              method,
-              '-H',
-              `Accept: ${clientAccept}`,
-            ];
+        const curlArgs: string[] = [
+          '-sS',
+          '--negotiate',
+          '--user',
+          cred,
+          '--noproxy',
+          '*',
+          '-X',
+          method,
+          '-H',
+          `Accept: ${clientAccept}`,
+        ];
         if (process.env.SP_ALLOW_SELF_SIGNED === 'true') curlArgs.unshift('-k');
         if (process.env.SP_CURL_VERBOSE === 'true') curlArgs.unshift('-v');
 
         // If not contextinfo, fetch a FormDigest via curl first
         let formDigest: string | null = null;
         if (!isContextInfo) {
-          const ciArgs = isKerb
-            ? ['-sS', '--negotiate', '--user', cred, '--noproxy', '*', '-X', 'POST']
-            : ['-sS', '--ntlm', '--user', cred, '--noproxy', '*', '-X', 'POST'];
+          const ciArgs = ['-sS', '--negotiate', '--user', cred, '--noproxy', '*', '-X', 'POST'];
           if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ciArgs.unshift('-k');
           else if (caPath) ciArgs.unshift('--cacert', caPath);
           if (process.env.SP_CURL_VERBOSE === 'true') ciArgs.unshift('-v');
@@ -463,31 +413,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               formDigest = null;
             }
           } catch {
-            if (isKerb && allowNtlmFallback) {
-              try {
-                const ciNArgs = ['-sS', '--ntlm', '--user', cred, '--noproxy', '*', '-X', 'POST'];
-                if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ciNArgs.unshift('-k');
-                else if (caPath) ciNArgs.unshift('--cacert', caPath);
-                if (process.env.SP_CURL_VERBOSE === 'true') ciNArgs.unshift('-v');
-                ciNArgs.push('-H', 'Accept: application/json;odata=nometadata');
-                ciNArgs.push(targetUrl.replace(fullPath, '') + '/_api/contextinfo');
-                ciNArgs.push('-H', 'Content-Length: 0');
-                const ciNOut: { stdout: string } = await new Promise((resolveExec, rejectExec) => {
-                  execFile('curl', ciNArgs, { timeout: 15000 }, (err: any, stdout: string) => {
-                    if (err) return rejectExec(err);
-                    resolveExec({ stdout });
-                  });
-                });
-                try {
-                  const j = JSON.parse(ciNOut.stdout);
-                  formDigest = j.FormDigestValue || null;
-                } catch {
-                  formDigest = null;
-                }
-              } catch {
-                // ignore; will attempt without digest (likely fails)
-              }
-            }
+            // ignore; will attempt without digest (likely fails)
           }
         }
 
@@ -560,89 +486,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             /* ignore */
           }
           res.setHeader('x-sp-proxy-mode', 'curl');
-          if (process.env.SP_CURL_VERBOSE === 'true') res.setHeader('x-sp-proxy-ntlm', '1');
           invalidateCurlCache();
           return res.status(200).json(parsed);
         } catch (e: any) {
-          if (isKerb && allowNtlmFallback) {
-            try {
-              const ntlmCurlArgs: string[] = [
-                '-sS',
-                '--ntlm',
-                '--user',
-                cred,
-                '--noproxy',
-                '*',
-                '-X',
-                method,
-                '-H',
-                `Accept: ${clientAccept}`,
-              ];
-              if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ntlmCurlArgs.unshift('-k');
-              else if (caPath) ntlmCurlArgs.unshift('--cacert', caPath);
-              if (process.env.SP_CURL_VERBOSE === 'true') ntlmCurlArgs.unshift('-v');
-              const ntlmWriteArgs = [...ntlmCurlArgs, ...hdrs, ...dataArgs, targetUrl];
-              const out2 = await runCurl(ntlmWriteArgs, {
-                timeout: 20000,
-                input: bodyBuffer ?? undefined,
-              });
-              let parsed2: any = out2.stdout;
-              try {
-                parsed2 = JSON.parse(out2.stdout);
-              } catch {}
-              res.setHeader('x-sp-proxy-mode', 'curl');
-              res.setHeader('x-sp-proxy-fallback', 'ntlm');
-              invalidateCurlCache();
-              return res.status(200).json(parsed2);
-            } catch (ee: any) {
-              return res.status(500).json({
-                error: 'curl-post-failed',
-                detail: ee.message,
-                stderr: ee.stderr,
-                fallbackTried: 'ntlm',
-              });
-            }
-          }
           return res
             .status(500)
             .json({ error: 'curl-post-failed', detail: e.message, stderr: e.stderr });
         }
       }
       // Sanitize allowed path already checked earlier; still ensure no shell injection (use execFile arg array)
-      const curlArgs = isKerb
-        ? [
-            '-sS',
-            '--negotiate',
-            '--user',
-            cred,
-            '--noproxy',
-            '*',
-            '--connect-timeout',
-            '5',
-            '--retry',
-            '1',
-            '-H',
-            `Accept: ${clientAccept}`,
-            targetUrl,
-          ]
-        : [
-            '-sS',
-            '--ntlm',
-            '--user',
-            cred,
-            '--noproxy',
-            '*',
-            '--connect-timeout',
-            '5',
-            '--retry',
-            '1',
-            '-H',
-            `Accept: ${clientAccept}`,
-            targetUrl,
-          ];
+      const curlArgs = [
+        '-sS',
+        '--negotiate',
+        '--user',
+        cred,
+        '--noproxy',
+        '*',
+        '--connect-timeout',
+        '5',
+        '--retry',
+        '1',
+        '-H',
+        `Accept: ${clientAccept}`,
+        targetUrl,
+      ];
       if (process.env.SP_ALLOW_SELF_SIGNED === 'true') curlArgs.unshift('-k');
       else if (caPath) curlArgs.unshift('--cacert', caPath);
-      if (process.env.SP_ALLOW_SELF_SIGNED === 'true') curlArgs.unshift('-k');
       if (process.env.SP_CURL_VERBOSE === 'true') curlArgs.unshift('-v');
       const start = Date.now();
       const output: { stdout: string; stderr: string } = await new Promise(
@@ -659,50 +528,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       );
       const duration = Date.now() - start;
-      let rawOut = output.stdout;
+      const rawOut = output.stdout;
       let normalized: any = null;
-      const looksUnauthorized =
-        /401\s*UNAUTHORIZED/i.test(String(rawOut)) ||
-        (/^\s*<html/i.test(String(rawOut)) && /401/i.test(String(rawOut)));
-      if (isKerb && allowNtlmFallback && looksUnauthorized) {
-        try {
-          const ntlmArgs = [
-            '-sS',
-            '--ntlm',
-            '--user',
-            cred,
-            '--noproxy',
-            '*',
-            '--connect-timeout',
-            '5',
-            '--retry',
-            '1',
-            '-H',
-            `Accept: ${clientAccept}`,
-            targetUrl,
-          ];
-          if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ntlmArgs.unshift('-k');
-          else if (caPath) ntlmArgs.unshift('--cacert', caPath);
-          if (process.env.SP_CURL_VERBOSE === 'true') ntlmArgs.unshift('-v');
-          const out2: { stdout: string; stderr: string } = await new Promise(
-            (resolveExec, rejectExec) => {
-              execFile(
-                'curl',
-                ntlmArgs,
-                { timeout: 15000 },
-                (err: any, stdout: string, stderr: string) => {
-                  if (err) return rejectExec(Object.assign(err, { stderr }));
-                  resolveExec({ stdout, stderr });
-                }
-              );
-            }
-          );
-          rawOut = out2.stdout;
-          res.setHeader('x-sp-proxy-fallback', 'ntlm');
-        } catch {
-          // keep original rawOut
-        }
-      }
       // Attempt JSON parse first if looks like JSON
       if (/^\s*\{/.test(rawOut)) {
         try {
@@ -767,7 +594,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Provide minimal telemetry via headers
       res.setHeader('x-sp-proxy-mode', 'curl');
       res.setHeader('x-sp-proxy-ms', String(duration));
-      if (process.env.SP_CURL_VERBOSE === 'true') res.setHeader('x-sp-proxy-ntlm', '1');
       if (req.method === 'GET' && cacheSeconds > 0) {
         curlCache[cacheKey] = { expires: Date.now() + cacheSeconds * 1000, payload: bodyToSend };
       }
@@ -776,7 +602,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const authContext = await getSharePointAuthHeaders(instance);
     const authHeaders = authContext.headers;
-    const ntlmAgent = authContext.agent;
+    const authAgent = authContext.agent;
     if ((process.env.SP_STRATEGY || '') === 'kerberos') {
       res.setHeader('x-sp-auth-mode', 'kerberos');
     }
@@ -892,14 +718,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const h = { ...headers };
       if (acceptOverride) h['Accept'] = acceptOverride;
       logOutgoingHeaders(h);
-      if (ntlmAgent && !insecure) {
+      if (authAgent && !insecure) {
         const resp = (await got(targetUrl, {
           method: effectiveMethod as GotMethod,
           headers: h,
           body: shouldSendBody ? (gotBodyPayload ?? '') : undefined,
           throwHttpErrors: false,
           responseType: 'buffer',
-          agent: { https: ntlmAgent, http: ntlmAgent },
+          agent: { https: authAgent, http: authAgent },
         })) as GotResponse<Buffer>;
         const gotHeaders = new Headers();
         Object.entries(resp.headers).forEach(([key, value]) => {

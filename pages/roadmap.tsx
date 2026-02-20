@@ -126,7 +126,7 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects, accessDenied }) => 
                 </div>
               </div>
             ) : (
-              <Roadmap initialProjects={projectsState} />
+              <Roadmap key={String(instanceSlug || 'default')} initialProjects={projectsState} />
             )}
           </>
         )}

@@ -170,22 +170,10 @@ export const mapInstanceRecord = (record: PrismaInstanceWithHosts): RoadmapInsta
   const sharePoint: RoadmapInstanceSharePointSettings = {
     siteUrlDev: record.sharePointSiteUrlDev,
     siteUrlProd: record.sharePointSiteUrlProd || record.sharePointSiteUrlDev,
-    strategy: record.sharePointStrategy || 'onprem',
+    strategy: record.sharePointStrategy || 'kerberos',
     username: record.spUsername || undefined,
     password: record.spPassword || undefined,
-    domain: record.spDomain || undefined,
-    workstation: record.spWorkstation || undefined,
     allowSelfSigned: record.allowSelfSigned,
-    needsProxy: record.needsProxy,
-    extraModes: (record.extraAuthModes || '')
-      .split(',')
-      .map((mode) => mode.trim().toLowerCase())
-      .filter(Boolean),
-    forceSingleCreds: record.forceSingleCreds,
-    authNoCache: record.authNoCache,
-    manualNtlmFallback: record.manualNtlmFallback,
-    ntlmPersistentSocket: record.ntlmPersistentSocket,
-    ntlmSocketProbe: record.ntlmSocketProbe,
     trustedCaPath: record.trustedCaPath || undefined,
   };
 

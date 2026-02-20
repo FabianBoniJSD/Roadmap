@@ -33,17 +33,8 @@ type AdminFormState = {
   sharePointStrategy: string;
   spUsername: string;
   spPassword: string;
-  spDomain: string;
-  spWorkstation: string;
   allowSelfSigned: boolean;
-  needsProxy: boolean;
-  forceSingleCreds: boolean;
-  authNoCache: boolean;
-  manualNtlmFallback: boolean;
-  ntlmPersistentSocket: boolean;
-  ntlmSocketProbe: boolean;
   trustedCaPath: string;
-  extraModes: string;
   hostsInput: string;
 };
 
@@ -58,20 +49,11 @@ const defaultForm: AdminFormState = {
   landingPage: '',
   sharePointSiteUrlDev: '',
   sharePointSiteUrlProd: '',
-  sharePointStrategy: 'onprem',
+  sharePointStrategy: 'kerberos',
   spUsername: '',
   spPassword: '',
-  spDomain: '',
-  spWorkstation: '',
   allowSelfSigned: false,
-  needsProxy: false,
-  forceSingleCreds: false,
-  authNoCache: false,
-  manualNtlmFallback: false,
-  ntlmPersistentSocket: false,
-  ntlmSocketProbe: false,
   trustedCaPath: '',
-  extraModes: '',
   hostsInput: '',
 };
 
@@ -406,20 +388,11 @@ const AdminInstancesPage = () => {
       landingPage: instance.landingPage || '',
       sharePointSiteUrlDev: instance.sharePoint.siteUrlDev,
       sharePointSiteUrlProd: instance.sharePoint.siteUrlProd,
-      sharePointStrategy: instance.sharePoint.strategy || 'onprem',
+      sharePointStrategy: instance.sharePoint.strategy || 'kerberos',
       spUsername: '',
       spPassword: '',
-      spDomain: instance.sharePoint.domain || '',
-      spWorkstation: instance.sharePoint.workstation || '',
       allowSelfSigned: Boolean(instance.sharePoint.allowSelfSigned),
-      needsProxy: Boolean(instance.sharePoint.needsProxy),
-      forceSingleCreds: Boolean(instance.sharePoint.forceSingleCreds),
-      authNoCache: Boolean(instance.sharePoint.authNoCache),
-      manualNtlmFallback: Boolean(instance.sharePoint.manualNtlmFallback),
-      ntlmPersistentSocket: Boolean(instance.sharePoint.ntlmPersistentSocket),
-      ntlmSocketProbe: Boolean(instance.sharePoint.ntlmSocketProbe),
       trustedCaPath: instance.sharePoint.trustedCaPath || '',
-      extraModes: instance.sharePoint.extraModes.join(', '),
       hostsInput: instance.hosts.join(', '),
     });
   };
@@ -439,17 +412,8 @@ const AdminInstancesPage = () => {
       sharePointStrategy,
       spUsername,
       spPassword,
-      spDomain,
-      spWorkstation,
       allowSelfSigned,
-      needsProxy,
-      forceSingleCreds,
-      authNoCache,
-      manualNtlmFallback,
-      ntlmPersistentSocket,
-      ntlmSocketProbe,
       trustedCaPath,
-      extraModes,
       hostsInput,
     } = form;
 
@@ -474,20 +438,8 @@ const AdminInstancesPage = () => {
         strategy: sharePointStrategy,
         username: spUsername || undefined,
         password: spPassword || undefined,
-        domain: spDomain || undefined,
-        workstation: spWorkstation || undefined,
         allowSelfSigned,
-        needsProxy,
-        forceSingleCreds,
-        authNoCache,
-        manualNtlmFallback,
-        ntlmPersistentSocket,
-        ntlmSocketProbe,
         trustedCaPath: trustedCaPath || undefined,
-        extraModes: extraModes
-          .split(',')
-          .map((mode) => mode.trim().toLowerCase())
-          .filter(Boolean),
       },
     };
   };
@@ -938,8 +890,6 @@ const AdminInstancesPage = () => {
                 value={form.sharePointStrategy}
                 onChange={(e) => updateField('sharePointStrategy', e.target.value)}
               >
-                <option value="onprem">onprem</option>
-                <option value="online">online</option>
                 <option value="kerberos">kerberos</option>
                 <option value="fba">fba</option>
                 <option value="basic">basic</option>
@@ -974,28 +924,7 @@ const AdminInstancesPage = () => {
               </label>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-slate-300">Domain</span>
-                <input
-                  type="text"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
-                  value={form.spDomain}
-                  onChange={(e) => updateField('spDomain', e.target.value)}
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-slate-300">Workstation</span>
-                <input
-                  type="text"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
-                  value={form.spWorkstation}
-                  onChange={(e) => updateField('spWorkstation', e.target.value)}
-                />
-              </label>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-1">
               <label className="space-y-1">
                 <span className="text-slate-300">Hosts (Komma oder Zeilenumbrüche)</span>
                 <textarea
@@ -1003,15 +932,6 @@ const AdminInstancesPage = () => {
                   className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
                   value={form.hostsInput}
                   onChange={(e) => updateField('hostsInput', e.target.value)}
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-slate-300">Extra Modes (comma separated)</span>
-                <input
-                  type="text"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
-                  value={form.extraModes}
-                  onChange={(e) => updateField('extraModes', e.target.value)}
                 />
               </label>
             </div>
@@ -1058,27 +978,15 @@ const AdminInstancesPage = () => {
               </label>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              {[
-                ['allowSelfSigned', 'Self-Signed Zertifikate erlauben'],
-                ['needsProxy', 'Proxy erzwingen (node-sp-auth)'],
-                ['forceSingleCreds', 'Nur primäre Credential-Permutation'],
-                ['authNoCache', 'Keine Cache Nutzung'],
-                ['manualNtlmFallback', 'Manuelles NTLM Fallback'],
-                ['ntlmPersistentSocket', 'Persistente NTLM Socket'],
-                ['ntlmSocketProbe', 'NTLM Socket Probe'],
-              ].map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2 text-slate-300">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-sky-500 focus:ring-sky-500"
-                    checked={Boolean(form[key as keyof AdminFormState])}
-                    onChange={(e) => updateField(key as keyof AdminFormState, e.target.checked)}
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
+            <label className="flex items-center gap-2 text-slate-300">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-sky-500 focus:ring-sky-500"
+                checked={Boolean(form.allowSelfSigned)}
+                onChange={(e) => updateField('allowSelfSigned', e.target.checked)}
+              />
+              <span>Self-Signed Zertifikate erlauben</span>
+            </label>
 
             <button
               type="button"
@@ -1187,7 +1095,7 @@ const AdminInstancesPage = () => {
                       <div>
                         <h3 className="text-lg font-semibold text-white">{instance.displayName}</h3>
                         <p className="text-xs uppercase tracking-wide text-slate-400">
-                          {instance.slug} • {instance.sharePoint.strategy || 'onprem'}
+                          {instance.slug} • {instance.sharePoint.strategy || 'kerberos'}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">

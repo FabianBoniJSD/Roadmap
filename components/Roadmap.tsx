@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import type { ParsedUrlQuery } from 'querystring';
 import RoadmapYearNavigation from './RoadmapYearNavigation';
 import { Category, Project } from '../types';
-import { clientDataService } from '../utils/clientDataService';
 import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '../utils/instanceConfig';
 import { normalizeCategoryId, UNCATEGORIZED_ID } from '../utils/categoryUtils';
 import CategorySidebar from './CategorySidebar';
@@ -27,6 +26,11 @@ interface RoadmapProps {
 
 const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   const router = useRouter();
+
+  const instanceSlug = useMemo(() => {
+    const raw = router.query?.[INSTANCE_QUERY_PARAM];
+    return Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
+  }, [router.query]);
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [displayedProjects, setDisplayedProjects] = useState<Project[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -53,6 +57,14 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   const sidebarRef = useRef<HTMLDivElement>(null);
   // Track whether URL-derived category selection has been applied to prevent race conditions
   const urlCatsAppliedRef = useRef(false);
+
+  // When the active instance changes, reset state immediately to avoid showing stale data.
+  useEffect(() => {
+    urlCatsAppliedRef.current = false;
+    setDisplayedProjects([]);
+    setCategories([]);
+    setActiveCategories([]);
+  }, [instanceSlug]);
 
   // Close mobile menu when clicking outside
   useEffect(() => {
@@ -260,26 +272,49 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
     });
 
     setDisplayedProjects(filteredProjects);
+  }, [currentYear, initialProjects]);
 
-    // Fetch categories
+  // Fetch categories (protected API) whenever instance changes.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const controller = new AbortController();
+
     const fetchCategories = async () => {
       try {
-        const categoriesData = await clientDataService.getAllCategories();
-        setCategories(categoriesData);
-        // Only set active categories automatically if none have been applied yet
+        const url = instanceSlug
+          ? `/api/categories?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(instanceSlug)}`
+          : '/api/categories';
+        const resp = await fetch(url, {
+          credentials: 'same-origin',
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        });
+
+        if (!resp.ok) {
+          // Page-level access control should prevent 401/403, but handle defensively.
+          setCategories([]);
+          setActiveCategories([]);
+          return;
+        }
+
+        const categoriesData = await resp.json();
+        const list = Array.isArray(categoriesData) ? (categoriesData as Category[]) : [];
+        setCategories(list);
         setActiveCategories((prev) => {
           if (prev.length === 0 && !urlCatsAppliedRef.current) {
-            return [...categoriesData.map((c) => c.id), UNCATEGORIZED_ID];
+            return [...list.map((c) => c.id), UNCATEGORIZED_ID];
           }
           return prev;
         });
       } catch (error) {
+        if ((error as { name?: string })?.name === 'AbortError') return;
         console.error('Error fetching categories:', error);
       }
     };
 
     fetchCategories();
-  }, [currentYear, initialProjects]);
+    return () => controller.abort();
+  }, [instanceSlug]);
 
   // Debug logs removed (noise in production); enable via manual insertion if needed.
 

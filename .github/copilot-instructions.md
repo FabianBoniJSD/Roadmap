@@ -94,11 +94,11 @@ Copy from `dataService.ts` (line ~108-130) if adding to new service.
 
 ### Modes (`SP_STRATEGY` / `NEXT_PUBLIC_SP_AUTH_MODE`)
 
-- `kerberos` - Browser SPNEGO (no server `Authorization` headers)
-- `onprem` - NTLM (server constructs auth)
+- `kerberos` - Server-side SPNEGO via `curl --negotiate` (requires `SP_USE_CURL=true`)
 - `fba` - Forms-based auth
+- `basic` - Basic auth header (only if supported by the SharePoint/IIS config)
 
-**Kerberos**: Proxy route sets `x-sp-auth-mode: kerberos` header; browser negotiates ticket.
+**Kerberos**: SharePoint proxy runs in curl mode only.
 
 ### Admin Authorization
 

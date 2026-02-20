@@ -13,7 +13,6 @@ import {
   coerceBool,
   normalizeHosts,
   sanitizeSlug,
-  serializeExtraModes,
   serializeSettings,
 } from './helpers';
 import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
@@ -150,41 +149,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (sharePoint.password && typeof sharePoint.password === 'string') {
       data.spPassword = sharePoint.password.trim();
     }
-    if (sharePoint.domain !== undefined) {
-      data.spDomain =
-        typeof sharePoint.domain === 'string' && sharePoint.domain.trim()
-          ? sharePoint.domain.trim()
-          : null;
-    }
-    if (sharePoint.workstation !== undefined) {
-      data.spWorkstation =
-        typeof sharePoint.workstation === 'string' && sharePoint.workstation.trim()
-          ? sharePoint.workstation.trim()
-          : null;
-    }
     if (hasProp(sharePoint, 'allowSelfSigned')) {
       data.allowSelfSigned = coerceBool(sharePoint.allowSelfSigned);
-    }
-    if (hasProp(sharePoint, 'needsProxy')) {
-      data.needsProxy = coerceBool(sharePoint.needsProxy);
-    }
-    if (hasProp(sharePoint, 'forceSingleCreds')) {
-      data.forceSingleCreds = coerceBool(sharePoint.forceSingleCreds);
-    }
-    if (hasProp(sharePoint, 'authNoCache')) {
-      data.authNoCache = coerceBool(sharePoint.authNoCache);
-    }
-    if (hasProp(sharePoint, 'manualNtlmFallback')) {
-      data.manualNtlmFallback = coerceBool(sharePoint.manualNtlmFallback);
-    }
-    if (hasProp(sharePoint, 'ntlmPersistentSocket')) {
-      data.ntlmPersistentSocket = coerceBool(sharePoint.ntlmPersistentSocket);
-    }
-    if (hasProp(sharePoint, 'ntlmSocketProbe')) {
-      data.ntlmSocketProbe = coerceBool(sharePoint.ntlmSocketProbe);
-    }
-    if (hasProp(sharePoint, 'extraModes')) {
-      data.extraAuthModes = serializeExtraModes(sharePoint.extraModes);
     }
     if (sharePoint.trustedCaPath !== undefined) {
       data.trustedCaPath =

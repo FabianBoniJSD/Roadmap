@@ -40,14 +40,3 @@ export const serializeSettings = (value?: Record<string, unknown>) => {
     return null;
   }
 };
-
-export const serializeExtraModes = (value: unknown): string | null => {
-  if (Array.isArray(value)) {
-    const normalized = value
-      .map((mode) => (typeof mode === 'string' ? mode.trim().toLowerCase() : ''))
-      .filter(Boolean);
-    return normalized.length ? normalized.join(',') : null;
-  }
-  if (typeof value === 'string') return value;
-  return null;
-};

@@ -534,7 +534,7 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
           /\/$/,
           ''
         ),
-        strategy: record.sharePointStrategy || 'onprem',
+        strategy: record.sharePointStrategy || 'kerberos',
         hosts,
         frontendTarget: resolveFrontendTarget(record.settingsJson ?? null, hosts),
         landingPage: record.landingPage ?? null,
@@ -589,7 +589,7 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
         /\/$/,
         ''
       ),
-      strategy: record.sharePointStrategy || 'onprem',
+      strategy: record.sharePointStrategy || 'kerberos',
       hosts,
       frontendTarget: resolveFrontendTarget(record.settingsJson ?? null, hosts),
       landingPage: record.landingPage ?? null,
