@@ -19,6 +19,28 @@ const CACHE_TTL_MS = Math.max(
   5000
 );
 
+const normalizeSharePointStrategy = (raw: unknown): string => {
+  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  if (value === 'kerberos' || value === 'fba' || value === 'basic') return value;
+
+  // Legacy values that existed before the NTLM/onprem cleanup.
+  if (value === 'onprem' || value === 'ntlm' || value === 'online') {
+    const env = typeof process.env.SP_STRATEGY === 'string' ? process.env.SP_STRATEGY : '';
+    const normalizedEnv = env.trim().toLowerCase();
+    if (normalizedEnv === 'kerberos' || normalizedEnv === 'fba' || normalizedEnv === 'basic') {
+      return normalizedEnv;
+    }
+    return 'kerberos';
+  }
+
+  const env = typeof process.env.SP_STRATEGY === 'string' ? process.env.SP_STRATEGY : '';
+  const normalizedEnv = env.trim().toLowerCase();
+  if (normalizedEnv === 'kerberos' || normalizedEnv === 'fba' || normalizedEnv === 'basic') {
+    return normalizedEnv;
+  }
+  return 'kerberos';
+};
+
 type ApiRequestLike =
   | Pick<NextApiRequest, 'headers' | 'cookies' | 'query'>
   | (IncomingMessage & {
@@ -170,7 +192,7 @@ export const mapInstanceRecord = (record: PrismaInstanceWithHosts): RoadmapInsta
   const sharePoint: RoadmapInstanceSharePointSettings = {
     siteUrlDev: record.sharePointSiteUrlDev,
     siteUrlProd: record.sharePointSiteUrlProd || record.sharePointSiteUrlDev,
-    strategy: record.sharePointStrategy || 'kerberos',
+    strategy: normalizeSharePointStrategy(record.sharePointStrategy),
     username: record.spUsername || undefined,
     password: record.spPassword || undefined,
     allowSelfSigned: record.allowSelfSigned,

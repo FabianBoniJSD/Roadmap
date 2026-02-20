@@ -15,19 +15,10 @@ model RoadmapInstance {
   description          String?
   sharePointSiteUrlDev String
   sharePointSiteUrlProd String?
-  sharePointStrategy   String    @default("onprem")
+  sharePointStrategy   String    @default("kerberos")
   spUsername           String
   spPassword           String
-  spDomain             String?
-  spWorkstation        String?
   allowSelfSigned      Boolean   @default(false)
-  needsProxy           Boolean   @default(false)
-  forceSingleCreds     Boolean   @default(false)
-  authNoCache          Boolean   @default(false)
-  manualNtlmFallback   Boolean   @default(false)
-  ntlmPersistentSocket Boolean   @default(false)
-  ntlmSocketProbe      Boolean   @default(false)
-  extraAuthModes       String?
   trustedCaPath        String?
   deploymentEnv        String?
   defaultLocale        String?
