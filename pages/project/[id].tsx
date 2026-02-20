@@ -13,7 +13,10 @@ import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { setInstanceCookieHeader } from '@/utils/instanceConfig';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
-import { resolveInstanceForAdminSession } from '@/utils/instanceSelection';
+import {
+  resolveFirstAllowedInstanceForAdminSession,
+  resolveInstanceForAdminSession,
+} from '@/utils/instanceSelection';
 
 const statusStyles: Record<string, string> = {
   completed: 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-200',
@@ -507,6 +510,18 @@ export const getServerSideProps: GetServerSideProps<{ accessDenied?: boolean }> 
   }
 
   if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
+    const fallback = await resolveFirstAllowedInstanceForAdminSession(session);
+    if (fallback && fallback.slug && fallback.slug !== instance.slug) {
+      if (ctx.res) {
+        ctx.res.setHeader('Set-Cookie', setInstanceCookieHeader(fallback.slug));
+      }
+      return {
+        redirect: {
+          destination: `/roadmap?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(fallback.slug)}`,
+          permanent: false,
+        },
+      };
+    }
     return { props: { accessDenied: true } };
   }
 

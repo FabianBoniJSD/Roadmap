@@ -8,7 +8,10 @@ import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { INSTANCE_QUERY_PARAM, setInstanceCookieHeader } from '@/utils/instanceConfig';
-import { resolveInstanceForAdminSession } from '@/utils/instanceSelection';
+import {
+  resolveFirstAllowedInstanceForAdminSession,
+  resolveInstanceForAdminSession,
+} from '@/utils/instanceSelection';
 import type { Project } from '../types';
 
 type RoadmapPageProps = {
@@ -164,6 +167,18 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
     }
 
     if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
+      const fallback = await resolveFirstAllowedInstanceForAdminSession(session);
+      if (fallback && fallback.slug && fallback.slug !== instance.slug) {
+        if (ctx.res) {
+          ctx.res.setHeader('Set-Cookie', setInstanceCookieHeader(fallback.slug));
+        }
+        return {
+          redirect: {
+            destination: `/roadmap?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(fallback.slug)}`,
+            permanent: false,
+          },
+        };
+      }
       return {
         props: {
           projects: [],

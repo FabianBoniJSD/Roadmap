@@ -29,6 +29,14 @@ type LandingPageProps = {
   instance: LandingInstanceData | null;
 };
 
+const appendInstanceQuery = (url: string, slug: string) => {
+  if (!slug) return url;
+  const [base, hash] = url.split('#');
+  const separator = base.includes('?') ? '&' : '?';
+  const withQuery = `${base}${separator}roadmapInstance=${encodeURIComponent(slug)}`;
+  return hash ? `${withQuery}#${hash}` : withQuery;
+};
+
 const LANDING_PAGE_PRESETS: Record<string, LandingPreset> = {
   'jsd-projekte': {
     title: 'Roadmap Justiz- und Sicherheitsdepartement',
@@ -180,17 +188,8 @@ const LandingPage = ({ slug, preset, instance }: LandingPageProps) => {
     try {
       setStarting(true);
       setError(null);
-      const resp = await fetch('/api/instances/select', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: instance.slug }),
-      });
-      if (!resp.ok) {
-        const payload = await resp.json().catch(() => null);
-        throw new Error(payload?.error || `Fehler ${resp.status}`);
-      }
       const target = redirectTarget || '/roadmap';
-      window.location.href = target;
+      window.location.href = appendInstanceQuery(target, instance.slug);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
       setError(message);

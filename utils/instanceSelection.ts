@@ -53,3 +53,29 @@ export async function resolveInstanceForAdminSession(
 
   return null;
 }
+
+/**
+ * Returns the first instance the admin is allowed to access.
+ * Useful when a user manually selects a forbidden instance via query/cookie.
+ */
+export async function resolveFirstAllowedInstanceForAdminSession(
+  session: AdminSessionPayload
+): Promise<RoadmapInstanceConfig | null> {
+  const records = (await prisma.roadmapInstance.findMany({
+    include: { hosts: true },
+    orderBy: { slug: 'asc' },
+  })) as PrismaInstanceWithHosts[];
+
+  if (records.length === 0) return null;
+  if (isSuperAdminSession(session)) {
+    return mapInstanceRecord(records[0]);
+  }
+
+  for (const record of records) {
+    const instance = mapInstanceRecord(record);
+    const allowed = await isAdminSessionAllowedForInstance({ session, instance });
+    if (allowed) return instance;
+  }
+
+  return null;
+}

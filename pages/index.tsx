@@ -8,6 +8,9 @@ import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import { buildInstanceAwareUrl, hasValidAdminSession, persistAdminSession } from '@/utils/auth';
+import { extractAdminSessionFromHeaders, isSuperAdminSession } from '@/utils/apiAuth';
+import { getInstanceSlugsFromPrincipal, isSuperAdminPrincipal } from '@/utils/instanceAccess';
+import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 
 const HTTP_URL_REGEX = /^https?:\/\//i;
 
@@ -500,13 +503,82 @@ const LandingPage = ({ instances }: LandingPageProps) => {
   );
 };
 
-export const getServerSideProps: GetServerSideProps<LandingPageProps> = async () => {
+export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (ctx) => {
+  const session = extractAdminSessionFromHeaders({
+    authorization: ctx.req.headers.authorization,
+    cookie: ctx.req.headers.cookie,
+  });
+
   const records = await prisma.roadmapInstance.findMany({
     include: { hosts: true },
     orderBy: { displayName: 'asc' },
   });
 
-  const instances: LandingInstance[] = records.map((record) => {
+  // If the caller is not authenticated, do not expose instance metadata.
+  if (!session?.isAdmin) {
+    return {
+      props: { instances: [] },
+    };
+  }
+
+  // Superadmin sees all instances.
+  if (isSuperAdminSession(session)) {
+    const instances: LandingInstance[] = records.map((record) => {
+      const hosts = record.hosts.map((host) => host.host);
+      return {
+        slug: record.slug,
+        displayName: record.displayName,
+        department: record.department ?? null,
+        description: record.description ?? null,
+        sharePointUrl: (record.sharePointSiteUrlProd || record.sharePointSiteUrlDev).replace(
+          /\/$/,
+          ''
+        ),
+        strategy: record.sharePointStrategy || 'onprem',
+        hosts,
+        frontendTarget: resolveFrontendTarget(record.settingsJson ?? null, hosts),
+        landingPage: record.landingPage ?? null,
+      };
+    });
+
+    return {
+      props: { instances },
+    };
+  }
+
+  // Fast path: token groups contain allowed slugs.
+  const username =
+    (typeof session?.username === 'string' && session.username) ||
+    (typeof session?.displayName === 'string' && session.displayName) ||
+    null;
+  const principal = { username, groups: session?.groups };
+  const tokenAllowedSlugs = isSuperAdminPrincipal(principal)
+    ? null
+    : getInstanceSlugsFromPrincipal(principal);
+
+  let filtered = records;
+  if (tokenAllowedSlugs && tokenAllowedSlugs.length > 0) {
+    const allowed = new Set(tokenAllowedSlugs.map((s) => String(s).toLowerCase()));
+    filtered = records.filter((r) => allowed.has(String(r.slug).toLowerCase()));
+  } else {
+    // Fallback: SharePoint group membership per instance.
+    const checks = await Promise.all(
+      records.map(async (r) => {
+        try {
+          const allowed = await isAdminSessionAllowedForInstance({
+            session,
+            instance: { slug: r.slug },
+          });
+          return { record: r, allowed };
+        } catch {
+          return { record: r, allowed: false };
+        }
+      })
+    );
+    filtered = checks.filter((c) => c.allowed).map((c) => c.record);
+  }
+
+  const instances: LandingInstance[] = filtered.map((record) => {
     const hosts = record.hosts.map((host) => host.host);
     return {
       slug: record.slug,
