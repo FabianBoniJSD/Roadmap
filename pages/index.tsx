@@ -8,10 +8,11 @@ import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import { buildInstanceAwareUrl, hasValidAdminSession, persistAdminSession } from '@/utils/auth';
-import { extractAdminSessionFromHeaders, isSuperAdminSession } from '@/utils/apiAuth';
+import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { getInstanceSlugsFromPrincipal, isSuperAdminPrincipal } from '@/utils/instanceAccess';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
+import { loadUserCredentialsFromSecrets } from '@/utils/userCredentials';
 
 const HTTP_URL_REGEX = /^https?:\/\//i;
 
@@ -531,7 +532,6 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
       (typeof session?.displayName === 'string' && session.displayName.trim()) ||
       '';
 
-    const { loadUserCredentialsFromSecrets } = await import('@/utils/userCredentials');
     const secretUsers = loadUserCredentialsFromSecrets();
     const isKnownUserSecretUsername =
       sessionUsername.length > 0 &&
