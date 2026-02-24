@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import jwt from 'jsonwebtoken';
+import type { AdminSessionPayload } from '@/utils/apiAuth';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'roadmap-secret-change-in-production';
@@ -22,13 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const token = authHeader.substring(7);
 
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as {
-        isAdmin?: boolean;
-        displayName?: string;
-        username?: string;
-        groups?: unknown;
-        entra?: unknown;
-      };
+      const decoded = jwt.verify(token, JWT_SECRET) as AdminSessionPayload;
 
       const groups = Array.isArray(decoded.groups)
         ? decoded.groups.filter((g): g is string => typeof g === 'string')
