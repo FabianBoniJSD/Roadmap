@@ -3166,6 +3166,31 @@ class ClientDataService {
         )
       );
 
+      const onPremDomainRaw =
+        typeof process.env.SP_ONPREM_DOMAIN === 'string' ? process.env.SP_ONPREM_DOMAIN : '';
+      const onPremDomain = onPremDomainRaw.trim();
+
+      const localPartCandidates = Array.from(
+        new Set(
+          [identifiers.upn, identifiers.mail, identifiers.username]
+            .map((v) => (typeof v === 'string' ? v.trim() : ''))
+            .filter((v) => v.includes('@'))
+            .map((v) => v.split('@')[0])
+            .filter(Boolean)
+        )
+      );
+
+      const derivedOnPremLogins = onPremDomain
+        ? Array.from(
+            new Set(
+              localPartCandidates.flatMap((local) => [
+                `${onPremDomain}\\${local}`,
+                `i:0#.w|${onPremDomain}\\${local}`,
+              ])
+            )
+          )
+        : [];
+
       const emailCandidate =
         (typeof identifiers.mail === 'string' && identifiers.mail.includes('@')
           ? identifiers.mail.trim()
@@ -3326,6 +3351,7 @@ class ClientDataService {
             identifiers.mail,
             identifiers.username,
             ...candidates,
+            ...derivedOnPremLogins,
             ...(emailCandidate ? [`i:0#.f|membership|${emailCandidate}`] : []),
           ]
             .map((v) => (typeof v === 'string' ? v.trim() : ''))
@@ -3344,6 +3370,7 @@ class ClientDataService {
         new Set(
           [
             ...ensureCandidates,
+            ...derivedOnPremLogins,
             ...(emailCandidate ? [`i:0#.f|membership|${emailCandidate}`] : []),
             ...(typeof identifiers.username === 'string' && identifiers.username.includes('\\')
               ? [`i:0#.w|${identifiers.username.trim()}`]
