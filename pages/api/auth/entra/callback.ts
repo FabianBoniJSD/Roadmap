@@ -208,7 +208,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         isAdmin: true,
         source: 'entra',
         groups: groupNames,
-        entra: { id: me.id, upn: me.userPrincipalName, mail: me.mail },
+        entra: {
+          id: me.id,
+          upn: me.userPrincipalName,
+          mail: me.mail,
+          department: me.department,
+        },
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }

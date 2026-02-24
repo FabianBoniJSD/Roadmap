@@ -74,6 +74,7 @@ export interface RoadmapInstanceConfig {
   slug: string;
   displayName: string;
   department?: string | null;
+  allowedDepartments?: string[];
   description?: string | null;
   deploymentEnv?: string | null;
   defaultLocale?: string | null;

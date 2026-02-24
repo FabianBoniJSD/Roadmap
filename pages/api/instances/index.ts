@@ -15,6 +15,11 @@ import {
 } from './helpers';
 import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
 import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
+import {
+  getAllowedDepartmentsForInstanceSlugs,
+  parseDepartmentsPayload,
+  replaceAllowedDepartmentsForInstance,
+} from '@/utils/instanceDepartmentAccess';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -35,7 +40,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .map((record) => mapInstanceRecord(record))
       .map((instance) => toInstanceSummary(instance));
 
-    return res.status(200).json({ instances: summaries });
+    const allowedBySlug = await getAllowedDepartmentsForInstanceSlugs(summaries.map((s) => s.slug));
+
+    const enriched = summaries.map((summary) => ({
+      ...summary,
+      allowedDepartments: allowedBySlug[String(summary.slug).toLowerCase()] || [],
+    }));
+
+    return res.status(200).json({ instances: enriched });
   }
 
   if (req.method === 'POST') {
@@ -133,7 +145,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       include: { hosts: true },
     });
 
-    return res.status(201).json({ instance: toInstanceSummary(mapInstanceRecord(created)) });
+    const allowedDepartments = parseDepartmentsPayload(req.body?.allowedDepartments);
+    await replaceAllowedDepartmentsForInstance({
+      instanceSlug: normalizedSlug,
+      departments: allowedDepartments,
+    });
+
+    const [allowedBySlug] = await Promise.all([
+      getAllowedDepartmentsForInstanceSlugs([normalizedSlug]),
+    ]);
+
+    const summary = toInstanceSummary(mapInstanceRecord(created));
+    const enriched = {
+      ...summary,
+      allowedDepartments: allowedBySlug[normalizedSlug] || [],
+    };
+
+    return res.status(201).json({ instance: enriched });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });

@@ -6,9 +6,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'roadmap-secret-change-in-productio
 export interface AdminSessionPayload {
   username?: string;
   displayName?: string;
+  department?: string;
   isAdmin?: boolean;
   source?: string;
   groups?: unknown;
+  entra?: {
+    id?: string;
+    upn?: string;
+    mail?: string;
+    department?: string;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 

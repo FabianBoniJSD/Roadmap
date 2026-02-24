@@ -18,6 +18,12 @@ import {
 } from './helpers';
 import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
 import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
+import {
+  deleteDepartmentAccessForInstance,
+  getAllowedDepartmentsForInstanceSlugs,
+  parseDepartmentsPayload,
+  replaceAllowedDepartmentsForInstance,
+} from '@/utils/instanceDepartmentAccess';
 
 const hasProp = (value: unknown, key: string): boolean =>
   Boolean(value && typeof value === 'object' && key in (value as Record<string, unknown>));
@@ -73,7 +79,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (!(await ensureAdminForInstance(record)))
       return res.status(401).json({ error: 'Unauthorized' });
-    return res.status(200).json({ instance: toInstanceSummary(mapped) });
+    const allowedBySlug = await getAllowedDepartmentsForInstanceSlugs([mapped.slug]);
+    const summary = toInstanceSummary(mapped);
+    return res.status(200).json({
+      instance: {
+        ...summary,
+        allowedDepartments: allowedBySlug[String(mapped.slug).toLowerCase()] || [],
+      },
+    });
   }
 
   if (req.method === 'PUT') {
@@ -180,6 +193,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })) as PrismaInstanceWithHosts;
     }
 
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'allowedDepartments')) {
+      const allowedDepartments = parseDepartmentsPayload(req.body?.allowedDepartments);
+      await replaceAllowedDepartmentsForInstance({
+        instanceSlug: slug,
+        departments: allowedDepartments,
+      });
+    }
+
     const mapped = mapInstanceRecord(updated);
     let health: RoadmapInstanceHealth;
     try {
@@ -210,7 +231,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       include: { hosts: true },
     })) as PrismaInstanceWithHosts;
 
-    return res.status(200).json({ instance: toInstanceSummary(mapInstanceRecord(updated)) });
+    const remapped = mapInstanceRecord(updated);
+    const allowedBySlug = await getAllowedDepartmentsForInstanceSlugs([remapped.slug]);
+    const summary = toInstanceSummary(remapped);
+    return res.status(200).json({
+      instance: {
+        ...summary,
+        allowedDepartments: allowedBySlug[String(remapped.slug).toLowerCase()] || [],
+      },
+    });
   }
 
   if (req.method === 'DELETE') {
@@ -228,6 +257,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })) as PrismaInstanceWithHosts | null;
     if (!existing) return res.status(404).json({ error: 'Instance not found' });
     try {
+      await deleteDepartmentAccessForInstance(slug);
       await prisma.roadmapInstance.delete({ where: { slug } });
       return res.status(204).end();
     } catch {

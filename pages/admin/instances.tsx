@@ -23,6 +23,7 @@ type AdminFormState = {
   slug: string;
   displayName: string;
   department: string;
+  allowedDepartmentsInput: string;
   description: string;
   deploymentEnv: string;
   defaultLocale: string;
@@ -42,6 +43,7 @@ const defaultForm: AdminFormState = {
   slug: '',
   displayName: '',
   department: '',
+  allowedDepartmentsInput: '',
   description: '',
   deploymentEnv: '',
   defaultLocale: '',
@@ -381,6 +383,7 @@ const AdminInstancesPage = () => {
       slug: instance.slug,
       displayName: instance.displayName,
       department: instance.department || '',
+      allowedDepartmentsInput: (instance.allowedDepartments || []).join(', '),
       description: instance.description || '',
       deploymentEnv: instance.deploymentEnv || '',
       defaultLocale: instance.defaultLocale || '',
@@ -402,6 +405,7 @@ const AdminInstancesPage = () => {
       slug,
       displayName,
       department,
+      allowedDepartmentsInput,
       description,
       deploymentEnv,
       defaultLocale,
@@ -422,10 +426,16 @@ const AdminInstancesPage = () => {
       .map((host) => host.trim().toLowerCase())
       .filter(Boolean);
 
+    const allowedDepartments = allowedDepartmentsInput
+      .split(/[\n,;]/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
     return {
       slug,
       displayName,
       department: department || undefined,
+      allowedDepartments,
       description: description || undefined,
       landingPage: landingPage.trim() ? landingPage.trim() : null,
       deploymentEnv: deploymentEnv || undefined,
@@ -852,6 +862,19 @@ const AdminInstancesPage = () => {
                 />
               </label>
               <label className="space-y-1">
+                <span className="text-slate-300">Zugriffs-Abteilungen</span>
+                <input
+                  type="text"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+                  value={form.allowedDepartmentsInput}
+                  onChange={(e) => updateField('allowedDepartmentsInput', e.target.value)}
+                  placeholder="z. B. IT, Finanzen, HR"
+                />
+                <span className="text-xs text-slate-500">
+                  Komma, Semikolon oder Zeilenumbruch als Trennzeichen.
+                </span>
+              </label>
+              <label className="space-y-1">
                 <span className="text-slate-300">Beschreibung</span>
                 <input
                   type="text"
@@ -1144,6 +1167,14 @@ const AdminInstancesPage = () => {
                         <dt className="text-slate-500">Hosts:</dt>
                         <dd className="text-slate-300">
                           {instance.hosts.length ? instance.hosts.join(', ') : '-'}
+                        </dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="text-slate-500">Zugriffs-Abteilungen:</dt>
+                        <dd className="text-slate-300">
+                          {instance.allowedDepartments && instance.allowedDepartments.length > 0
+                            ? instance.allowedDepartments.join(', ')
+                            : 'keine Einschränkung'}
                         </dd>
                       </div>
                       <div className="flex gap-2">

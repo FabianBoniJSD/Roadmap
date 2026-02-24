@@ -50,3 +50,15 @@ model SuperAdmin {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
+
+model InstanceDepartmentAccess {
+  id                   Int      @id @default(autoincrement())
+  instanceSlug         String
+  department           String
+  normalizedDepartment String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([instanceSlug, normalizedDepartment])
+  @@index([instanceSlug])
+}
