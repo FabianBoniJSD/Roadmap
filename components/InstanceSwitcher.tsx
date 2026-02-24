@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { getAdminSessionToken } from '@/utils/auth';
+import { buildInstanceAwareUrl, getAdminSessionToken } from '@/utils/auth';
 
 export type InstanceOption = { slug: string; displayName: string };
 
@@ -54,7 +54,7 @@ const InstanceSwitcher = () => {
           return;
         }
 
-        const resp = await fetch('/api/instances/slugs', {
+        const resp = await fetch(buildInstanceAwareUrl('/api/instances/slugs'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!resp.ok) {

@@ -522,6 +522,49 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
     };
   }
 
+  // USER_* logins are explicit admin sessions from environment credentials.
+  // Keep behavior aligned with /api/instances/slugs and return all DB instances.
+  try {
+    const sessionSource = typeof session?.source === 'string' ? session.source.trim() : '';
+    const sessionUsername =
+      (typeof session?.username === 'string' && session.username.trim()) ||
+      (typeof session?.displayName === 'string' && session.displayName.trim()) ||
+      '';
+
+    const { loadUserCredentialsFromSecrets } = await import('@/utils/userCredentials');
+    const secretUsers = loadUserCredentialsFromSecrets();
+    const isKnownUserSecretUsername =
+      sessionUsername.length > 0 &&
+      secretUsers.some((u) => u.username.toLowerCase() === sessionUsername.toLowerCase());
+    const isUserSecretSession = /^USER_/i.test(sessionSource) || isKnownUserSecretUsername;
+
+    if (isUserSecretSession) {
+      const instances: LandingInstance[] = records.map((record) => {
+        const hosts = record.hosts.map((host) => host.host);
+        return {
+          slug: record.slug,
+          displayName: record.displayName,
+          department: record.department ?? null,
+          description: record.description ?? null,
+          sharePointUrl: (record.sharePointSiteUrlProd || record.sharePointSiteUrlDev).replace(
+            /\/$/,
+            ''
+          ),
+          strategy: record.sharePointStrategy || 'kerberos',
+          hosts,
+          frontendTarget: resolveFrontendTarget(record.settingsJson ?? null, hosts),
+          landingPage: record.landingPage ?? null,
+        };
+      });
+
+      return {
+        props: { instances },
+      };
+    }
+  } catch {
+    // ignore; continue with standard permission checks
+  }
+
   // Superadmin sees all instances.
   if (await isSuperAdminSessionWithSharePointFallback(session)) {
     const instances: LandingInstance[] = records.map((record) => {

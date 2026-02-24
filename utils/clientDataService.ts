@@ -3001,6 +3001,60 @@ class ClientDataService {
         return this.extractSharePointUsersArray(rawUser);
       };
 
+      const tryEnsureUser = async (logonName: string): Promise<number | null> => {
+        if (!logonName) return null;
+        const payload = JSON.stringify({ logonName });
+        const readId = (raw: unknown): number | null => {
+          return tryParseId((raw as any)?.Id) ?? tryParseId((raw as any)?.d?.Id);
+        };
+
+        const ensureUrl = `${webUrl}/_api/web/ensureuser`;
+        try {
+          const resp = await this.spFetch(ensureUrl, {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json;odata=nometadata',
+              'Content-Type': 'application/json;odata=verbose',
+            },
+            body: payload,
+            credentials: 'same-origin',
+          });
+          if (resp.ok) {
+            const text = await resp.text().catch(() => '');
+            if (!text) return null;
+            try {
+              return readId(JSON.parse(text));
+            } catch {
+              return null;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+
+        try {
+          const resp = await this.spFetch(ensureUrl, {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json;odata=verbose',
+              'Content-Type': 'application/json;odata=verbose',
+            },
+            body: payload,
+            credentials: 'same-origin',
+          });
+          if (!resp.ok) return null;
+          const text = await resp.text().catch(() => '');
+          if (!text) return null;
+          try {
+            return readId(JSON.parse(text));
+          } catch {
+            return null;
+          }
+        } catch {
+          return null;
+        }
+      };
+
       const resolveUserId = async (): Promise<number | null> => {
         // 1) getByEmail (most reliable when available)
         if (emailCandidate) {
@@ -3042,6 +3096,41 @@ class ClientDataService {
           } catch {
             /* ignore */
           }
+        }
+
+        // 4) Ensure user by known login identifiers (works when $filter on siteusers is not supported)
+        const ensureCandidates = Array.from(
+          new Set(
+            [
+              identifiers.upn,
+              identifiers.mail,
+              identifiers.username,
+              emailCandidate,
+              ...candidates,
+              ...(emailCandidate ? [`i:0#.f|membership|${emailCandidate}`] : []),
+            ]
+              .map((v) => (typeof v === 'string' ? v.trim() : ''))
+              .filter(Boolean)
+          )
+        );
+
+        for (const candidate of ensureCandidates) {
+          const ensured = await tryEnsureUser(candidate);
+          if (ensured) return ensured;
+        }
+
+        // 5) Last fallback: list site users without filter and match locally
+        try {
+          const allUsersUrl = `${webUrl}/_api/web/siteusers?$select=Id,Email,LoginName,Title`;
+          const rawUsers = await fetchAny(allUsersUrl);
+          const allUsers = this.extractSharePointUsersArray(rawUsers);
+          const matched = allUsers.find((u) => matchesDirectEntry(u));
+          if (matched) {
+            const id = tryParseId((matched as any)?.Id);
+            if (id) return id;
+          }
+        } catch {
+          /* ignore */
         }
 
         return null;

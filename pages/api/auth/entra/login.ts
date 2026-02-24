@@ -47,11 +47,13 @@ const COOKIE_POPUP = 'entra_popup';
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   if (!entraSsoEnabled()) {
-    return res.status(400).json({ error: 'Entra SSO is not configured' });
+    res.status(400).json({ error: 'Entra SSO is not configured' });
+    return;
   }
 
   const tenantId = String(process.env.ENTRA_TENANT_ID);
@@ -59,11 +61,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   const redirectUri = getEntraRedirectUri({ req, env: process.env as EntraRedirectEnv });
   if (!redirectUri || !/^https?:\/\//i.test(redirectUri)) {
-    return res.status(500).json({
+    res.status(500).json({
       error:
         'Invalid redirect URI. Set ENTRA_REDIRECT_URI explicitly (must be an absolute http/https URL).',
       computedRedirectUri: redirectUri,
     });
+    return;
   }
 
   const envRedirectUri = String(process.env.ENTRA_REDIRECT_URI || '').trim();
@@ -85,10 +88,11 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       `It must point to the callback route (/api/auth/entra/callback), not "${envRedirectUri}". ` +
       `Fix .env and Entra App Registration redirect URI to: ${expected}`;
 
-    return res.redirect(
+    res.redirect(
       302,
       `/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}&error=${encodeURIComponent(msg)}`
     );
+    return;
   }
 
   const returnUrlRaw = normalizeReturnUrl(
@@ -133,4 +137,5 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   ]);
 
   res.redirect(302, authorizeUrl);
+  return;
 }

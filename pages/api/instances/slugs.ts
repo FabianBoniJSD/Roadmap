@@ -4,6 +4,7 @@ import { requireAdminSession } from '@/utils/apiAuth';
 import { getInstanceSlugsFromPrincipal, isSuperAdminPrincipal } from '@/utils/instanceAccess';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
+import { loadUserCredentialsFromSecrets } from '@/utils/userCredentials';
 
 /**
  * Public endpoint: returns minimal instance identifiers (slug + displayName) for UI switching.
@@ -20,6 +21,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       session = requireAdminSession(req);
     } catch {
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const sessionSource = typeof session?.source === 'string' ? session.source.trim() : '';
+    const sessionUsername =
+      (typeof session?.username === 'string' && session.username.trim()) ||
+      (typeof session?.displayName === 'string' && session.displayName.trim()) ||
+      '';
+    const secretUsers = loadUserCredentialsFromSecrets();
+    const isKnownUserSecretUsername =
+      sessionUsername.length > 0 &&
+      secretUsers.some((u) => u.username.toLowerCase() === sessionUsername.toLowerCase());
+    const isUserSecretSession = /^USER_/i.test(sessionSource) || isKnownUserSecretUsername;
+
+    if (isUserSecretSession) {
+      const allRecords = await prisma.roadmapInstance.findMany({
+        select: { slug: true, displayName: true },
+        orderBy: { slug: 'asc' },
+      });
+
+      const instances = allRecords.map((r) => ({
+        slug: r.slug,
+        displayName: r.displayName || r.slug,
+      }));
+
+      return res.status(200).json({ instances });
     }
 
     const username =
