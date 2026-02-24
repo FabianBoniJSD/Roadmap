@@ -117,50 +117,81 @@ const buildAbsoluteBaseUrl = (req: NextApiRequest): string => {
   return `${proto}://${host}`.replace(/\/$/, '');
 };
 
+type ProxyProbeResult = {
+  projects: Project[];
+  probe: string[];
+};
+
 const fetchProjectsViaExplicitInstanceProxy = async (
   req: NextApiRequest,
   instance: RoadmapInstanceConfig
-): Promise<Project[]> => {
+): Promise<ProxyProbeResult> => {
   const baseUrl = buildAbsoluteBaseUrl(req);
   const encodedInstance = encodeURIComponent(instance.slug);
   const candidateLists = ['RoadmapProjects', 'Roadmap Projects'];
   const select = encodeURIComponent(
     'Id,Title,ProjectType,Category,Bereich,Bereiche,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate'
   );
+  const probe: string[] = [];
+
+  const extractItems = (json: unknown): unknown[] => {
+    if (!json || typeof json !== 'object') return [];
+    const root = json as Record<string, unknown>;
+
+    if (Array.isArray(root.value)) return root.value;
+
+    const d = root.d;
+    if (d && typeof d === 'object') {
+      const dObj = d as Record<string, unknown>;
+      if (Array.isArray(dObj.results)) return dObj.results;
+      return [dObj];
+    }
+
+    return [];
+  };
 
   for (const listTitle of candidateLists) {
     const encodedTitle = encodeURIComponent(listTitle);
-    const url = `${baseUrl}/api/sharepoint/_api/web/lists/getByTitle('${encodedTitle}')/items?$select=${select}&$orderby=Id%20desc&$top=5000&roadmapInstance=${encodedInstance}`;
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json;odata=nometadata',
-          ...(typeof req.headers.cookie === 'string' ? { cookie: req.headers.cookie } : {}),
-        },
-      });
-      if (!response.ok) continue;
-      const json = await response.json();
-      const rawItems = Array.isArray(json?.value)
-        ? json.value
-        : Array.isArray(json?.d?.results)
-          ? json.d.results
-          : [];
-      if (!Array.isArray(rawItems) || rawItems.length === 0) continue;
-      const mapped = rawItems
-        .map((item: unknown) =>
-          item && typeof item === 'object'
-            ? mapMinimalSharePointItem(item as Record<string, unknown>)
-            : null
-        )
-        .filter((item): item is Project => Boolean(item && item.id));
-      if (mapped.length > 0) return mapped;
-    } catch {
-      // Continue with next list title variant.
+    const queries = [
+      `?$select=${select}&$orderby=Id%20desc&$top=5000`,
+      '?$orderby=Id%20desc&$top=5000',
+      '?$top=1',
+    ];
+    for (const query of queries) {
+      const url = `${baseUrl}/api/sharepoint/_api/web/lists/getByTitle('${encodedTitle}')/items${query}&roadmapInstance=${encodedInstance}`;
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json;odata=nometadata',
+            ...(typeof req.headers.cookie === 'string' ? { cookie: req.headers.cookie } : {}),
+          },
+        });
+        if (!response.ok) {
+          probe.push(`${listTitle}:${query}:status=${response.status}`);
+          continue;
+        }
+        const json = await response.json();
+        const rawItems = extractItems(json);
+        probe.push(`${listTitle}:${query}:status=200,count=${rawItems.length}`);
+        if (!Array.isArray(rawItems) || rawItems.length === 0) continue;
+        if (query === '?$top=1') continue;
+
+        const mapped = rawItems
+          .map((item: unknown) =>
+            item && typeof item === 'object'
+              ? mapMinimalSharePointItem(item as Record<string, unknown>)
+              : null
+          )
+          .filter((item): item is Project => Boolean(item && item.id));
+        if (mapped.length > 0) return { projects: mapped, probe };
+      } catch {
+        probe.push(`${listTitle}:${query}:error`);
+      }
     }
   }
 
-  return [];
+  return { projects: [], probe };
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -204,10 +235,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
 
       if (Array.isArray(projects) && projects.length === 0) {
-        const explicitProjects = await fetchProjectsViaExplicitInstanceProxy(req, instance);
-        if (explicitProjects.length > 0) {
-          projects = explicitProjects;
+        const explicit = await fetchProjectsViaExplicitInstanceProxy(req, instance);
+        const probeValue = explicit.probe.join(';').slice(0, 900);
+        if (probeValue) {
+          res.setHeader('x-projects-proxy-probe', probeValue);
+        }
+        if (explicit.projects.length > 0) {
+          projects = explicit.projects;
           res.setHeader('x-projects-fallback', 'explicit-instance-proxy-fetch');
+        } else {
+          res.setHeader('x-projects-fallback', 'none-empty-source');
         }
       }
       // Normalize category values (trim + numeric-like collapse) to keep consistent with UI expectations
