@@ -3150,6 +3150,240 @@ class ClientDataService {
     }
   }
 
+  async resolveUserDepartmentFromSharePoint(identifiers: {
+    username?: string | null;
+    upn?: string | null;
+    mail?: string | null;
+    displayName?: string | null;
+  }): Promise<string | null> {
+    try {
+      const webUrl = this.getWebUrl();
+      const candidates = Array.from(
+        new Set(
+          [identifiers.username, identifiers.upn, identifiers.mail, identifiers.displayName]
+            .map((v) => (typeof v === 'string' ? v.trim() : ''))
+            .filter(Boolean)
+        )
+      );
+
+      const emailCandidate =
+        (typeof identifiers.mail === 'string' && identifiers.mail.includes('@')
+          ? identifiers.mail.trim()
+          : null) ||
+        (typeof identifiers.upn === 'string' && identifiers.upn.includes('@')
+          ? identifiers.upn.trim()
+          : null) ||
+        null;
+
+      const parseDepartment = (raw: unknown): string | null => {
+        const direct =
+          (raw as any)?.Department ??
+          (raw as any)?.department ??
+          (raw as any)?.d?.Department ??
+          (raw as any)?.d?.department;
+        if (typeof direct === 'string' && direct.trim()) return direct.trim();
+
+        const values =
+          (raw as any)?.UserProfileProperties?.value ||
+          (raw as any)?.d?.UserProfileProperties?.results ||
+          [];
+        if (Array.isArray(values)) {
+          const match = values.find((entry) => {
+            const key = String((entry as any)?.Key || '')
+              .trim()
+              .toLowerCase();
+            return key === 'department';
+          });
+          const value = (match as any)?.Value;
+          if (typeof value === 'string' && value.trim()) return value.trim();
+        }
+
+        return null;
+      };
+
+      const fetchPayload = async (url: string, accept: string): Promise<unknown> => {
+        const resp = await this.spFetch(url, {
+          method: 'GET',
+          headers: { Accept: accept },
+          credentials: 'same-origin',
+        });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          const invalid = /InvalidClientQuery|Invalid argument/i.test(text);
+          if (invalid) throw new Error('invalid-query');
+          throw new Error(`SharePoint department fetch failed: ${resp.status}`);
+        }
+        const text = await resp.text().catch(() => '');
+        if (!text) return {};
+        try {
+          const first = JSON.parse(text);
+          if (typeof first === 'string') {
+            const inner = first.replace(/^\uFEFF/, '').trim();
+            if (inner.startsWith('{') || inner.startsWith('[')) {
+              try {
+                return JSON.parse(inner);
+              } catch {
+                return first;
+              }
+            }
+          }
+          return first;
+        } catch {
+          return text;
+        }
+      };
+
+      const fetchAny = async (url: string): Promise<unknown> => {
+        try {
+          return await fetchPayload(url, 'application/json;odata=nometadata');
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : '';
+          if (msg === 'invalid-query') {
+            return await fetchPayload(url, 'application/json;odata=verbose');
+          }
+          throw e;
+        }
+      };
+
+      const tryParseId = (rawValue: unknown): number | null => {
+        if (typeof rawValue === 'number' && Number.isFinite(rawValue)) return rawValue;
+        if (typeof rawValue === 'string') {
+          const n = parseInt(rawValue, 10);
+          return Number.isFinite(n) ? n : null;
+        }
+        return null;
+      };
+
+      const tryEnsureUser = async (logonName: string): Promise<number | null> => {
+        if (!logonName) return null;
+        const payload = JSON.stringify({ logonName });
+        const readId = (raw: unknown): number | null => {
+          return tryParseId((raw as any)?.Id) ?? tryParseId((raw as any)?.d?.Id);
+        };
+
+        const ensureUrl = `${webUrl}/_api/web/ensureuser`;
+        try {
+          const resp = await this.spFetch(ensureUrl, {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json;odata=nometadata',
+              'Content-Type': 'application/json;odata=verbose',
+            },
+            body: payload,
+            credentials: 'same-origin',
+          });
+          if (resp.ok) {
+            const text = await resp.text().catch(() => '');
+            if (!text) return null;
+            try {
+              return readId(JSON.parse(text));
+            } catch {
+              return null;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+
+        try {
+          const resp = await this.spFetch(ensureUrl, {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json;odata=verbose',
+              'Content-Type': 'application/json;odata=verbose',
+            },
+            body: payload,
+            credentials: 'same-origin',
+          });
+          if (!resp.ok) return null;
+          const text = await resp.text().catch(() => '');
+          if (!text) return null;
+          try {
+            return readId(JSON.parse(text));
+          } catch {
+            return null;
+          }
+        } catch {
+          return null;
+        }
+      };
+
+      const tryUserById = async (id: number): Promise<string | null> => {
+        if (!id) return null;
+        const byIdUrl = `${webUrl}/_api/web/getuserbyid(${id})?$select=Id,Email,LoginName,Title,Department`;
+        try {
+          const raw = await fetchAny(byIdUrl);
+          return parseDepartment(raw);
+        } catch {
+          return null;
+        }
+      };
+
+      const ensureCandidates = Array.from(
+        new Set(
+          [
+            identifiers.upn,
+            identifiers.mail,
+            identifiers.username,
+            ...candidates,
+            ...(emailCandidate ? [`i:0#.f|membership|${emailCandidate}`] : []),
+          ]
+            .map((v) => (typeof v === 'string' ? v.trim() : ''))
+            .filter(Boolean)
+        )
+      );
+
+      for (const candidate of ensureCandidates) {
+        const id = await tryEnsureUser(candidate);
+        if (!id) continue;
+        const dept = await tryUserById(id);
+        if (dept) return dept;
+      }
+
+      const peopleManagerCandidates = Array.from(
+        new Set(
+          [
+            ...ensureCandidates,
+            ...(emailCandidate ? [`i:0#.f|membership|${emailCandidate}`] : []),
+            ...(typeof identifiers.username === 'string' && identifiers.username.includes('\\')
+              ? [`i:0#.w|${identifiers.username.trim()}`]
+              : []),
+          ]
+            .map((v) => (typeof v === 'string' ? v.trim() : ''))
+            .filter(Boolean)
+        )
+      );
+
+      for (const loginName of peopleManagerCandidates) {
+        const escapedLogin = this.escapeODataStringLiteral(loginName);
+        const peopleManagerUrl = `${webUrl}/_api/SP.UserProfiles.PeopleManager/GetPropertiesFor(accountName=@v)?@v='${escapedLogin}'`;
+        try {
+          const raw = await fetchAny(peopleManagerUrl);
+          const dept = parseDepartment(raw);
+          if (dept) return dept;
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (emailCandidate) {
+        const escapedEmail = this.escapeODataStringLiteral(emailCandidate);
+        const byEmailUrl = `${webUrl}/_api/web/siteusers/getByEmail('${escapedEmail}')?$select=Id,Email,LoginName,Title,Department`;
+        try {
+          const rawByEmail = await fetchAny(byEmailUrl);
+          const dept = parseDepartment(rawByEmail);
+          if (dept) return dept;
+        } catch {
+          /* ignore */
+        }
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Debug helper: checks group existence and tries to resolve a user by email, then checks
    * whether that user is a direct member of the SharePoint site group.

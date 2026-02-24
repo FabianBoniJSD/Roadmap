@@ -3,7 +3,7 @@ import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 import { clientDataService } from '@/utils/clientDataService';
 import { isAdminPrincipalAllowedForInstance } from '@/utils/instanceAccess';
 import {
-  isDepartmentAllowedForInstance,
+  isAnyDepartmentCandidateAllowedForInstance,
   normalizeDepartment,
 } from '@/utils/instanceDepartmentAccess';
 
@@ -26,7 +26,10 @@ const extractIdentifiers = (session: AdminSessionPayload | null | undefined) => 
     (sessionRecord && typeof sessionRecord.department === 'string'
       ? sessionRecord.department
       : null);
-  return { username, upn, mail, displayName, department };
+  const groups = Array.isArray(session?.groups)
+    ? session.groups.filter((g): g is string => typeof g === 'string')
+    : [];
+  return { username, upn, mail, displayName, department, groups };
 };
 
 export async function isAdminSessionAllowedForInstance(opts: {
@@ -48,11 +51,31 @@ export async function isAdminSessionAllowedForInstance(opts: {
   // DB-based department access: allow instance access when the user's department
   // is explicitly linked to the instance.
   const ids = extractIdentifiers(session);
-  const normalizedDepartment = normalizeDepartment(ids.department);
-  if (normalizedDepartment) {
-    const allowedByDepartment = await isDepartmentAllowedForInstance({
+  if (!ids.department) {
+    const resolvedOnPremDepartment = await clientDataService.withInstance(
+      String(instance.slug || ''),
+      () =>
+        clientDataService.resolveUserDepartmentFromSharePoint({
+          username: ids.username,
+          upn: ids.upn,
+          mail: ids.mail,
+          displayName: ids.displayName,
+        })
+    );
+    if (resolvedOnPremDepartment) {
+      ids.department = resolvedOnPremDepartment;
+    }
+  }
+
+  const departmentCandidates = Array.from(
+    new Set(
+      [ids.department, ...ids.groups].map((value) => normalizeDepartment(value)).filter(Boolean)
+    )
+  );
+  if (departmentCandidates.length > 0) {
+    const allowedByDepartment = await isAnyDepartmentCandidateAllowedForInstance({
       instanceSlug: String(instance.slug || ''),
-      department: normalizedDepartment,
+      candidates: departmentCandidates,
     });
     if (allowedByDepartment) return true;
   }

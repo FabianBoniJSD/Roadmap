@@ -18,6 +18,14 @@ const toLooseDepartmentKey = (value: unknown): string =>
     .replace(/[^\p{L}\p{N}]+/gu, '')
     .trim();
 
+const isDepartmentLikeMatch = (left: string, right: string): boolean => {
+  const l = toLooseDepartmentKey(left);
+  const r = toLooseDepartmentKey(right);
+  if (!l || !r) return false;
+  if (l === r) return true;
+  return l.includes(r) || r.includes(l);
+};
+
 export const normalizeDepartment = normalize;
 
 export const parseDepartmentsPayload = (value: unknown): string[] => {
@@ -97,14 +105,60 @@ export async function isDepartmentAllowedForInstance(opts: {
       if (!normalizedCandidate) return false;
       if (normalizedCandidate === department) return true;
 
-      const looseCandidate = toLooseDepartmentKey(row.department || row.normalizedDepartment);
-      if (!looseCandidate || !looseDepartment) return false;
-      if (looseCandidate === looseDepartment) return true;
-      if (looseCandidate.includes(looseDepartment) || looseDepartment.includes(looseCandidate)) {
-        return true;
-      }
-      return false;
+      return isDepartmentLikeMatch(row.department || row.normalizedDepartment, looseDepartment);
     });
+  } catch {
+    return false;
+  }
+}
+
+export async function isAnyDepartmentCandidateAllowedForInstance(opts: {
+  instanceSlug: string;
+  candidates: string[];
+}): Promise<boolean> {
+  const instanceSlug = normalize(opts.instanceSlug);
+  const candidates = Array.from(new Set(opts.candidates.map((c) => normalize(c)).filter(Boolean)));
+  if (!instanceSlug || candidates.length === 0) return false;
+
+  try {
+    const rows = await prisma.$queryRaw<
+      Array<{ id: number; department: string; normalizedDepartment: string }>
+    >(Prisma.sql`
+      SELECT "id", "department", "normalizedDepartment"
+      FROM "InstanceDepartmentAccess"
+      WHERE "instanceSlug" = ${instanceSlug}
+    `);
+
+    if (rows.length > 0) {
+      return rows.some((row) => {
+        const normalizedCandidate = normalize(row.normalizedDepartment || row.department || '');
+        if (!normalizedCandidate) return false;
+
+        if (candidates.includes(normalizedCandidate)) return true;
+
+        return candidates.some((sourceCandidate) =>
+          isDepartmentLikeMatch(row.department || row.normalizedDepartment, sourceCandidate)
+        );
+      });
+    }
+
+    const instanceRows = await prisma.$queryRaw<Array<{ department: string | null }>>(Prisma.sql`
+      SELECT "department"
+      FROM "RoadmapInstance"
+      WHERE "slug" = ${instanceSlug}
+      LIMIT 1
+    `);
+
+    if (instanceRows.length === 0) return false;
+    const fallbackDepartment = String(instanceRows[0]?.department || '').trim();
+    if (!fallbackDepartment) return false;
+
+    const normalizedFallback = normalize(fallbackDepartment);
+    if (normalizedFallback && candidates.includes(normalizedFallback)) return true;
+
+    return candidates.some((sourceCandidate) =>
+      isDepartmentLikeMatch(fallbackDepartment, sourceCandidate)
+    );
   } catch {
     return false;
   }

@@ -46,6 +46,22 @@ function escapeHtml(input: string): string {
     .replace(/'/g, '&#039;');
 }
 
+function parseJwtPayload(token?: string): Record<string, unknown> | null {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const json = Buffer.from(padded, 'base64').toString('utf8');
+    const parsed = JSON.parse(json);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 function renderPopupResultHtml(args: {
   ok: boolean;
   token?: string;
@@ -168,6 +184,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       codeVerifier: verifier,
     });
 
+    const idTokenClaims = parseJwtPayload(tokens.idToken);
+
     if (!tokens.accessToken) {
       throw new Error('Kein access_token erhalten (prüfe Scope User.Read)');
     }
@@ -185,6 +203,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       groupNames = [];
     }
 
+    if (groupNames.length === 0 && idTokenClaims) {
+      const claimGroups = idTokenClaims.groups;
+      if (Array.isArray(claimGroups)) {
+        groupNames = claimGroups.filter(
+          (g): g is string => typeof g === 'string' && g.trim().length > 0
+        );
+      }
+    }
+
     const allowAll = String(process.env.ENTRA_ALLOW_ALL || '').toLowerCase() === 'true';
     const allowed = isUserAllowedByUpnAllowlist({
       profile: me,
@@ -200,6 +227,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const username = me.userPrincipalName || me.mail || 'unknown';
     const displayName = me.displayName || username;
+    const departmentFromClaims =
+      typeof idTokenClaims?.department === 'string' ? idTokenClaims.department : null;
+    const resolvedDepartment =
+      (typeof me.department === 'string' && me.department.trim() ? me.department : null) ||
+      departmentFromClaims;
 
     const appToken = jwt.sign(
       {
@@ -212,7 +244,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           id: me.id,
           upn: me.userPrincipalName,
           mail: me.mail,
-          department: me.department,
+          department: resolvedDepartment,
         },
       },
       JWT_SECRET,
