@@ -2,7 +2,21 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 
 const normalize = (value: unknown): string =>
-  typeof value === 'string' ? value.trim().toLowerCase() : '';
+  typeof value === 'string'
+    ? value
+        .normalize('NFKC')
+        .trim()
+        .toLowerCase()
+        .replace(/[\u00A0\t\r\n]+/g, ' ')
+        .replace(/\s+/g, ' ')
+    : '';
+
+const toLooseDepartmentKey = (value: unknown): string =>
+  normalize(value)
+    .replace(/[&+]/g, ' und ')
+    .replace(/[\\/|]+/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .trim();
 
 export const normalizeDepartment = normalize;
 
@@ -66,17 +80,31 @@ export async function isDepartmentAllowedForInstance(opts: {
 }): Promise<boolean> {
   const instanceSlug = normalize(opts.instanceSlug);
   const department = normalize(opts.department);
+  const looseDepartment = toLooseDepartmentKey(opts.department);
   if (!instanceSlug || !department) return false;
 
   try {
-    const rows = await prisma.$queryRaw<Array<{ id: number }>>(Prisma.sql`
-      SELECT "id"
+    const rows = await prisma.$queryRaw<
+      Array<{ id: number; department: string; normalizedDepartment: string }>
+    >(Prisma.sql`
+      SELECT "id", "department", "normalizedDepartment"
       FROM "InstanceDepartmentAccess"
       WHERE "instanceSlug" = ${instanceSlug}
-        AND "normalizedDepartment" = ${department}
-      LIMIT 1
     `);
-    return rows.length > 0;
+
+    return rows.some((row) => {
+      const normalizedCandidate = normalize(row.normalizedDepartment || row.department || '');
+      if (!normalizedCandidate) return false;
+      if (normalizedCandidate === department) return true;
+
+      const looseCandidate = toLooseDepartmentKey(row.department || row.normalizedDepartment);
+      if (!looseCandidate || !looseDepartment) return false;
+      if (looseCandidate === looseDepartment) return true;
+      if (looseCandidate.includes(looseDepartment) || looseDepartment.includes(looseCandidate)) {
+        return true;
+      }
+      return false;
+    });
   } catch {
     return false;
   }

@@ -29,10 +29,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ? decoded.groups.filter((g): g is string => typeof g === 'string')
         : [];
       const isSuperAdmin = await isSuperAdminSessionWithSharePointFallback(decoded);
+      const entra =
+        decoded.entra && typeof decoded.entra === 'object'
+          ? (decoded.entra as Record<string, unknown>)
+          : null;
+      const department =
+        (entra && typeof entra.department === 'string' ? entra.department : null) ||
+        (typeof decoded.department === 'string' ? decoded.department : null);
 
       return res.status(200).json({
         isAdmin: decoded.isAdmin || false,
         username: decoded.displayName || decoded.username,
+        department,
         groups,
         isSuperAdmin,
       });
