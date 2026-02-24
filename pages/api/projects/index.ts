@@ -3,7 +3,165 @@ import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSession, requireAdminSession } from '@/utils/apiAuth';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
+import type { Project } from '@/types';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
+import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
+
+const deriveQuarterDate = (q: string, end = false): string => {
+  const year = new Date().getFullYear();
+  switch (q) {
+    case 'Q1':
+      return end
+        ? new Date(Date.UTC(year, 2, 31, 23, 59, 59)).toISOString()
+        : new Date(Date.UTC(year, 0, 1)).toISOString();
+    case 'Q2':
+      return end
+        ? new Date(Date.UTC(year, 5, 30, 23, 59, 59)).toISOString()
+        : new Date(Date.UTC(year, 3, 1)).toISOString();
+    case 'Q3':
+      return end
+        ? new Date(Date.UTC(year, 8, 30, 23, 59, 59)).toISOString()
+        : new Date(Date.UTC(year, 6, 1)).toISOString();
+    case 'Q4':
+      return end
+        ? new Date(Date.UTC(year, 11, 31, 23, 59, 59)).toISOString()
+        : new Date(Date.UTC(year, 9, 1)).toISOString();
+    default:
+      return new Date(Date.UTC(year, 0, 1)).toISOString();
+  }
+};
+
+const mapMinimalSharePointItem = (item: Record<string, unknown>): Project => {
+  const id = String(item.Id ?? item.ID ?? '');
+  const title = typeof item.Title === 'string' ? item.Title : String(item.Title || '');
+  const normalizeCategory = (value: unknown): string => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return '';
+      if (/^\d+(?:\.\d+)?$/.test(trimmed)) return String(parseInt(trimmed, 10));
+      return trimmed;
+    }
+    if (typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      for (const key of ['Id', 'ID', 'Value', 'LookupId', 'LookupID']) {
+        if (obj[key] !== undefined) {
+          const normalized = normalizeCategory(obj[key]);
+          if (normalized) return normalized;
+        }
+      }
+    }
+    return '';
+  };
+
+  const category = normalizeCategory(item.Category ?? item.Bereich ?? item.Bereiche);
+  const startQuarter =
+    item.StartQuarter !== undefined && item.StartQuarter !== null
+      ? String(item.StartQuarter).replace(/(Q[1-4])\s+20\d{2}/, '$1')
+      : 'Q1';
+  const endQuarter =
+    item.EndQuarter !== undefined && item.EndQuarter !== null
+      ? String(item.EndQuarter).replace(/(Q[1-4])\s+20\d{2}/, '$1')
+      : startQuarter || 'Q1';
+
+  return {
+    id,
+    title,
+    projectType:
+      item.ProjectType !== undefined && item.ProjectType !== null && String(item.ProjectType)
+        ? String(item.ProjectType).toLowerCase() === 'short'
+          ? 'short'
+          : 'long'
+        : 'long',
+    category,
+    startQuarter,
+    endQuarter,
+    description: typeof item.Description === 'string' ? item.Description : '',
+    status:
+      typeof item.Status === 'string' && item.Status.trim()
+        ? (String(item.Status).toLowerCase() as Project['status'])
+        : 'planned',
+    ProjectFields: [],
+    projektleitung: typeof item.Projektleitung === 'string' ? item.Projektleitung : '',
+    teamMembers: [],
+    bisher: typeof item.Bisher === 'string' ? item.Bisher : '',
+    zukunft: typeof item.Zukunft === 'string' ? item.Zukunft : '',
+    fortschritt: Number(item.Fortschritt || 0),
+    geplante_umsetzung: typeof item.GeplantUmsetzung === 'string' ? item.GeplantUmsetzung : '',
+    budget: typeof item.Budget === 'string' ? item.Budget : '',
+    startDate:
+      item.StartDate !== undefined && item.StartDate !== null && String(item.StartDate)
+        ? String(item.StartDate)
+        : deriveQuarterDate(startQuarter || 'Q1'),
+    endDate:
+      item.EndDate !== undefined && item.EndDate !== null && String(item.EndDate)
+        ? String(item.EndDate)
+        : deriveQuarterDate(endQuarter || startQuarter || 'Q1', true),
+    links: [],
+  };
+};
+
+const buildAbsoluteBaseUrl = (req: NextApiRequest): string => {
+  const internal = (process.env.INTERNAL_API_BASE_URL || '').trim();
+  if (internal) return internal.replace(/\/$/, '');
+
+  const protoHeader = req.headers['x-forwarded-proto'];
+  const proto = Array.isArray(protoHeader)
+    ? protoHeader[0]
+    : typeof protoHeader === 'string'
+      ? protoHeader.split(',')[0].trim()
+      : 'http';
+  const hostHeader = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+  const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+  return `${proto}://${host}`.replace(/\/$/, '');
+};
+
+const fetchProjectsViaExplicitInstanceProxy = async (
+  req: NextApiRequest,
+  instance: RoadmapInstanceConfig
+): Promise<Project[]> => {
+  const baseUrl = buildAbsoluteBaseUrl(req);
+  const encodedInstance = encodeURIComponent(instance.slug);
+  const candidateLists = ['RoadmapProjects', 'Roadmap Projects'];
+  const select = encodeURIComponent(
+    'Id,Title,ProjectType,Category,Bereich,Bereiche,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate'
+  );
+
+  for (const listTitle of candidateLists) {
+    const encodedTitle = encodeURIComponent(listTitle);
+    const url = `${baseUrl}/api/sharepoint/_api/web/lists/getByTitle('${encodedTitle}')/items?$select=${select}&$orderby=Id%20desc&$top=5000&roadmapInstance=${encodedInstance}`;
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json;odata=nometadata',
+          ...(typeof req.headers.cookie === 'string' ? { cookie: req.headers.cookie } : {}),
+        },
+      });
+      if (!response.ok) continue;
+      const json = await response.json();
+      const rawItems = Array.isArray(json?.value)
+        ? json.value
+        : Array.isArray(json?.d?.results)
+          ? json.d.results
+          : [];
+      if (!Array.isArray(rawItems) || rawItems.length === 0) continue;
+      const mapped = rawItems
+        .map((item: unknown) =>
+          item && typeof item === 'object'
+            ? mapMinimalSharePointItem(item as Record<string, unknown>)
+            : null
+        )
+        .filter((item): item is Project => Boolean(item && item.id));
+      if (mapped.length > 0) return mapped;
+    } catch {
+      // Continue with next list title variant.
+    }
+  }
+
+  return [];
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const disableCache = () => {
@@ -38,9 +196,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      const projects = await clientDataService.withInstance(instance.slug, () =>
+      res.setHeader('x-projects-instance', instance.slug);
+      res.setHeader('x-projects-sharepoint-site', resolveSharePointSiteUrl(instance));
+
+      let projects = await clientDataService.withInstance(instance.slug, () =>
         clientDataService.getAllProjects()
       );
+
+      if (Array.isArray(projects) && projects.length === 0) {
+        const explicitProjects = await fetchProjectsViaExplicitInstanceProxy(req, instance);
+        if (explicitProjects.length > 0) {
+          projects = explicitProjects;
+          res.setHeader('x-projects-fallback', 'explicit-instance-proxy-fetch');
+        }
+      }
       // Normalize category values (trim + numeric-like collapse) to keep consistent with UI expectations
       if (Array.isArray(projects)) {
         for (const p of projects) {
