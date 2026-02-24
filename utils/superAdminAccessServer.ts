@@ -1,4 +1,5 @@
 import type { NextApiRequest } from 'next';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import type { AdminSessionPayload } from '@/utils/apiAuth';
 import { isSuperAdminSession, requireAdminSession } from '@/utils/apiAuth';
@@ -37,6 +38,33 @@ const buildCacheKey = (ids: ReturnType<typeof extractIdentifiers>): string => {
   const primary = ids.upn || ids.mail || ids.username || ids.displayName || 'unknown';
   return normalize(primary);
 };
+
+async function isDbSuperAdmin(ids: ReturnType<typeof extractIdentifiers>): Promise<boolean> {
+  const candidates = Array.from(
+    new Set([
+      normalize(ids.username),
+      normalize(ids.upn),
+      normalize(ids.mail),
+      normalize(ids.displayName),
+    ])
+  ).filter(Boolean);
+
+  if (candidates.length === 0) return false;
+
+  try {
+    const rows = await prisma.$queryRaw<Array<{ id: number }>>(Prisma.sql`
+      SELECT "id"
+      FROM "SuperAdmin"
+      WHERE "isActive" = 1
+        AND "normalizedUsername" IN (${Prisma.join(candidates)})
+      LIMIT 1
+    `);
+    return rows.length > 0;
+  } catch {
+    // Table may not exist before migration deployment.
+    return false;
+  }
+}
 
 async function getAllInstanceSlugs(): Promise<string[]> {
   const rows = await prisma.roadmapInstance.findMany({
@@ -77,6 +105,17 @@ export async function isSuperAdminSessionWithSharePointFallback(
   if (!session) return false;
   if (isSuperAdminSession(session)) return true;
 
+  const ids = extractIdentifiers(session);
+  const cacheKey = buildCacheKey(ids);
+  const now = Date.now();
+  const cached = superAdminCache[cacheKey];
+  if (cached && cached.expires > now) return cached.ok;
+
+  if (await isDbSuperAdmin(ids)) {
+    superAdminCache[cacheKey] = { ok: true, expires: now + SUPERADMIN_CACHE_TTL_MS };
+    return true;
+  }
+
   // If the token already contains *any* group claims, treat it as authoritative
   // for the presence of "superadmin". Only do the SharePoint fallback when the
   // groups claim is missing/empty (common when Graph group scopes aren't granted).
@@ -88,14 +127,9 @@ export async function isSuperAdminSessionWithSharePointFallback(
       return String(g).trim().length > 0;
     })
   ) {
+    superAdminCache[cacheKey] = { ok: false, expires: now + SUPERADMIN_CACHE_TTL_MS };
     return false;
   }
-
-  const ids = extractIdentifiers(session);
-  const cacheKey = buildCacheKey(ids);
-  const now = Date.now();
-  const cached = superAdminCache[cacheKey];
-  if (cached && cached.expires > now) return cached.ok;
 
   const slugs = await getSuperAdminCheckInstanceSlugs(opts?.candidateInstanceSlugs);
   if (slugs.length === 0) return false;
