@@ -6,6 +6,7 @@ import {
   isAnyDepartmentCandidateAllowedForInstance,
   normalizeDepartment,
 } from '@/utils/instanceDepartmentAccess';
+import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 type Principal = { username: string | null; groups?: unknown };
 
@@ -37,6 +38,11 @@ export async function isAdminSessionAllowedForInstance(opts: {
   instance: Pick<RoadmapInstanceConfig, 'slug'>;
 }): Promise<boolean> {
   const { session, instance } = opts;
+
+  if (await isSuperAdminSessionWithSharePointFallback(session)) {
+    return true;
+  }
+
   const principal: Principal = {
     username:
       (typeof session?.username === 'string' && session.username) ||
