@@ -551,12 +551,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
       if (!normalized) normalized = rawOut; // fallback raw
-      if (typeof normalized === 'string' && /<html/i.test(normalized) && /401/i.test(normalized)) {
-        return res.status(401).json({
-          error: 'Unauthorized (curl)',
-          snippet: normalized.substring(0, 160),
-          stderr: process.env.SP_CURL_VERBOSE === 'true' ? output.stderr : undefined,
-        });
+      if (typeof normalized === 'string') {
+        const normalizedTrimmed = normalized.trim();
+        const isHtml401 = /<html/i.test(normalizedTrimmed) && /401/i.test(normalizedTrimmed);
+        const isPlain401 = /^401\s+unauthorized$/i.test(normalizedTrimmed);
+        const isForbidden = /^403\s+forbidden$/i.test(normalizedTrimmed);
+        if (isHtml401 || isPlain401 || isForbidden) {
+          const status = isForbidden ? 403 : 401;
+          return res.status(status).json({
+            error: status === 403 ? 'Forbidden (curl)' : 'Unauthorized (curl)',
+            snippet: normalizedTrimmed.substring(0, 160),
+            instance: instance.slug,
+            targetUrl,
+            stderr: process.env.SP_CURL_VERBOSE === 'true' ? output.stderr : undefined,
+          });
+        }
       }
       // Shape response to look like native SharePoint depending on Accept header
       const wantsNoMeta = /odata=nometadata/i.test(clientAccept);
