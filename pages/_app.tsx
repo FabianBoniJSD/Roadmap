@@ -23,6 +23,10 @@ interface CustomWindow extends Window {
 
 function MyApp({ Component, pageProps }: AppProps): JSX.Element {
   const router = useRouter();
+  const maintenanceModeEnabled = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true';
+  const maintenanceMessage =
+    process.env.NEXT_PUBLIC_MAINTENANCE_MESSAGE ||
+    'Die Website ist derzeit im Wartungsmodus und in Kürze wieder verfügbar.';
 
   // Keep instance cookie in sync with query parameter on any route
   useEffect(() => {
@@ -99,6 +103,18 @@ function MyApp({ Component, pageProps }: AppProps): JSX.Element {
       }
     }
   }, []);
+
+  if (maintenanceModeEnabled) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-gray-900 text-white">
+        <div className="max-w-xl w-full text-center space-y-4">
+          <h1 className="text-3xl sm:text-4xl font-semibold">Wartungsmodus</h1>
+          <p className="text-base sm:text-lg text-gray-200">{maintenanceMessage}</p>
+          <p className="text-sm text-gray-400">Bitte versuche es später erneut.</p>
+        </div>
+      </main>
+    );
+  }
 
   return <Component {...pageProps} />;
 }
