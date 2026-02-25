@@ -280,8 +280,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   applyNoCacheHeaders(res);
 
   try {
-    // Hardcoded Kerberos/SPNEGO via curl (no env flags). Legacy fetch-based auth modes are deprecated.
-    {
+    const strategy = String(instance.sharePoint.strategy || 'kerberos').toLowerCase();
+    const useCurlKerberos = strategy === 'kerberos';
+    const allowCurlFallbackToFetch = process.env.SP_CURL_FALLBACK_TO_FETCH === 'true';
+
+    // Kerberos/SPNEGO via curl (default for kerberos strategy).
+    if (useCurlKerberos) {
       // In negotiate mode curl uses the process identity (Kerberos ticket).
       const cred = ':';
       const targetUrl = site.replace(/\/$/, '') + fullPath;
@@ -558,34 +562,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const isForbidden = /^403\s+forbidden$/i.test(normalizedTrimmed);
         if (isHtml401 || isPlain401 || isForbidden) {
           const status = isForbidden ? 403 : 401;
-          return res.status(status).json({
-            error: status === 403 ? 'Forbidden (curl)' : 'Unauthorized (curl)',
-            snippet: normalizedTrimmed.substring(0, 160),
-            instance: instance.slug,
-            targetUrl,
-            stderr: process.env.SP_CURL_VERBOSE === 'true' ? output.stderr : undefined,
-          });
+          if (status === 401 && allowCurlFallbackToFetch) {
+            res.setHeader('x-sp-proxy-mode', 'curl-fallback-to-fetch');
+            console.warn(
+              '[sharepoint proxy] curl kerberos unauthorized, falling back to fetch auth',
+              {
+                instance: instance.slug,
+                targetUrl,
+                strategy,
+              }
+            );
+          } else {
+            return res.status(status).json({
+              error: status === 403 ? 'Forbidden (curl)' : 'Unauthorized (curl)',
+              snippet: normalizedTrimmed.substring(0, 160),
+              instance: instance.slug,
+              targetUrl,
+              stderr: process.env.SP_CURL_VERBOSE === 'true' ? output.stderr : undefined,
+            });
+          }
         }
       }
-      // Shape response to look like native SharePoint depending on Accept header
-      const wantsNoMeta = /odata=nometadata/i.test(clientAccept);
-      let bodyToSend: any = normalized;
-      if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
-        if ((normalized as any).d && (normalized as any).d.results && wantsNoMeta) {
-          bodyToSend = { value: (normalized as any).d.results };
-        } else if (Array.isArray((normalized as any).d)) {
-          bodyToSend = wantsNoMeta ? { value: (normalized as any).d } : normalized;
+      if (res.getHeader('x-sp-proxy-mode') === 'curl-fallback-to-fetch') {
+        // Continue below into fetch-based auth path.
+      } else {
+        // Shape response to look like native SharePoint depending on Accept header
+        const wantsNoMeta = /odata=nometadata/i.test(clientAccept);
+        let bodyToSend: any = normalized;
+        if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
+          if ((normalized as any).d && (normalized as any).d.results && wantsNoMeta) {
+            bodyToSend = { value: (normalized as any).d.results };
+          } else if (Array.isArray((normalized as any).d)) {
+            bodyToSend = wantsNoMeta ? { value: (normalized as any).d } : normalized;
+          }
+        } else if (Array.isArray(normalized)) {
+          bodyToSend = wantsNoMeta ? { value: normalized } : { d: { results: normalized } };
         }
-      } else if (Array.isArray(normalized)) {
-        bodyToSend = wantsNoMeta ? { value: normalized } : { d: { results: normalized } };
+        // Provide minimal telemetry via headers
+        res.setHeader('x-sp-proxy-mode', 'curl');
+        res.setHeader('x-sp-proxy-ms', String(duration));
+        if (req.method === 'GET' && cacheSeconds > 0) {
+          curlCache[cacheKey] = { expires: Date.now() + cacheSeconds * 1000, payload: bodyToSend };
+        }
+        return res.status(200).json(bodyToSend);
       }
-      // Provide minimal telemetry via headers
-      res.setHeader('x-sp-proxy-mode', 'curl');
-      res.setHeader('x-sp-proxy-ms', String(duration));
-      if (req.method === 'GET' && cacheSeconds > 0) {
-        curlCache[cacheKey] = { expires: Date.now() + cacheSeconds * 1000, payload: bodyToSend };
-      }
-      return res.status(200).json(bodyToSend);
     }
 
     const authContext = await getSharePointAuthHeaders(instance);
