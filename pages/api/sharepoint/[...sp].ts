@@ -282,6 +282,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const strategy = String(instance.sharePoint.strategy || 'kerberos').toLowerCase();
     const useCurlKerberos = strategy === 'kerberos';
+    const delegatedUserCandidates = [
+      req.headers['x-remote-user'],
+      req.headers['remote-user'],
+      req.headers['x-forwarded-user'],
+      req.headers['x-authenticated-user'],
+    ];
+    const delegatedUser = delegatedUserCandidates
+      .map((v) => (Array.isArray(v) ? v[0] : v))
+      .find((v) => typeof v === 'string' && v.trim()) as string | undefined;
+
+    if (strategy === 'delegated' && !delegatedUser) {
+      return res.status(401).json({
+        error: 'Delegated identity missing',
+        detail:
+          'Expected one of x-remote-user, remote-user, x-forwarded-user, x-authenticated-user from reverse proxy.',
+        instance: instance.slug,
+      });
+    }
+    if (strategy === 'delegated' && delegatedUser) {
+      res.setHeader('x-sp-delegated-user', delegatedUser);
+    }
+
     const allowCurlFallbackToFetch = process.env.SP_CURL_FALLBACK_TO_FETCH === 'true';
 
     // Kerberos/SPNEGO via curl (default for kerberos strategy).
@@ -608,8 +630,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    const authContext = await getSharePointAuthHeaders(instance);
-    const authHeaders = authContext.headers;
+    let authContext: SharePointAuthContext | null = null;
+    let authHeaders: Record<string, string> = {};
+
+    if (strategy === 'delegated') {
+      const incomingAuthorization =
+        typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
+      const incomingCookie = typeof req.headers.cookie === 'string' ? req.headers.cookie : '';
+      if (!incomingAuthorization && !incomingCookie) {
+        return res.status(401).json({
+          error: 'Delegated auth material missing',
+          detail:
+            'No Authorization/Cookie header to forward. Ensure reverse proxy forwards delegated user auth to Node.',
+          instance: instance.slug,
+          delegatedUser: delegatedUser || null,
+        });
+      }
+      authHeaders = {
+        ...(incomingAuthorization ? { Authorization: incomingAuthorization } : {}),
+        ...(incomingCookie ? { Cookie: incomingCookie } : {}),
+      };
+      res.setHeader('x-sp-proxy-mode', 'delegated');
+    } else {
+      authContext = await getSharePointAuthHeaders(instance);
+      authHeaders = authContext.headers;
+    }
+
     const targetUrl = site.replace(/\/$/, '') + fullPath;
 
     const method = req.method || 'GET';
@@ -664,7 +710,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (isWrite && apiPath !== '/_api/contextinfo') {
       try {
-        headers['X-RequestDigest'] = await getDigest(site, authContext);
+        headers['X-RequestDigest'] = await getDigest(site, authContext || { headers: authHeaders });
       } catch (e) {
         console.warn('Digest retrieval failed', e);
       }

@@ -21,13 +21,23 @@ const CACHE_TTL_MS = Math.max(
 
 const normalizeSharePointStrategy = (raw: unknown): string => {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-  if (value === 'kerberos' || value === 'fba' || value === 'basic') return value;
+  if (value === 'kerberos' || value === 'fba' || value === 'basic' || value === 'delegated')
+    return value;
+
+  if (value === 'delegate' || value === 'kcd' || value === 'userdelegation') {
+    return 'delegated';
+  }
 
   // Legacy values that existed before the NTLM/onprem cleanup.
   if (value === 'onprem' || value === 'ntlm' || value === 'online') {
     const env = typeof process.env.SP_STRATEGY === 'string' ? process.env.SP_STRATEGY : '';
     const normalizedEnv = env.trim().toLowerCase();
-    if (normalizedEnv === 'kerberos' || normalizedEnv === 'fba' || normalizedEnv === 'basic') {
+    if (
+      normalizedEnv === 'kerberos' ||
+      normalizedEnv === 'fba' ||
+      normalizedEnv === 'basic' ||
+      normalizedEnv === 'delegated'
+    ) {
       return normalizedEnv;
     }
     return 'kerberos';
@@ -35,7 +45,12 @@ const normalizeSharePointStrategy = (raw: unknown): string => {
 
   const env = typeof process.env.SP_STRATEGY === 'string' ? process.env.SP_STRATEGY : '';
   const normalizedEnv = env.trim().toLowerCase();
-  if (normalizedEnv === 'kerberos' || normalizedEnv === 'fba' || normalizedEnv === 'basic') {
+  if (
+    normalizedEnv === 'kerberos' ||
+    normalizedEnv === 'fba' ||
+    normalizedEnv === 'basic' ||
+    normalizedEnv === 'delegated'
+  ) {
     return normalizedEnv;
   }
   return 'kerberos';

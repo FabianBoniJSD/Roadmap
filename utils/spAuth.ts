@@ -76,6 +76,10 @@ export async function getSharePointAuthHeaders(
     return { headers: { Accept: 'application/json;odata=nometadata' } };
   }
 
+  if (strategy === 'delegated') {
+    return { headers: { Accept: 'application/json;odata=nometadata' } };
+  }
+
   const credentials = getPrimaryCredentials({
     username: inst?.sharePoint.username,
     password: inst?.sharePoint.password,
