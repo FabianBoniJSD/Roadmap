@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
-import { extractAdminSession, requireAdminSession } from '@/utils/apiAuth';
+import { extractAdminSession } from '@/utils/apiAuth';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { Project } from '@/types';
@@ -222,7 +222,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     disableCache();
     try {
       // Read access requires a logged-in admin session
-      const session = requireAdminSession(req);
+      const session = extractAdminSession(req);
+      if (!session?.isAdmin) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
       if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
         return res.status(403).json({ error: 'Forbidden' });
       }
