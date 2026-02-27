@@ -51,12 +51,18 @@ jobs:
             can_sudo=1
           fi
 
-          dbPath="prisma/prisma/dev.db"
+          dbPath=""
+          for candidate in "prisma/dev.db" "prisma/prisma/dev.db"; do
+            if [ -f "$candidate" ]; then
+              dbPath="$candidate"
+              break
+            fi
+          done
           dbBackup=""
-          if [ -f "$dbPath" ]; then
+          if [ -n "$dbPath" ] && [ -f "$dbPath" ]; then
             dbBackup="${RUNNER_TEMP:-/tmp}/dev.db.backup"
             cp -f "$dbPath" "$dbBackup"
-            echo "Backed up local dev DB to $dbBackup"
+            echo "Backed up local dev DB ($dbPath) to $dbBackup"
           fi
 
           echo "Resetting workspace to HEAD commit..."
@@ -79,10 +85,10 @@ jobs:
           git clean -ffdx
           echo "Workspace reset complete."
 
-          if [ -n "$dbBackup" ] && [ -f "$dbBackup" ]; then
+          if [ -n "$dbPath" ] && [ -n "$dbBackup" ] && [ -f "$dbBackup" ]; then
             mkdir -p "$(dirname "$dbPath")"
             cp -f "$dbBackup" "$dbPath"
-            echo "Restored local dev DB from backup."
+            echo "Restored local dev DB to $dbPath from backup."
           fi
 
       - name: Configure caches/tmp (avoid small /home)
