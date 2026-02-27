@@ -46,6 +46,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          can_sudo=0
+          if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+            can_sudo=1
+          fi
+
           dbPath="prisma/prisma/dev.db"
           dbBackup=""
           if [ -f "$dbPath" ]; then
@@ -56,10 +61,22 @@ jobs:
 
           echo "Resetting workspace to HEAD commit..."
           git reset --hard HEAD
+
+          echo "Repairing workspace permissions (best effort)..."
+          if [ "$can_sudo" -eq 1 ]; then
+            sudo -n chown -R "$(id -un)":"$(id -gn)" "$GITHUB_WORKSPACE" || true
+          fi
           chmod -R u+rwX . || true
 
+          echo "Removing common build artifacts before git clean..."
+          if [ "$can_sudo" -eq 1 ]; then
+            sudo -n rm -rf .next node_modules || true
+          else
+            rm -rf .next node_modules || true
+          fi
+
           echo "Removing untracked files and folders..."
-          git clean -fdx
+          git clean -ffdx
           echo "Workspace reset complete."
 
           if [ -n "$dbBackup" ] && [ -f "$dbBackup" ]; then
