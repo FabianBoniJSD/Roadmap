@@ -221,6 +221,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'GET') {
     disableCache();
     try {
+      const forwardedHeaders = {
+        authorization:
+          typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
+        cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
+      };
+
       // Read access requires a logged-in admin session
       const session = extractAdminSession(req);
       if (!session?.isAdmin) {
@@ -233,8 +239,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.setHeader('x-projects-instance', instance.slug);
       res.setHeader('x-projects-sharepoint-site', resolveSharePointSiteUrl(instance));
 
-      let projects = await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.getAllProjects()
+      let projects = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+        clientDataService.withInstance(instance.slug, () => clientDataService.getAllProjects())
       );
 
       if (Array.isArray(projects) && projects.length === 0) {
@@ -269,15 +275,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Server-side minimal category hydration if still all empty
       if (Array.isArray(projects) && projects.length > 0 && projects.every((p) => !p.category)) {
         try {
-          const listTitle = await clientDataService.withInstance(instance.slug, () =>
-            clientDataService.resolveListTitle('RoadmapProjects', ['Roadmap Projects'])
+          const listTitle = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+            clientDataService.withInstance(instance.slug, () =>
+              clientDataService.resolveListTitle('RoadmapProjects', ['Roadmap Projects'])
+            )
           );
           const encodedTitle = encodeURIComponent(listTitle);
           const url = `/_api/web/lists/getByTitle('${encodedTitle}')/items?$select=Id,Category`;
-          const r = await clientDataService.withInstance(instance.slug, () =>
-            clientDataService.sharePointFetch(url, {
-              headers: { Accept: 'application/json;odata=nometadata' },
-            })
+          const r = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+            clientDataService.withInstance(instance.slug, () =>
+              clientDataService.sharePointFetch(url, {
+                headers: { Accept: 'application/json;odata=nometadata' },
+              })
+            )
           );
           if (r.ok) {
             const j = await r.json();
@@ -350,6 +360,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   else if (req.method === 'POST') {
     disableCache();
     try {
+      const forwardedHeaders = {
+        authorization:
+          typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
+        cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
+      };
+
       const session = extractAdminSession(req);
 
       if (session?.isAdmin) {
@@ -358,8 +374,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       } else {
         // Admin-only: ensure caller is a Site Collection Admin
-        const isAdmin = await clientDataService.withInstance(instance.slug, () =>
-          clientDataService.isCurrentUserAdmin()
+        const isAdmin = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+          clientDataService.withInstance(instance.slug, () =>
+            clientDataService.isCurrentUserAdmin()
+          )
         );
         if (!isAdmin) {
           return res.status(401).json({ error: 'Unauthorized' });
@@ -367,8 +385,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const projectData = req.body;
-      const newProject = await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.createProject(projectData)
+      const newProject = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+        clientDataService.withInstance(instance.slug, () =>
+          clientDataService.createProject(projectData)
+        )
       );
       res.status(201).json(newProject);
     } catch (error: unknown) {

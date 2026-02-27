@@ -8,6 +8,8 @@ import { prefixBasePath } from '@/utils/nextBasePath';
 type NodeRequireFn = typeof require;
 type AsyncLocalStorageCtor = new <T>() => AsyncLocalStorage<T>;
 let instanceContextStorage: AsyncLocalStorage<string | null> | null = null;
+type ForwardedRequestHeaders = { authorization?: string; cookie?: string };
+let requestHeadersContextStorage: AsyncLocalStorage<ForwardedRequestHeaders | null> | null = null;
 let asyncLocalStorageCtor: AsyncLocalStorageCtor | null = null;
 
 const nodeRequire = (): NodeRequireFn | null => {
@@ -46,6 +48,15 @@ const getInstanceContextStorage = (): AsyncLocalStorage<string | null> | null =>
   return instanceContextStorage;
 };
 
+const getRequestHeadersContextStorage =
+  (): AsyncLocalStorage<ForwardedRequestHeaders | null> | null => {
+    if (requestHeadersContextStorage) return requestHeadersContextStorage;
+    const ctor = getAsyncLocalStorageCtor();
+    if (!ctor) return null;
+    requestHeadersContextStorage = new ctor();
+    return requestHeadersContextStorage;
+  };
+
 const SP_LISTS = {
   PROJECTS: 'RoadmapProjects',
   CATEGORIES: 'RoadmapCategories',
@@ -78,6 +89,16 @@ class ClientDataService {
     const prepared: RequestInit = { ...init };
     const headers = new Headers(init.headers || {});
     let finalUrl = url;
+
+    if (typeof window === 'undefined') {
+      const forwarded = this.getForwardedRequestHeaders();
+      if (forwarded?.authorization && !headers.has('authorization')) {
+        headers.set('authorization', forwarded.authorization);
+      }
+      if (forwarded?.cookie && !headers.has('cookie')) {
+        headers.set('cookie', forwarded.cookie);
+      }
+    }
 
     const activeSlug = this.getActiveInstanceSlug();
     if (activeSlug) {
@@ -149,6 +170,12 @@ class ClientDataService {
     return storage.getStore() ?? null;
   }
 
+  private getForwardedRequestHeaders(): ForwardedRequestHeaders | null {
+    const storage = getRequestHeadersContextStorage();
+    if (!storage) return null;
+    return storage.getStore() ?? null;
+  }
+
   private getDigestCacheKey(): string {
     const slug = this.getActiveInstanceSlug();
     if (slug) return slug;
@@ -200,6 +227,27 @@ class ClientDataService {
       return await callback();
     }
     return await storage.run(slug ?? null, callback);
+  }
+
+  async withRequestHeaders<T>(
+    requestHeaders: ForwardedRequestHeaders | null | undefined,
+    fn: () => Promise<T> | T
+  ): Promise<T> {
+    const storage = getRequestHeadersContextStorage();
+    const callback = () => Promise.resolve(fn());
+    if (!storage) {
+      return await callback();
+    }
+
+    const normalized: ForwardedRequestHeaders = {};
+    if (requestHeaders?.authorization) {
+      normalized.authorization = String(requestHeaders.authorization);
+    }
+    if (requestHeaders?.cookie) {
+      normalized.cookie = String(requestHeaders.cookie);
+    }
+
+    return await storage.run(normalized, callback);
   }
 
   async requestDigest(): Promise<string> {
