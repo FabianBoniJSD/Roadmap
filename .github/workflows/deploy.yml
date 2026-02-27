@@ -82,7 +82,10 @@ jobs:
           fi
 
           echo "Removing untracked files and folders..."
-          git clean -ffdx
+          # Keep local SQLite DB files across deploy runs.
+          git clean -ffdx \
+            -e prisma/dev.db \
+            -e prisma/prisma/dev.db
           echo "Workspace reset complete."
 
           if [ -n "$dbPath" ] && [ -n "$dbBackup" ] && [ -f "$dbBackup" ]; then
