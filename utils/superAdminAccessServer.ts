@@ -33,6 +33,7 @@ const extractIdentifiers = (session: AdminSessionPayload | null | undefined) => 
 type CacheEntry = { expires: number; ok: boolean };
 const superAdminCache: Record<string, CacheEntry> = {};
 const SUPERADMIN_CACHE_TTL_MS = 2 * 60 * 1000;
+type ForwardedRequestHeaders = { authorization?: string; cookie?: string };
 
 const buildCacheKey = (ids: ReturnType<typeof extractIdentifiers>): string => {
   const primary = ids.upn || ids.mail || ids.username || ids.displayName || 'unknown';
@@ -100,7 +101,7 @@ async function getSuperAdminCheckInstanceSlugs(
 
 export async function isSuperAdminSessionWithSharePointFallback(
   session: AdminSessionPayload | null | undefined,
-  opts?: { candidateInstanceSlugs?: string[] }
+  opts?: { candidateInstanceSlugs?: string[]; requestHeaders?: ForwardedRequestHeaders }
 ): Promise<boolean> {
   if (!session) return false;
   if (isSuperAdminSession(session)) return true;
@@ -137,9 +138,16 @@ export async function isSuperAdminSessionWithSharePointFallback(
   // Note: sequential on purpose (avoids hammering SharePoint); cached afterwards.
   let ok = false;
   for (const slug of slugs) {
-    ok = await clientDataService.withInstance(slug, () =>
-      clientDataService.isUserInSharePointGroupByTitle('superadmin', ids)
-    );
+    try {
+      ok = await clientDataService.withRequestHeaders(opts?.requestHeaders, () =>
+        clientDataService.withInstance(slug, () =>
+          clientDataService.isUserInSharePointGroupByTitle('superadmin', ids)
+        )
+      );
+    } catch (error) {
+      console.warn('[superadmin] SharePoint fallback check failed', { slug, error });
+      ok = false;
+    }
     if (ok) break;
   }
 

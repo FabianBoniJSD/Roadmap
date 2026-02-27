@@ -232,7 +232,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!session?.isAdmin) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
-      if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
+      if (
+        !(await isAdminSessionAllowedForInstance({
+          session,
+          instance,
+          requestHeaders: forwardedHeaders,
+        }))
+      ) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
@@ -369,7 +375,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const session = extractAdminSession(req);
 
       if (session?.isAdmin) {
-        if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
+        if (
+          !(await isAdminSessionAllowedForInstance({
+            session,
+            instance,
+            requestHeaders: forwardedHeaders,
+          }))
+        ) {
           return res.status(403).json({ error: 'Forbidden' });
         }
       } else {

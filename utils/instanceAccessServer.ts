@@ -9,6 +9,7 @@ import {
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 type Principal = { username: string | null; groups?: unknown };
+type ForwardedRequestHeaders = { authorization?: string; cookie?: string };
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -36,10 +37,15 @@ const extractIdentifiers = (session: AdminSessionPayload | null | undefined) => 
 export async function isAdminSessionAllowedForInstance(opts: {
   session: AdminSessionPayload;
   instance: Pick<RoadmapInstanceConfig, 'slug'>;
+  requestHeaders?: ForwardedRequestHeaders;
 }): Promise<boolean> {
   const { session, instance } = opts;
 
-  if (await isSuperAdminSessionWithSharePointFallback(session)) {
+  if (
+    await isSuperAdminSessionWithSharePointFallback(session, {
+      requestHeaders: opts.requestHeaders,
+    })
+  ) {
     return true;
   }
 
@@ -58,15 +64,17 @@ export async function isAdminSessionAllowedForInstance(opts: {
   // is explicitly linked to the instance.
   const ids = extractIdentifiers(session);
   if (!ids.department) {
-    const resolvedOnPremDepartment = await clientDataService.withInstance(
-      String(instance.slug || ''),
+    const resolvedOnPremDepartment = await clientDataService.withRequestHeaders(
+      opts.requestHeaders,
       () =>
-        clientDataService.resolveUserDepartmentFromSharePoint({
-          username: ids.username,
-          upn: ids.upn,
-          mail: ids.mail,
-          displayName: ids.displayName,
-        })
+        clientDataService.withInstance(String(instance.slug || ''), () =>
+          clientDataService.resolveUserDepartmentFromSharePoint({
+            username: ids.username,
+            upn: ids.upn,
+            mail: ids.mail,
+            displayName: ids.displayName,
+          })
+        )
     );
     if (resolvedOnPremDepartment) {
       ids.department = resolvedOnPremDepartment;
@@ -90,11 +98,21 @@ export async function isAdminSessionAllowedForInstance(opts: {
   // in the SharePoint site group "admin-<instanceSlug>" using the service account.
   const groupTitle = `admin-${String(instance.slug || '').toLowerCase()}`;
 
-  return await clientDataService.withInstance(String(instance.slug || ''), async () => {
-    const [inAdminGroup, inSuperAdminGroup] = await Promise.all([
-      clientDataService.isUserInSharePointGroupByTitle(groupTitle, ids),
-      clientDataService.isUserInSharePointGroupByTitle('superadmin', ids),
-    ]);
-    return Boolean(inAdminGroup || inSuperAdminGroup);
-  });
+  try {
+    return await clientDataService.withRequestHeaders(opts.requestHeaders, () =>
+      clientDataService.withInstance(String(instance.slug || ''), async () => {
+        const [inAdminGroup, inSuperAdminGroup] = await Promise.all([
+          clientDataService.isUserInSharePointGroupByTitle(groupTitle, ids),
+          clientDataService.isUserInSharePointGroupByTitle('superadmin', ids),
+        ]);
+        return Boolean(inAdminGroup || inSuperAdminGroup);
+      })
+    );
+  } catch (error) {
+    console.warn('[instanceAccess] SharePoint membership fallback failed', {
+      slug: String(instance.slug || ''),
+      error,
+    });
+    return false;
+  }
 }
