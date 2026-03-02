@@ -27,7 +27,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(404).json({ error: 'Instance not found' });
   }
 
-  if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
+  const forwardedHeaders = {
+    authorization:
+      typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
+    cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
+  };
+
+  if (
+    !(await isAdminSessionAllowedForInstance({
+      session,
+      instance,
+      requestHeaders: forwardedHeaders,
+    }))
+  ) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 

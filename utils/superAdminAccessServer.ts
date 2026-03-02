@@ -117,20 +117,10 @@ export async function isSuperAdminSessionWithSharePointFallback(
     return true;
   }
 
-  // If the token already contains *any* group claims, treat it as authoritative
-  // for the presence of "superadmin". Only do the SharePoint fallback when the
-  // groups claim is missing/empty (common when Graph group scopes aren't granted).
-  if (
-    Array.isArray(session.groups) &&
-    session.groups.some((g) => {
-      if (typeof g === 'string') return g.trim().length > 0;
-      if (g == null) return false;
-      return String(g).trim().length > 0;
-    })
-  ) {
-    superAdminCache[cacheKey] = { ok: false, expires: now + SUPERADMIN_CACHE_TTL_MS };
-    return false;
-  }
+  // Continue with SharePoint fallback regardless of token group claim presence.
+  // In Entra setups, token groups are often object IDs and may not contain the
+  // literal group name "superadmin", so treating token groups as authoritative
+  // can incorrectly deny access.
 
   const slugs = await getSuperAdminCheckInstanceSlugs(opts?.candidateInstanceSlugs);
   if (slugs.length === 0) return false;

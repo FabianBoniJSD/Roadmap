@@ -49,6 +49,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const session = extractAdminSession(req);
+  const forwardedHeaders = {
+    authorization:
+      typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
+    cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
+  };
 
   const ensureAdminForInstance = async (record: PrismaInstanceWithHosts | null) => {
     if (session?.isAdmin) return true;
@@ -73,7 +78,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const mapped = mapInstanceRecord(record);
     if (
       session?.isAdmin &&
-      !(await isAdminSessionAllowedForInstance({ session, instance: mapped }))
+      !(await isAdminSessionAllowedForInstance({
+        session,
+        instance: mapped,
+        requestHeaders: forwardedHeaders,
+      }))
     ) {
       return res.status(403).json({ error: 'Forbidden' });
     }

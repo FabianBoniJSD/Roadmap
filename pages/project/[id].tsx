@@ -489,6 +489,11 @@ export const getServerSideProps: GetServerSideProps<{ accessDenied?: boolean }> 
     authorization: ctx.req.headers.authorization,
     cookie: ctx.req.headers.cookie,
   });
+  const forwardedHeaders = {
+    authorization:
+      typeof ctx.req.headers.authorization === 'string' ? ctx.req.headers.authorization : undefined,
+    cookie: typeof ctx.req.headers.cookie === 'string' ? ctx.req.headers.cookie : undefined,
+  };
 
   if (!session?.isAdmin) {
     const returnUrl = typeof ctx.resolvedUrl === 'string' ? ctx.resolvedUrl : '/project';
@@ -509,8 +514,14 @@ export const getServerSideProps: GetServerSideProps<{ accessDenied?: boolean }> 
     ctx.res.setHeader('Set-Cookie', setInstanceCookieHeader(instance.slug));
   }
 
-  if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
-    const fallback = await resolveFirstAllowedInstanceForAdminSession(session);
+  if (
+    !(await isAdminSessionAllowedForInstance({
+      session,
+      instance,
+      requestHeaders: forwardedHeaders,
+    }))
+  ) {
+    const fallback = await resolveFirstAllowedInstanceForAdminSession(session, ctx.req);
     if (fallback && fallback.slug && fallback.slug !== instance.slug) {
       if (ctx.res) {
         ctx.res.setHeader('Set-Cookie', setInstanceCookieHeader(fallback.slug));

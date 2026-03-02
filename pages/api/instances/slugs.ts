@@ -54,6 +54,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       null;
 
     const principal = { username, groups: session?.groups };
+    const forwardedHeaders = {
+      authorization:
+        typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
+      cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
+    };
     const tokenSuperAdmin = isSuperAdminPrincipal(principal);
     const isSuperAdmin =
       tokenSuperAdmin || (await isSuperAdminSessionWithSharePointFallback(session));
@@ -91,7 +96,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const checks = await Promise.all(
       allRecords.map(async (r) => ({
         record: r,
-        allowed: await isAdminSessionAllowedForInstance({ session, instance: { slug: r.slug } }),
+        allowed: await isAdminSessionAllowedForInstance({
+          session,
+          instance: { slug: r.slug },
+          requestHeaders: forwardedHeaders,
+        }),
       }))
     );
 

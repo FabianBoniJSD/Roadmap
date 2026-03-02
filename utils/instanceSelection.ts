@@ -18,6 +18,14 @@ type ApiRequestLike =
       query?: Record<string, string | string[]>;
     });
 
+type ForwardedRequestHeaders = { authorization?: string; cookie?: string };
+
+const getForwardedRequestHeaders = (req?: ApiRequestLike | null): ForwardedRequestHeaders => ({
+  authorization:
+    req && typeof req.headers?.authorization === 'string' ? req.headers.authorization : undefined,
+  cookie: req && typeof req.headers?.cookie === 'string' ? req.headers.cookie : undefined,
+});
+
 /**
  * Resolves the best instance for a given request + admin session.
  *
@@ -29,6 +37,7 @@ export async function resolveInstanceForAdminSession(
   req: ApiRequestLike,
   session: AdminSessionPayload
 ): Promise<RoadmapInstanceConfig | null> {
+  const forwardedHeaders = getForwardedRequestHeaders(req);
   // 1) Use explicit request selection when present.
   const explicit = await getInstanceConfigFromRequest(req, { fallbackToDefault: false });
   if (explicit) return explicit;
@@ -51,7 +60,11 @@ export async function resolveInstanceForAdminSession(
   // 3) For scoped admins, pick the first allowed instance.
   for (const record of records) {
     const instance = mapInstanceRecord(record);
-    const allowed = await isAdminSessionAllowedForInstance({ session, instance });
+    const allowed = await isAdminSessionAllowedForInstance({
+      session,
+      instance,
+      requestHeaders: forwardedHeaders,
+    });
     if (allowed) return instance;
   }
 
@@ -63,8 +76,10 @@ export async function resolveInstanceForAdminSession(
  * Useful when a user manually selects a forbidden instance via query/cookie.
  */
 export async function resolveFirstAllowedInstanceForAdminSession(
-  session: AdminSessionPayload
+  session: AdminSessionPayload,
+  req?: ApiRequestLike
 ): Promise<RoadmapInstanceConfig | null> {
+  const forwardedHeaders = getForwardedRequestHeaders(req);
   const records = (await prisma.roadmapInstance.findMany({
     include: { hosts: true },
     orderBy: { slug: 'asc' },
@@ -81,7 +96,11 @@ export async function resolveFirstAllowedInstanceForAdminSession(
 
   for (const record of records) {
     const instance = mapInstanceRecord(record);
-    const allowed = await isAdminSessionAllowedForInstance({ session, instance });
+    const allowed = await isAdminSessionAllowedForInstance({
+      session,
+      instance,
+      requestHeaders: forwardedHeaders,
+    });
     if (allowed) return instance;
   }
 
