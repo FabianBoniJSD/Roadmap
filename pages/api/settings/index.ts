@@ -17,13 +17,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(404).json({ message: 'No roadmap instance configured for this request' });
   }
 
+  const forwardedHeaders = {
+    authorization:
+      typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
+    cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
+  };
+
   // Check authentication for write operations
   if (req.method !== 'GET') {
     try {
       const session = extractAdminSession(req);
 
       if (session?.isAdmin) {
-        if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
+        if (
+          !(await isAdminSessionAllowedForInstance({
+            session,
+            instance,
+            requestHeaders: forwardedHeaders,
+          }))
+        ) {
           return res.status(403).json({ message: 'Forbidden' });
         }
       } else {

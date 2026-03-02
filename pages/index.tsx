@@ -510,6 +510,11 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
     authorization: ctx.req.headers.authorization,
     cookie: ctx.req.headers.cookie,
   });
+  const forwardedHeaders = {
+    authorization:
+      typeof ctx.req.headers.authorization === 'string' ? ctx.req.headers.authorization : undefined,
+    cookie: typeof ctx.req.headers.cookie === 'string' ? ctx.req.headers.cookie : undefined,
+  };
 
   const records = await prisma.roadmapInstance.findMany({
     include: { hosts: true },
@@ -612,6 +617,7 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
           const allowed = await isAdminSessionAllowedForInstance({
             session,
             instance: { slug: r.slug },
+            requestHeaders: forwardedHeaders,
           });
           return { record: r, allowed };
         } catch {

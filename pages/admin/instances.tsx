@@ -1477,10 +1477,17 @@ const AdminInstancePicker = () => {
     setSelecting(slug);
     setError(null);
     try {
+      const token = getAdminSessionToken();
+      if (!token) {
+        throw new Error('Keine gültige Admin-Session gefunden.');
+      }
       const resp = await fetch(buildInstanceAwareUrl('/api/instances/select'), {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ slug }),
       });
       const payload = await resp.json().catch(() => null);

@@ -18,6 +18,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(404).json({ error: 'No roadmap instance configured for this request' });
   }
 
+  const forwardedHeaders = {
+    authorization:
+      typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
+    cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
+  };
+
   if (typeof id !== 'string') {
     return res.status(400).json({ error: 'Invalid project ID' });
   }
@@ -26,7 +32,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'GET') {
     try {
       const session = requireAdminSession(req);
-      if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
+      if (
+        !(await isAdminSessionAllowedForInstance({
+          session,
+          instance,
+          requestHeaders: forwardedHeaders,
+        }))
+      ) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
@@ -51,7 +63,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const session = extractAdminSession(req);
 
       if (session?.isAdmin) {
-        if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
+        if (
+          !(await isAdminSessionAllowedForInstance({
+            session,
+            instance,
+            requestHeaders: forwardedHeaders,
+          }))
+        ) {
           return res.status(403).json({ error: 'Forbidden' });
         }
       } else {
@@ -80,7 +98,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const session = extractAdminSession(req);
 
       if (session?.isAdmin) {
-        if (!(await isAdminSessionAllowedForInstance({ session, instance }))) {
+        if (
+          !(await isAdminSessionAllowedForInstance({
+            session,
+            instance,
+            requestHeaders: forwardedHeaders,
+          }))
+        ) {
           return res.status(403).json({ error: 'Forbidden' });
         }
       } else {
