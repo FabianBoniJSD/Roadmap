@@ -5,7 +5,8 @@ import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { sanitizeSlug } from './helpers';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    res.setHeader('Allow', ['GET', 'POST']);
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
@@ -16,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const slugRaw = req.body?.slug;
+  const slugRaw = req.method === 'GET' ? req.query?.slug : req.body?.slug;
   if (!slugRaw || typeof slugRaw !== 'string') {
     return res.status(400).json({ error: 'slug is required' });
   }

@@ -1490,8 +1490,19 @@ const AdminInstancePicker = () => {
         },
         body: JSON.stringify({ slug }),
       });
-      const payload = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(payload?.error || `Fehler ${resp.status}`);
+      let effectiveResp = resp;
+      if (resp.status === 403 || resp.status === 405) {
+        effectiveResp = await fetch(
+          buildInstanceAwareUrl(`/api/instances/select?slug=${encodeURIComponent(slug)}`),
+          {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+      }
+      const payload = await effectiveResp.json().catch(() => null);
+      if (!effectiveResp.ok) throw new Error(payload?.error || `Fehler ${effectiveResp.status}`);
       await router.push(
         buildInstanceAwareUrl(`/admin?roadmapInstance=${encodeURIComponent(slug)}`)
       );
