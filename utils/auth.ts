@@ -87,13 +87,42 @@ function getTokenFromCookie(): string | null {
   return null;
 }
 
+function isJwtExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return false;
+    const payloadPart = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payloadPart + '==='.slice((payloadPart.length + 3) % 4);
+    const payloadRaw = atob(padded);
+    const payload = JSON.parse(payloadRaw) as { exp?: unknown };
+    const exp = typeof payload.exp === 'number' ? payload.exp : Number(payload.exp);
+    if (!Number.isFinite(exp)) return false;
+    return Date.now() >= exp * 1000;
+  } catch {
+    return false;
+  }
+}
+
 function getStoredToken(): string | null {
   const storage = getSessionStorage();
-  if (!storage) return getTokenFromCookie();
+  const tokenFromCookieOnly = () => {
+    const token = getTokenFromCookie();
+    if (token && typeof window !== 'undefined' && isJwtExpired(token)) {
+      clearStoredSession();
+      return null;
+    }
+    return token;
+  };
+  if (!storage) return tokenFromCookieOnly();
   try {
-    return storage.getItem(TOKEN_KEY) || getTokenFromCookie();
+    const token = storage.getItem(TOKEN_KEY) || getTokenFromCookie();
+    if (token && typeof window !== 'undefined' && isJwtExpired(token)) {
+      clearStoredSession();
+      return null;
+    }
+    return token;
   } catch {
-    return getTokenFromCookie();
+    return tokenFromCookieOnly();
   }
 }
 

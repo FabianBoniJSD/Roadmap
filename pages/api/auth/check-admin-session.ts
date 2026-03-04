@@ -46,7 +46,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     } catch (jwtError) {
       const errorMessage = jwtError instanceof Error ? jwtError.message : 'Unknown error';
-      console.error('[check-admin-session] JWT verification failed:', errorMessage);
+      const isExpired =
+        jwtError instanceof Error &&
+        (jwtError.name === 'TokenExpiredError' || /jwt expired/i.test(jwtError.message));
+      if (isExpired) {
+        console.warn('[check-admin-session] JWT expired');
+      } else {
+        console.error('[check-admin-session] JWT verification failed:', errorMessage);
+      }
       return res.status(401).json({
         isAdmin: false,
         error: 'Invalid or expired token',
