@@ -19,7 +19,13 @@ const DEFAULT_THEME: ThemeSettings = {
 
 export async function loadThemeSettings(): Promise<ThemeSettings> {
   try {
-    const keys = ['siteTitle', 'primaryColor', 'accentColor', 'gradientFrom', 'gradientTo'];
+    const keys = [
+      'siteTitle',
+      'primaryColor',
+      'accentColor',
+      'gradientFrom',
+      'gradientTo',
+    ] as const;
 
     const getInstanceSlug = (): string | null => {
       if (typeof window === 'undefined') return null;
@@ -59,7 +65,7 @@ export async function loadThemeSettings(): Promise<ThemeSettings> {
           )
         : await Promise.all(keys.map((k) => clientDataService.getSettingByKey(k)));
 
-    const settings: Record<string, string> = { ...DEFAULT_THEME };
+    const settings: ThemeSettings = { ...DEFAULT_THEME };
     keys.forEach((k, i) => {
       const v = results[i]?.value;
       if (v && typeof v === 'string') settings[k] = v;
