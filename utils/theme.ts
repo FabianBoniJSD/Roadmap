@@ -1,5 +1,6 @@
 import { clientDataService } from './clientDataService';
 import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from './instanceConfig';
+import { prefixBasePath } from './nextBasePath';
 
 export interface ThemeSettings {
   siteTitle: string;
@@ -26,6 +27,11 @@ export async function loadThemeSettings(): Promise<ThemeSettings> {
       'gradientFrom',
       'gradientTo',
     ] as const;
+    type ThemeKey = (typeof keys)[number];
+
+    const isThemeKey = (value: string): value is ThemeKey => {
+      return keys.includes(value as ThemeKey);
+    };
 
     const getInstanceSlug = (): string | null => {
       if (typeof window === 'undefined') return null;
@@ -49,25 +55,38 @@ export async function loadThemeSettings(): Promise<ThemeSettings> {
       return null;
     };
 
-    const results =
-      typeof window !== 'undefined'
-        ? await Promise.all(
-            keys.map(async (k) => {
-              const slug = getInstanceSlug();
-              const query = slug ? `?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(slug)}` : '';
-              const resp = await fetch(`/api/settings/key/${encodeURIComponent(k)}${query}`, {
-                credentials: 'same-origin',
-                headers: { Accept: 'application/json' },
-              });
-              if (!resp.ok) return null;
-              return await resp.json();
-            })
-          )
-        : await Promise.all(keys.map((k) => clientDataService.getSettingByKey(k)));
+    const valueByKey: Partial<Record<ThemeKey, string>> = {};
+
+    if (typeof window !== 'undefined') {
+      const slug = getInstanceSlug();
+      const query = slug ? `?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(slug)}` : '';
+      const resp = await fetch(`${prefixBasePath('/api/settings')}${query}`, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      });
+
+      if (resp.ok) {
+        const payload = await resp.json().catch(() => null);
+        const list = Array.isArray(payload) ? payload : [];
+        for (const entry of list) {
+          const key = typeof entry?.key === 'string' ? entry.key : '';
+          const value = typeof entry?.value === 'string' ? entry.value : '';
+          if (isThemeKey(key) && value) {
+            valueByKey[key] = value;
+          }
+        }
+      }
+    } else {
+      const results = await Promise.all(keys.map((k) => clientDataService.getSettingByKey(k)));
+      keys.forEach((k, i) => {
+        const value = results[i]?.value;
+        if (value && typeof value === 'string') valueByKey[k] = value;
+      });
+    }
 
     const settings: ThemeSettings = { ...DEFAULT_THEME };
-    keys.forEach((k, i) => {
-      const v = results[i]?.value;
+    keys.forEach((k) => {
+      const v = valueByKey[k];
       if (v && typeof v === 'string') settings[k] = v;
     });
     return settings;

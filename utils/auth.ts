@@ -177,7 +177,7 @@ export function getCurrentBrowserInstanceSlug(): string | null {
 }
 
 /**
- * For JWT-based admin sessions (USER_* logins), enforce per-instance allowlists.
+ * For JWT-based admin sessions, enforce per-instance allowlists.
  * Returns false only for explicit 403 (Forbidden). Other failures are treated as "don't block".
  */
 export async function hasAdminAccessToCurrentInstance(): Promise<boolean> {

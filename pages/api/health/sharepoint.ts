@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
+import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -24,7 +25,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ok: true,
       projectCount: projects.length,
       elapsedMs: Date.now() - start,
-      site: process.env.NEXT_PUBLIC_DEPLOYMENT_ENV,
+      site: resolveSharePointSiteUrl(instance),
+      deploymentEnv:
+        instance.deploymentEnv || process.env.NEXT_PUBLIC_DEPLOYMENT_ENV || process.env.NODE_ENV,
+      instance: instance.slug,
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';

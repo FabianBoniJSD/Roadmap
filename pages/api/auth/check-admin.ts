@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
-import { loadUserCredentialsFromSecrets } from '@/utils/userCredentials';
 import {
   getInstanceConfigFromRequest,
   mapInstanceRecord,
@@ -11,8 +10,7 @@ import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
 type CheckAdminResponse = {
   isAdmin: boolean;
-  mode: 'github-secrets' | 'sharepoint-permissions';
-  users?: string[];
+  mode: 'sharepoint-permissions';
   requiresUserSession: boolean;
   instanceSlug?: string;
   instances?: { slug: string; isAdmin: boolean; error?: string }[];
@@ -29,10 +27,6 @@ const debugLog = (...args: unknown[]) => {
 
 /**
  * Admin capability metadata endpoint.
- *
- * Behaviour:
- * 1. If USER_* GitHub Secrets exist → UI must collect credentials and create a session (requiresUserSession=true)
- * 2. Otherwise fallback to SharePoint permission checks using the configured service account.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -71,19 +65,7 @@ export default async function handler(
   }
 
   try {
-    const githubUsers = loadUserCredentialsFromSecrets();
-
-    if (githubUsers.length > 0) {
-      debugLog(`GitHub Secrets mode detected (${githubUsers.length} user(s))`);
-      return res.status(200).json({
-        isAdmin: false,
-        mode: 'github-secrets',
-        users: githubUsers.map((u) => u.username),
-        requiresUserSession: true,
-      });
-    }
-
-    debugLog('No USER_* secrets. Falling back to service account check.');
+    debugLog('Running SharePoint service-account admin check.');
 
     const perInstance: { slug: string; isAdmin: boolean; error?: string }[] = [];
     for (const inst of candidateInstances) {

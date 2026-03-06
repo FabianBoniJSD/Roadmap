@@ -85,9 +85,7 @@ export async function getSharePointAuthHeaders(
     password: inst?.sharePoint.password,
   });
   if (!credentials) {
-    throw new Error(
-      'No credentials found. Set SP_USERNAME/SP_PASSWORD (preferred) or USER_* secrets.'
-    );
+    throw new Error('No credentials found. Set SP_USERNAME/SP_PASSWORD.');
   }
 
   const username = credentials.username;

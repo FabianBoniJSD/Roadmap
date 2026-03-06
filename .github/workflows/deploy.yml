@@ -139,12 +139,6 @@ jobs:
       - name: Write environment file from secret
         env:
           ENV_FILE_CONTENT: ${{ secrets.env }}
-          USER_FABIAN: ${{ secrets.USER_FABIAN }}
-          USER_STEFAN: ${{ secrets.USER_MARTIN }}
-          USER_LEONARDO: ${{ secrets.USER_LEONARDO }}
-          USER_JENS: ${{ secrets.USER_JENS }}
-          USER_MANUELA: ${{ secrets.USER_MANUELA }}
-          USER_ADMIN: ${{ secrets.USER_ADMIN }}
           ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
           ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID }}
           ENTRA_CLIENT_SECRET: ${{ secrets.ENTRA_CLIENT_SECRET }}
@@ -163,18 +157,12 @@ jobs:
           echo "Writing .env file to workspace root..."
           printf "%s" "$ENV_FILE_CONTENT" > .env
 
-          # Prevent confusing overrides when the base env secret already contains USER_/ENTRA_ keys.
+          # Prevent confusing overrides when the base env secret already contains ENTRA_ keys.
           # Next.js/dotenv will take the last assignment, so duplicates can silently flip values.
           # We treat the explicitly injected secrets below as the source of truth.
           tmpEnvFile="$(mktemp)"
-          grep -v -E '^(USER_[A-Z0-9_]+=|ENTRA_[A-Z0-9_]+=|PUBLIC_PROJECTS_API_KEYS=|# Admin users injected from GitHub Actions secrets|# Microsoft Entra ID SSO injected from GitHub Actions secrets|# Public projects API keys injected from GH Actions)' .env > "$tmpEnvFile" || true
+          grep -v -E '^(ENTRA_[A-Z0-9_]+=|PUBLIC_PROJECTS_API_KEYS=|# Microsoft Entra ID SSO injected from GitHub Actions secrets|# Public projects API keys injected from GH Actions)' .env > "$tmpEnvFile" || true
           mv "$tmpEnvFile" .env
-
-          userLines="$(env | grep -E '^USER_[A-Z0-9_]+=' || true)"
-          if [ -n "$userLines" ]; then
-            printf "\n# Admin users injected from GitHub Actions secrets\n" >> .env
-            printf "%s\n" "$userLines" >> .env
-          fi
 
           entraLines="$(env | grep -E '^ENTRA_[A-Z0-9_]+=' || true)"
           if [ -n "$entraLines" ]; then
@@ -387,13 +375,6 @@ jobs:
       - name: Build application
         env:
           NODE_ENV: production
-          # GitHub Secrets for multi-user authentication
-          # Format: USER_<name> with value <username>:<password>
-          # All users automatically have admin rights
-          USER_FABIAN: ${{ secrets.USER_FABIAN }}
-          USER_STEFAN: ${{ secrets.USER_STEFAN }}
-          USER_ADMIN: ${{ secrets.USER_ADMIN }}
-          # Add more USER_* secrets as needed
         run: |
           set -euo pipefail
           yarn build
@@ -522,9 +503,6 @@ jobs:
           RUNNER_TRACKING_ID: ""
           NODE_ENV: production
           PORT: 3000
-          # GitHub Secrets for multi-user authentication
-          USER_FABIAN: ${{ secrets.USER_FABIAN }}
-          USER_MARTIN: ${{ secrets.USER_MARTIN }}
         run: |
           set -euo pipefail
           pm2cmd() {

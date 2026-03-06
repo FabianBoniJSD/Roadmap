@@ -388,7 +388,7 @@ const InstanceHealthPage = () => {
               <div>
                 <h2 className="text-lg font-semibold text-white">Instanz-Zugriff</h2>
                 <p className="text-xs text-slate-400">
-                  Legt fest, welche Admin-User (USER_* Secrets) diese Instanz verwalten dürfen.
+                  Legt fest, welche Admin-Benutzer diese Instanz verwalten dürfen.
                 </p>
               </div>
               <button
