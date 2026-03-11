@@ -512,25 +512,95 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .json({ error: 'curl-post-failed', detail: e.message, stderr: e.stderr });
         }
       }
-      // Sanitize allowed path already checked earlier; still ensure no shell injection (use execFile arg array)
-      const curlArgs = [
-        '-sS',
-        '--negotiate',
-        '--user',
-        cred,
-        '--noproxy',
-        '*',
-        '--connect-timeout',
-        '5',
-        '--retry',
-        '1',
-        '-H',
-        `Accept: ${clientAccept}`,
-        targetUrl,
-      ];
-      if (process.env.SP_ALLOW_SELF_SIGNED === 'true') curlArgs.unshift('-k');
-      else if (caPath) curlArgs.unshift('--cacert', caPath);
-      if (process.env.SP_CURL_VERBOSE === 'true') curlArgs.unshift('-v');
+      const makeReadCurlArgs = (authScheme: 'negotiate' | 'ntlm'): string[] => {
+        const args = [
+          '-sS',
+          authScheme === 'ntlm' ? '--ntlm' : '--negotiate',
+          '--user',
+          cred,
+          '--noproxy',
+          '*',
+          '--connect-timeout',
+          '5',
+          '--retry',
+          '1',
+          '-H',
+          `Accept: ${clientAccept}`,
+          targetUrl,
+        ];
+        if (process.env.SP_ALLOW_SELF_SIGNED === 'true') args.unshift('-k');
+        else if (caPath) args.unshift('--cacert', caPath);
+        if (process.env.SP_CURL_VERBOSE === 'true') args.unshift('-v');
+        return args;
+      };
+
+      const parseCurlPayload = (rawOutput: string): any => {
+        const rawTrimmed = String(rawOutput || '')
+          .replace(/^\uFEFF/, '')
+          .trimStart();
+        let parsed: any = null;
+
+        // Attempt JSON parse first if looks like JSON (object or array). Some farms prepend a BOM.
+        if (rawTrimmed.startsWith('{') || rawTrimmed.startsWith('[')) {
+          try {
+            parsed = JSON.parse(rawTrimmed);
+          } catch {
+            /* ignore */
+          }
+        }
+
+        if (!parsed) {
+          // Atom/XML -> lightweight normalization (Ids + Title + selected fields if present)
+          if (/^\s*<\?xml/.test(rawOutput) && /<feed/i.test(rawOutput)) {
+            try {
+              const entries = rawOutput.match(/<m:properties>[\s\S]*?<\/m:properties>/g) || [];
+              const items: Record<string, any>[] = [];
+              for (const block of entries) {
+                const idMatch =
+                  block.match(/<d:Id[^>]*>(\d+)<\/d:Id>/i) ||
+                  block.match(/<d:ID[^>]*>(\d+)<\/d:ID>/i);
+                const titleMatch = block.match(/<d:Title>([\s\S]*?)<\/d:Title>/i);
+                const item: any = {
+                  Id: idMatch ? parseInt(idMatch[1], 10) : undefined,
+                  Title: titleMatch ? titleMatch[1] : '',
+                };
+                const fieldMatches =
+                  block.match(/<d:([A-Za-z0-9_]+)[^>]*>([\s\S]*?)<\/d:\1>/g) || [];
+                for (const fm of fieldMatches) {
+                  const m = fm.match(/<d:([A-Za-z0-9_]+)[^>]*>([\s\S]*?)<\/d:\1>/);
+                  if (!m) continue;
+                  const name = m[1];
+                  if (name === 'Id' || name === 'ID' || name === 'Title') continue;
+                  const value = m[2];
+                  if (!/[<>]/.test(value)) item[name] = value;
+                }
+                items.push(item);
+              }
+              parsed = { d: { results: items } };
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+
+        if (!parsed) parsed = rawOutput;
+        return parsed;
+      };
+
+      const detectCurlAuthFailure = (
+        payload: any
+      ): { status: 401 | 403; snippet: string } | null => {
+        if (typeof payload !== 'string') return null;
+        const trimmed = payload.trim();
+        const isHtml401 = /<html/i.test(trimmed) && /401/i.test(trimmed);
+        const isPlain401 = /^401\s+unauthorized$/i.test(trimmed);
+        const isForbidden = /^403\s+forbidden$/i.test(trimmed);
+        if (isHtml401 || isPlain401) return { status: 401, snippet: trimmed.substring(0, 160) };
+        if (isForbidden) return { status: 403, snippet: trimmed.substring(0, 160) };
+        return null;
+      };
+
+      const curlArgs = makeReadCurlArgs('negotiate');
       const start = Date.now();
       const output: { stdout: string; stderr: string } = await new Promise(
         (resolveExec, rejectExec) => {
@@ -546,79 +616,72 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       );
       const duration = Date.now() - start;
-      const rawOut = output.stdout;
-      const rawOutTrimmed = String(rawOut || '')
-        .replace(/^\uFEFF/, '')
-        .trimStart();
-      let normalized: any = null;
-      // Attempt JSON parse first if looks like JSON (object or array). Some farms prepend a BOM.
-      if (rawOutTrimmed.startsWith('{') || rawOutTrimmed.startsWith('[')) {
+      let effectiveOutput = output;
+      let normalized: any = parseCurlPayload(output.stdout);
+      const authFailure = detectCurlAuthFailure(normalized);
+
+      const ntlmFallbackEnabled = process.env.SP_CURL_NTLM_FALLBACK !== 'false';
+      if (
+        authFailure?.status === 401 &&
+        ntlmFallbackEnabled &&
+        serviceUser &&
+        servicePass &&
+        !allowCurlFallbackToFetch
+      ) {
         try {
-          normalized = JSON.parse(rawOutTrimmed);
-        } catch {
-          /* ignore */
-        }
-      }
-      if (!normalized) {
-        // Atom/XML -> lightweight normalization (Ids + Title + selected fields if present)
-        if (/^\s*<\?xml/.test(rawOut) && /<feed/i.test(rawOut)) {
-          try {
-            const entries = rawOut.match(/<m:properties>[\s\S]*?<\/m:properties>/g) || [];
-            const items: Record<string, any>[] = [];
-            for (const block of entries) {
-              const idMatch =
-                block.match(/<d:Id[^>]*>(\d+)<\/d:Id>/i) ||
-                block.match(/<d:ID[^>]*>(\d+)<\/d:ID>/i);
-              const titleMatch = block.match(/<d:Title>([\s\S]*?)<\/d:Title>/i);
-              const item: any = {
-                Id: idMatch ? parseInt(idMatch[1], 10) : undefined,
-                Title: titleMatch ? titleMatch[1] : '',
-              };
-              // Grab any simple string/integer additional fields requested via $select (rudimentary)
-              const fieldMatches = block.match(/<d:([A-Za-z0-9_]+)[^>]*>([\s\S]*?)<\/d:\1>/g) || [];
-              for (const fm of fieldMatches) {
-                const m = fm.match(/<d:([A-Za-z0-9_]+)[^>]*>([\s\S]*?)<\/d:\1>/);
-                if (!m) continue;
-                const name = m[1];
-                if (name === 'Id' || name === 'ID' || name === 'Title') continue;
-                const value = m[2];
-                if (!/[<>]/.test(value)) item[name] = value; // skip nested complex
-              }
-              items.push(item);
+          const ntlmArgs = makeReadCurlArgs('ntlm');
+          const ntlmOutput: { stdout: string; stderr: string } = await new Promise(
+            (resolveExec, rejectExec) => {
+              execFile(
+                'curl',
+                ntlmArgs,
+                { timeout: 15000 },
+                (err: any, stdout: string, stderr: string) => {
+                  if (err) return rejectExec(Object.assign(err, { stderr }));
+                  resolveExec({ stdout, stderr });
+                }
+              );
             }
-            normalized = { d: { results: items } };
-          } catch {
-            /* ignore */
-          }
-        }
-      }
-      if (!normalized) normalized = rawOut; // fallback raw
-      if (typeof normalized === 'string') {
-        const normalizedTrimmed = normalized.trim();
-        const isHtml401 = /<html/i.test(normalizedTrimmed) && /401/i.test(normalizedTrimmed);
-        const isPlain401 = /^401\s+unauthorized$/i.test(normalizedTrimmed);
-        const isForbidden = /^403\s+forbidden$/i.test(normalizedTrimmed);
-        if (isHtml401 || isPlain401 || isForbidden) {
-          const status = isForbidden ? 403 : 401;
-          if (status === 401 && allowCurlFallbackToFetch) {
-            res.setHeader('x-sp-proxy-mode', 'curl-fallback-to-fetch');
-            console.warn(
-              '[sharepoint proxy] curl kerberos unauthorized, falling back to fetch auth',
-              {
+          );
+          const ntlmNormalized = parseCurlPayload(ntlmOutput.stdout);
+          const ntlmFailure = detectCurlAuthFailure(ntlmNormalized);
+          if (!ntlmFailure) {
+            normalized = ntlmNormalized;
+            effectiveOutput = ntlmOutput;
+            res.setHeader('x-sp-curl-auth', 'ntlm-fallback');
+            if (process.env.SP_PROXY_DEBUG === 'true') {
+              console.warn('[sharepoint proxy] curl kerberos 401; NTLM fallback succeeded', {
                 instance: instance.slug,
                 targetUrl,
-                strategy,
-              }
-            );
-          } else {
-            return res.status(status).json({
-              error: status === 403 ? 'Forbidden (curl)' : 'Unauthorized (curl)',
-              snippet: normalizedTrimmed.substring(0, 160),
+              });
+            }
+          }
+        } catch {
+          // ignore and keep original negotiate failure handling below
+        }
+      }
+
+      const finalAuthFailure = detectCurlAuthFailure(normalized);
+      if (finalAuthFailure) {
+        const status = finalAuthFailure.status;
+        if (status === 401 && allowCurlFallbackToFetch) {
+          res.setHeader('x-sp-proxy-mode', 'curl-fallback-to-fetch');
+          console.warn(
+            '[sharepoint proxy] curl kerberos unauthorized, falling back to fetch auth',
+            {
               instance: instance.slug,
               targetUrl,
-              stderr: process.env.SP_CURL_VERBOSE === 'true' ? output.stderr : undefined,
-            });
-          }
+              strategy,
+            }
+          );
+        } else {
+          return res.status(status).json({
+            error: status === 403 ? 'Forbidden (curl)' : 'Unauthorized (curl)',
+            snippet: finalAuthFailure.snippet,
+            instance: instance.slug,
+            targetUrl,
+            stderr: process.env.SP_CURL_VERBOSE === 'true' ? effectiveOutput.stderr : undefined,
+          });
         }
       }
       if (res.getHeader('x-sp-proxy-mode') === 'curl-fallback-to-fetch') {
