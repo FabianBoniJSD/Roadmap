@@ -194,7 +194,6 @@ jobs:
             local key="$1"
             local value="$2"
             local escaped="$value"
-            escaped="${escaped//\\/\\\\}"
             escaped="${escaped//\"/\\\"}"
             escaped="${escaped//$'\n'/\\n}"
             printf '%s="%s"\n' "$key" "$escaped" >> .env

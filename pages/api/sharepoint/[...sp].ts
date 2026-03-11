@@ -312,13 +312,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (useCurlKerberos) {
       // In negotiate mode curl uses configured service credentials when provided,
       // otherwise the process Kerberos identity.
-      const serviceUser = (process.env.SP_KERBEROS_SERVICE_USER || '').trim();
+      const serviceUserRaw = (process.env.SP_KERBEROS_SERVICE_USER || '').trim();
+      const serviceUser = serviceUserRaw.replace(/\\+/g, '\\');
       const servicePass = process.env.SP_KERBEROS_SERVICE_PASSWORD || '';
       const kerberosIdentity = serviceUser || '<process-default-kerberos-identity>';
       if (process.env.SP_PROXY_DEBUG === 'true') {
         console.info('[sharepoint proxy] kerberos identity', {
           instance: instance.slug,
           kerberosIdentity,
+          userNormalized: serviceUser !== serviceUserRaw,
           credentialMode: serviceUser ? 'explicit-service-user' : 'process-identity',
           passwordConfigured: Boolean(servicePass),
         });
