@@ -320,6 +320,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           instance: instance.slug,
           kerberosIdentity,
           credentialMode: serviceUser ? 'explicit-service-user' : 'process-identity',
+          passwordConfigured: Boolean(servicePass),
         });
       }
       const cred = serviceUser ? `${serviceUser}:${servicePass}` : ':';

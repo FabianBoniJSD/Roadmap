@@ -190,6 +190,16 @@ jobs:
             ' .env
           }
 
+          write_quoted_env_value() {
+            local key="$1"
+            local value="$2"
+            local escaped="$value"
+            escaped="${escaped//\\/\\\\}"
+            escaped="${escaped//\"/\\\"}"
+            escaped="${escaped//$'\n'/\\n}"
+            printf '%s="%s"\n' "$key" "$escaped" >> .env
+          }
+
           # Keep auth env names compatible after delegated mode removal.
           # Runtime kerberos proxy reads SP_KERBEROS_SERVICE_* directly.
           serviceUser="${SP_KERBEROS_SERVICE_USER:-$(read_env_value SP_KERBEROS_SERVICE_USER || true)}"
@@ -212,16 +222,16 @@ jobs:
 
           printf "\n# SharePoint auth compatibility injected from GH Actions\n" >> .env
           if [ -n "$serviceUser" ]; then
-            printf "SP_KERBEROS_SERVICE_USER=%s\n" "$serviceUser" >> .env
+            write_quoted_env_value "SP_KERBEROS_SERVICE_USER" "$serviceUser"
           fi
           if [ -n "$servicePass" ]; then
-            printf "SP_KERBEROS_SERVICE_PASSWORD=%s\n" "$servicePass" >> .env
+            write_quoted_env_value "SP_KERBEROS_SERVICE_PASSWORD" "$servicePass"
           fi
           if [ -n "$legacyUser" ]; then
-            printf "SP_USERNAME=%s\n" "$legacyUser" >> .env
+            write_quoted_env_value "SP_USERNAME" "$legacyUser"
           fi
           if [ -n "$legacyPass" ]; then
-            printf "SP_PASSWORD=%s\n" "$legacyPass" >> .env
+            write_quoted_env_value "SP_PASSWORD" "$legacyPass"
           fi
 
           # Diagnostic (safe): show the effective redirect URI that ended up in the file.
