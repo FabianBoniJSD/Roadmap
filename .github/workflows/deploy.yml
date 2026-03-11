@@ -146,6 +146,10 @@ jobs:
           ENTRA_ADMIN_UPNS: ${{ secrets.ENTRA_ADMIN_UPNS }}
           ENTRA_ALLOW_ALL: ${{ secrets.ENTRA_ALLOW_ALL }}
           PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
+          SP_KERBEROS_SERVICE_USER: ${{ secrets.SP_KERBEROS_SERVICE_USER }}
+          SP_KERBEROS_SERVICE_PASSWORD: ${{ secrets.SP_KERBEROS_SERVICE_PASSWORD }}
+          SP_USERNAME: ${{ secrets.SP_USERNAME }}
+          SP_PASSWORD: ${{ secrets.SP_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -161,7 +165,7 @@ jobs:
           # Next.js/dotenv will take the last assignment, so duplicates can silently flip values.
           # We treat the explicitly injected secrets below as the source of truth.
           tmpEnvFile="$(mktemp)"
-          grep -v -E '^(ENTRA_[A-Z0-9_]+=|PUBLIC_PROJECTS_API_KEYS=|# Microsoft Entra ID SSO injected from GitHub Actions secrets|# Public projects API keys injected from GH Actions)' .env > "$tmpEnvFile" || true
+          grep -v -E '^(ENTRA_[A-Z0-9_]+=|PUBLIC_PROJECTS_API_KEYS=|SP_STRATEGY=|# Microsoft Entra ID SSO injected from GitHub Actions secrets|# Public projects API keys injected from GH Actions)' .env > "$tmpEnvFile" || true
           mv "$tmpEnvFile" .env
 
           entraLines="$(env | grep -E '^ENTRA_[A-Z0-9_]+=' || true)"
@@ -175,9 +179,59 @@ jobs:
             printf "PUBLIC_PROJECTS_API_KEYS=%s\n" "$PUBLIC_PROJECTS_API_KEYS" >> .env
           fi
 
+          read_env_value() {
+            local key="$1"
+            awk -F= -v k="$key" '
+              $0 ~ "^[[:space:]]*"k"=" {
+                sub(/^[^=]*=/, "", $0);
+                val=$0
+              }
+              END { if (val != "") print val }
+            ' .env
+          }
+
+          # Keep auth env names compatible after delegated mode removal.
+          # Runtime kerberos proxy reads SP_KERBEROS_SERVICE_* directly.
+          serviceUser="${SP_KERBEROS_SERVICE_USER:-$(read_env_value SP_KERBEROS_SERVICE_USER || true)}"
+          servicePass="${SP_KERBEROS_SERVICE_PASSWORD:-$(read_env_value SP_KERBEROS_SERVICE_PASSWORD || true)}"
+          legacyUser="${SP_USERNAME:-$(read_env_value SP_USERNAME || true)}"
+          legacyPass="${SP_PASSWORD:-$(read_env_value SP_PASSWORD || true)}"
+
+          if [ -z "$serviceUser" ] && [ -n "$legacyUser" ]; then
+            serviceUser="$legacyUser"
+          fi
+          if [ -z "$servicePass" ] && [ -n "$legacyPass" ]; then
+            servicePass="$legacyPass"
+          fi
+          if [ -z "$legacyUser" ] && [ -n "$serviceUser" ]; then
+            legacyUser="$serviceUser"
+          fi
+          if [ -z "$legacyPass" ] && [ -n "$servicePass" ]; then
+            legacyPass="$servicePass"
+          fi
+
+          printf "\n# SharePoint auth compatibility injected from GH Actions\n" >> .env
+          if [ -n "$serviceUser" ]; then
+            printf "SP_KERBEROS_SERVICE_USER=%s\n" "$serviceUser" >> .env
+          fi
+          if [ -n "$servicePass" ]; then
+            printf "SP_KERBEROS_SERVICE_PASSWORD=%s\n" "$servicePass" >> .env
+          fi
+          if [ -n "$legacyUser" ]; then
+            printf "SP_USERNAME=%s\n" "$legacyUser" >> .env
+          fi
+          if [ -n "$legacyPass" ]; then
+            printf "SP_PASSWORD=%s\n" "$legacyPass" >> .env
+          fi
+
           # Diagnostic (safe): show the effective redirect URI that ended up in the file.
           effectiveRedirect="$(grep -E '^ENTRA_REDIRECT_URI=' .env | tail -n 1 || true)"
           echo "Effective ENTRA_REDIRECT_URI in generated .env: ${effectiveRedirect:-<not set>}"
+          if grep -q -E '^SP_KERBEROS_SERVICE_USER=' .env; then
+            echo "Effective SP_KERBEROS_SERVICE_USER in generated .env: <set>"
+          else
+            echo "Effective SP_KERBEROS_SERVICE_USER in generated .env: <not set>"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -564,47 +618,109 @@ jobs:
               "$pm2Bin" "$@"
             fi
           }
-          echo "Checking if app is online..."
+          echo "Checking if app is online (PM2 status + local HTTP/TCP readiness)..."
 
-          maxAttempts=12
+          read_env_value() {
+            local key="$1"
+            if [ ! -f .env ]; then
+              return 0
+            fi
+            awk -F= -v k="$key" '
+              $0 ~ "^[[:space:]]*"k"=" {
+                sub(/^[^=]*=/, "", $0);
+                val=$0
+              }
+              END { if (val != "") print val }
+            ' .env
+          }
+
+          sanitize_env_value() {
+            local v="$1"
+            v="${v%\"}"
+            v="${v#\"}"
+            v="${v%\'}"
+            v="${v#\'}"
+            echo "$v"
+          }
+
+          get_pm2_status() {
+            pm2cmd jlist 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const arr=JSON.parse(s);const app=arr.find(x=>x && x.name==='roadmap-app');process.stdout.write((app && app.pm2_env && app.pm2_env.status) ? String(app.pm2_env.status) : '');}catch(_){process.stdout.write('');}})"
+          }
+
+          check_http_ready() {
+            local path
+            for path in "$@"; do
+              local url="http://127.0.0.1:3000${path}"
+              local code
+              code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url" || true)"
+              # Any HTTP code except 000 means the app process is reachable.
+              if [ -n "$code" ] && [ "$code" != "000" ]; then
+                echo "[OK] HTTP reachable at $url (status=$code)"
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          deploymentEnv="$(sanitize_env_value "${NEXT_PUBLIC_DEPLOYMENT_ENV:-$(read_env_value NEXT_PUBLIC_DEPLOYMENT_ENV || true)}")"
+          if [ -z "$deploymentEnv" ]; then
+            deploymentEnv="${NODE_ENV:-production}"
+          fi
+          deploymentEnv="$(echo "$deploymentEnv" | tr '[:upper:]' '[:lower:]')"
+
+          if [ "$deploymentEnv" = "production" ]; then
+            rawBasePath="$(sanitize_env_value "$(read_env_value NEXT_PUBLIC_BASE_PATH_PROD || true)")"
+          else
+            rawBasePath="$(sanitize_env_value "$(read_env_value NEXT_PUBLIC_BASE_PATH_DEV || true)")"
+          fi
+
+          basePath="${rawBasePath%/}"
+          if [ -n "$basePath" ] && [ "${basePath#/}" = "$basePath" ]; then
+            basePath="/$basePath"
+          fi
+
+          candidatePaths=("/" "/api/health/sharepoint")
+          if [ -n "$basePath" ] && [ "$basePath" != "/" ]; then
+            candidatePaths=("$basePath" "$basePath/" "$basePath/api/health/sharepoint" "/" "/api/health/sharepoint")
+          fi
+
+          echo "Resolved deployment env: $deploymentEnv"
+          echo "Resolved base path: ${basePath:-<none>}"
+
+          maxAttempts=24
           attempt=0
           isOnline=false
+          printedErrorLogs=false
 
           while [ "$attempt" -lt "$maxAttempts" ] && [ "$isOnline" != "true" ]; do
             attempt=$((attempt + 1))
-            echo "Health check attempt $attempt/$maxAttempts..."
+            status="$(get_pm2_status)"
+            echo "Health check attempt $attempt/$maxAttempts (pm2 status: ${status:-unknown})"
 
-            pm2cmd list || true
-            if pm2cmd describe roadmap-app 2>/dev/null | grep -qiE '^\s*status\s*:\s*online\s*$'; then
+            if [ "$status" = "online" ]; then
               isOnline=true
-              echo "[OK] App is online under PM2!"
+              echo "[OK] App is online under PM2."
               break
             fi
 
-            if pm2cmd describe roadmap-app 2>/dev/null | grep -qiE '^\s*status\s*:\s*(stopped|stopping|errored)\s*$'; then
-              echo "[WARN] App is in error state, showing logs..."
-              pm2cmd logs roadmap-app --lines 50 --nostream || true
+            if ss -ltn 2>/dev/null | grep -q ':3000'; then
+              if check_http_ready "${candidatePaths[@]}"; then
+                isOnline=true
+                echo "[OK] App is reachable on port 3000 even if PM2 status is delayed."
+                break
+              fi
+            fi
+
+            if [ "$printedErrorLogs" = "false" ] && [[ "$status" =~ ^(stopped|stopping|errored)$ ]]; then
+              echo "[WARN] PM2 reports '$status', showing logs once for diagnostics..."
+              pm2cmd logs roadmap-app --lines 80 --nostream || true
+              printedErrorLogs=true
             fi
 
             if [ "$attempt" -lt "$maxAttempts" ]; then
-              echo "App not online yet, waiting 5 seconds..."
               sleep 5
             fi
           done
-
-          if [ "$isOnline" != "true" ]; then
-            echo "[WARN] PM2 does not report 'online', checking HTTP endpoint..."
-            if command -v curl >/dev/null 2>&1; then
-              if curl -fsS --max-time 5 "http://localhost:3000" >/dev/null 2>&1; then
-                echo "[OK] HTTP endpoint is responding (status 2xx)!"
-                isOnline=true
-              else
-                echo "[FAIL] HTTP endpoint not responding."
-              fi
-            else
-              echo "[WARN] curl not available; skipping HTTP health check."
-            fi
-          fi
 
           if [ "$isOnline" != "true" ]; then
             echo "[FAIL] App failed to come online after $maxAttempts attempts" >&2
