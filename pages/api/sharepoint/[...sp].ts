@@ -314,6 +314,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // otherwise the process Kerberos identity.
       const serviceUser = (process.env.SP_KERBEROS_SERVICE_USER || '').trim();
       const servicePass = process.env.SP_KERBEROS_SERVICE_PASSWORD || '';
+      const kerberosIdentity = serviceUser || '<process-default-kerberos-identity>';
+      if (process.env.SP_PROXY_DEBUG === 'true') {
+        console.info('[sharepoint proxy] kerberos identity', {
+          instance: instance.slug,
+          kerberosIdentity,
+          credentialMode: serviceUser ? 'explicit-service-user' : 'process-identity',
+        });
+      }
       const cred = serviceUser ? `${serviceUser}:${servicePass}` : ':';
       const targetUrl = site.replace(/\/$/, '') + fullPath;
       const clientAccept =
