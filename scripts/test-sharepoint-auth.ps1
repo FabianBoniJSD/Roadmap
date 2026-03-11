@@ -62,9 +62,9 @@ function Invoke-CurlProbe {
     }
 
     if ($Auth -eq 'negotiate') {
-      $args += @('--negotiate', '--user', "$User:$Password")
+      $args += @('--negotiate', '--user', "${User}:$Password")
     } elseif ($Auth -eq 'ntlm') {
-      $args += @('--ntlm', '--user', "$User:$Password")
+      $args += @('--ntlm', '--user', "${User}:$Password")
     }
 
     $args += $Url
