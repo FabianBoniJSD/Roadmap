@@ -1731,15 +1731,53 @@ class ClientDataService {
       const resolvedCategories = await this.resolveListTitle(SP_LISTS.CATEGORIES, [
         'Roadmap Categories',
       ]);
-      const items = await this.fetchFromSharePoint(
+      let items = await this.fetchFromSharePoint(
         resolvedCategories,
         'Id,Title,Color,Icon,ParentCategoryId,IsSubcategory'
       );
       if (!Array.isArray(items) || items.length === 0) {
-        console.warn(
-          '[clientDataService] getAllCategories returned no items for list resolved as',
-          resolvedCategories
-        );
+        let listItemCount: number | null = null;
+        try {
+          const webUrl = this.getWebUrl();
+          const probeEndpoint = `${webUrl}/_api/web/lists/getByTitle('${resolvedCategories}')?$select=ItemCount`;
+          const probeResp = await this.spFetch(probeEndpoint, {
+            headers: { Accept: 'application/json;odata=nometadata' },
+          });
+          if (probeResp.ok) {
+            const probeData = await probeResp.json();
+            const raw = probeData?.ItemCount ?? probeData?.d?.ItemCount;
+            const parsed = Number(raw);
+            if (!Number.isNaN(parsed)) listItemCount = parsed;
+          }
+        } catch {
+          /* ignore diagnostics errors */
+        }
+
+        // Some farms respond with an empty payload for larger field selects; retry minimal projection.
+        try {
+          const retryItems = await this.fetchFromSharePoint(resolvedCategories, 'Id,Title');
+          if (Array.isArray(retryItems) && retryItems.length > 0) {
+            console.warn('[clientDataService] getAllCategories recovered via minimal select', {
+              resolvedCategories,
+              initialCount: Array.isArray(items) ? items.length : 0,
+              retryCount: retryItems.length,
+              listItemCount,
+            });
+            items = retryItems;
+          } else {
+            console.warn(
+              '[clientDataService] getAllCategories returned no items for list resolved as',
+              resolvedCategories,
+              { listItemCount }
+            );
+          }
+        } catch {
+          console.warn(
+            '[clientDataService] getAllCategories returned no items for list resolved as',
+            resolvedCategories,
+            { listItemCount }
+          );
+        }
       }
 
       return items.map((item) => {

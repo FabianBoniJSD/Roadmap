@@ -252,7 +252,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     query = filtered.length ? `?${filtered.join('&')}` : '';
   }
-  let fullPath = apiPath + query;
+  // Next.js catch-all params decode path segments; re-encode to keep valid URL semantics.
+  const encodedApiPath = encodeURI(apiPath);
+  let fullPath = encodedApiPath + query;
   // Some on-prem SharePoint builds reject /items/ (trailing slash) before query params; normalize to /items
   fullPath = fullPath.replace(/\/items\/\?/, '/items?');
   // Optionally decode %24 (encoded $) in OData system query option names (e.g. %24select -> $select)
