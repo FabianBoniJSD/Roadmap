@@ -43,6 +43,29 @@ interface CurlCacheEntry {
   payload: any;
 }
 const curlCache: Record<string, CurlCacheEntry> = {};
+const kerberos401FailuresByTarget: Record<string, number> = {};
+const NTLM_FALLBACK_AFTER_KERBEROS_FAILURES = 3;
+
+const getKerberosFailureKey = (instanceSlug: string, targetUrl: string) =>
+  `${instanceSlug}|${targetUrl}`;
+
+const getKerberosFailureCount = (instanceSlug: string, targetUrl: string) => {
+  const key = getKerberosFailureKey(instanceSlug, targetUrl);
+  return kerberos401FailuresByTarget[key] || 0;
+};
+
+const incrementKerberosFailureCount = (instanceSlug: string, targetUrl: string) => {
+  const key = getKerberosFailureKey(instanceSlug, targetUrl);
+  const next = (kerberos401FailuresByTarget[key] || 0) + 1;
+  kerberos401FailuresByTarget[key] = next;
+  return next;
+};
+
+const resetKerberosFailureCount = (instanceSlug: string, targetUrl: string) => {
+  const key = getKerberosFailureKey(instanceSlug, targetUrl);
+  delete kerberos401FailuresByTarget[key];
+};
+
 const invalidateCurlCache = () => {
   for (const k of Object.keys(curlCache)) delete curlCache[k];
 };
@@ -677,18 +700,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let ntlmFailureSnippet: string | null = null;
 
       const ntlmFallbackEnabled = process.env.SP_CURL_NTLM_FALLBACK !== 'false';
+      let kerberosFailureCount = getKerberosFailureCount(instance.slug, targetUrl);
+      if (authFailure?.status === 401) {
+        kerberosFailureCount = incrementKerberosFailureCount(instance.slug, targetUrl);
+      } else {
+        resetKerberosFailureCount(instance.slug, targetUrl);
+        kerberosFailureCount = 0;
+      }
+
       if (
         authFailure?.status === 401 &&
         ntlmFallbackEnabled &&
         serviceUser &&
         servicePass &&
-        !allowCurlFallbackToFetch
+        !allowCurlFallbackToFetch &&
+        kerberosFailureCount >= NTLM_FALLBACK_AFTER_KERBEROS_FAILURES
       ) {
         ntlmAttempted = true;
         if (process.env.SP_PROXY_DEBUG === 'true') {
           console.warn('[sharepoint proxy] curl kerberos 401; trying NTLM fallback', {
             instance: instance.slug,
             targetUrl,
+            kerberosFailureCount,
+            fallbackThreshold: NTLM_FALLBACK_AFTER_KERBEROS_FAILURES,
           });
         }
         try {
@@ -714,10 +748,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             effectiveOutput = ntlmOutput;
             negotiatedStatus = ntlmStatus;
             res.setHeader('x-sp-curl-auth', 'ntlm-fallback');
+            resetKerberosFailureCount(instance.slug, targetUrl);
             if (process.env.SP_PROXY_DEBUG === 'true') {
               console.warn('[sharepoint proxy] curl kerberos 401; NTLM fallback succeeded', {
                 instance: instance.slug,
                 targetUrl,
+                kerberosFailureCount,
               });
             }
           } else {
@@ -729,6 +765,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 targetUrl,
                 status: ntlmFailure.status,
                 snippet: ntlmFailure.snippet,
+                kerberosFailureCount,
               });
             }
           }
@@ -737,9 +774,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             console.warn('[sharepoint proxy] NTLM fallback execution failed', {
               instance: instance.slug,
               targetUrl,
+              kerberosFailureCount,
             });
           }
         }
+      } else if (
+        authFailure?.status === 401 &&
+        ntlmFallbackEnabled &&
+        serviceUser &&
+        servicePass &&
+        !allowCurlFallbackToFetch &&
+        process.env.SP_PROXY_DEBUG === 'true'
+      ) {
+        console.warn('[sharepoint proxy] kerberos 401 observed; NTLM fallback deferred', {
+          instance: instance.slug,
+          targetUrl,
+          kerberosFailureCount,
+          fallbackThreshold: NTLM_FALLBACK_AFTER_KERBEROS_FAILURES,
+        });
       }
 
       const finalAuthFailure = detectCurlAuthFailure(normalized, negotiatedStatus.statusCode);
