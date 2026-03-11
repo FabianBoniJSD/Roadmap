@@ -204,14 +204,28 @@ export type PrismaInstanceWithHosts = PrismaRoadmapInstance & {
 
 export const mapInstanceRecord = (record: PrismaInstanceWithHosts): RoadmapInstanceConfig => {
   const settingsObj = decodeSettings(record.settingsJson);
+  const envStrategy =
+    typeof process.env.SP_STRATEGY === 'string' && process.env.SP_STRATEGY.trim()
+      ? process.env.SP_STRATEGY
+      : 'kerberos';
+  const envUsername =
+    process.env.SP_KERBEROS_SERVICE_USER || process.env.SP_USERNAME || process.env.USER_NAME || '';
+  const envPassword =
+    process.env.SP_KERBEROS_SERVICE_PASSWORD ||
+    process.env.SP_PASSWORD ||
+    process.env.USER_PASSWORD ||
+    '';
+  const envAllowSelfSigned =
+    process.env.SP_ALLOW_SELF_SIGNED === 'true' || process.env.SP_TLS_FALLBACK_INSECURE === 'true';
+  const envTrustedCaPath = process.env.SP_TRUSTED_CA_PATH || undefined;
   const sharePoint: RoadmapInstanceSharePointSettings = {
     siteUrlDev: record.sharePointSiteUrlDev,
     siteUrlProd: record.sharePointSiteUrlProd || record.sharePointSiteUrlDev,
-    strategy: normalizeSharePointStrategy(record.sharePointStrategy),
-    username: record.spUsername || undefined,
-    password: record.spPassword || undefined,
-    allowSelfSigned: record.allowSelfSigned,
-    trustedCaPath: record.trustedCaPath || undefined,
+    strategy: normalizeSharePointStrategy(envStrategy),
+    username: envUsername || undefined,
+    password: envPassword || undefined,
+    allowSelfSigned: envAllowSelfSigned,
+    trustedCaPath: envTrustedCaPath,
   };
 
   const theme =

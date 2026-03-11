@@ -280,7 +280,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   applyNoCacheHeaders(res);
 
   try {
-    const strategy = String(instance.sharePoint.strategy || 'kerberos').toLowerCase();
+    const strategy = String(process.env.SP_STRATEGY || 'kerberos').toLowerCase();
     const useCurlKerberos = strategy === 'kerberos';
     const delegatedUserCandidates = [
       req.headers['x-remote-user'],
@@ -308,15 +308,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Kerberos/SPNEGO via curl (default for kerberos strategy).
     if (useCurlKerberos) {
-      // In negotiate mode curl uses the process identity (Kerberos ticket).
-      const cred = ':';
+      // In negotiate mode curl uses configured service credentials when provided,
+      // otherwise the process Kerberos identity.
+      const serviceUser = (process.env.SP_KERBEROS_SERVICE_USER || '').trim();
+      const servicePass = process.env.SP_KERBEROS_SERVICE_PASSWORD || '';
+      const cred = serviceUser ? `${serviceUser}:${servicePass}` : ':';
       const targetUrl = site.replace(/\/$/, '') + fullPath;
       const clientAccept =
         typeof req.headers['accept'] === 'string'
           ? req.headers['accept']
           : 'application/json;odata=nometadata';
       const cacheSeconds = parseInt(process.env.SP_CURL_CACHE_SECONDS || '60', 10);
-      const caPath = instance.sharePoint.trustedCaPath || process.env.SP_TRUSTED_CA_PATH || '';
+      const caPath = process.env.SP_TRUSTED_CA_PATH || '';
       const cacheKey = 'GET:' + targetUrl + '|' + clientAccept;
       if (req.method === 'GET' && cacheSeconds > 0) {
         const ent = curlCache[cacheKey];

@@ -6,13 +6,7 @@ import {
   mapInstanceRecord,
   toInstanceSummary,
 } from '@/utils/instanceConfig';
-import {
-  buildSettingsPayload,
-  coerceBool,
-  normalizeHosts,
-  sanitizeSlug,
-  serializeSettings,
-} from './helpers';
+import { buildSettingsPayload, normalizeHosts, sanitizeSlug, serializeSettings } from './helpers';
 import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
 import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
 import {
@@ -72,12 +66,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!sharePoint.siteUrlDev || typeof sharePoint.siteUrlDev !== 'string') {
       return res.status(400).json({ error: 'sharePoint.siteUrlDev is required' });
     }
-    if (!sharePoint.username || typeof sharePoint.username !== 'string') {
-      return res.status(400).json({ error: 'sharePoint.username is required' });
-    }
-    if (!sharePoint.password || typeof sharePoint.password !== 'string') {
-      return res.status(400).json({ error: 'sharePoint.password is required' });
-    }
+    const forcedStrategy = String(process.env.SP_STRATEGY || 'kerberos')
+      .trim()
+      .toLowerCase();
+    const forcedUsername =
+      process.env.SP_KERBEROS_SERVICE_USER ||
+      process.env.SP_USERNAME ||
+      process.env.USER_NAME ||
+      '';
+    const forcedPassword =
+      process.env.SP_KERBEROS_SERVICE_PASSWORD ||
+      process.env.SP_PASSWORD ||
+      process.env.USER_PASSWORD ||
+      '';
+    const forcedAllowSelfSigned =
+      process.env.SP_ALLOW_SELF_SIGNED === 'true' ||
+      process.env.SP_TLS_FALLBACK_INSECURE === 'true';
+    const forcedTrustedCaPath = process.env.SP_TRUSTED_CA_PATH?.trim() || null;
 
     const normalizedSlug = sanitizeSlug(slug);
     const existing = await getInstanceConfigBySlug(normalizedSlug);
@@ -98,11 +103,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         description: description?.trim() || null,
         sharePointSiteUrlDev: sharePoint.siteUrlDev.trim(),
         sharePointSiteUrlProd: (sharePoint.siteUrlProd || sharePoint.siteUrlDev).trim(),
-        sharePointStrategy: sharePoint.strategy || 'kerberos',
-        spUsername: sharePoint.username.trim(),
-        spPassword: sharePoint.password.trim(),
-        allowSelfSigned: coerceBool(sharePoint.allowSelfSigned),
-        trustedCaPath: sharePoint.trustedCaPath?.trim() || null,
+        sharePointStrategy: forcedStrategy,
+        spUsername: forcedUsername,
+        spPassword: forcedPassword,
+        allowSelfSigned: forcedAllowSelfSigned,
+        trustedCaPath: forcedTrustedCaPath,
         deploymentEnv: deploymentEnv?.trim() || null,
         defaultLocale: defaultLocale?.trim() || null,
         defaultTimeZone: defaultTimeZone?.trim() || null,

@@ -32,24 +32,22 @@ const buildCacheKey = (params: { siteUrl: string; strategy: string; username?: s
     .digest('hex');
 };
 
-const getTrustedCaPath = (instance?: RoadmapInstanceConfig | null): string | undefined => {
-  const candidate = instance?.sharePoint.trustedCaPath || process.env.SP_TRUSTED_CA_PATH;
+const getTrustedCaPath = (): string | undefined => {
+  const candidate = process.env.SP_TRUSTED_CA_PATH;
   if (!candidate) return undefined;
   return candidate.trim() || undefined;
 };
 
-const applyTlsSettings = (instance?: RoadmapInstanceConfig | null) => {
+const applyTlsSettings = () => {
   const allowSelfSigned =
-    instance?.sharePoint.allowSelfSigned === true ||
-    process.env.SP_ALLOW_SELF_SIGNED === 'true' ||
-    process.env.SP_TLS_FALLBACK_INSECURE === 'true';
+    process.env.SP_ALLOW_SELF_SIGNED === 'true' || process.env.SP_TLS_FALLBACK_INSECURE === 'true';
 
   if (allowSelfSigned) {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     return;
   }
 
-  const trustedCa = getTrustedCaPath(instance);
+  const trustedCa = getTrustedCaPath();
   if (!trustedCa) {
     delete process.env.NODE_EXTRA_CA_CERTS;
     return;
@@ -66,10 +64,10 @@ export async function getSharePointAuthHeaders(
   instance?: RoadmapInstanceConfig | null
 ): Promise<SharePointAuthContext> {
   const inst = instance || null;
-  applyTlsSettings(inst);
+  applyTlsSettings();
 
   const siteUrl = resolveSharePointSiteUrl(inst || undefined);
-  const strategyRaw = inst?.sharePoint.strategy || process.env.SP_STRATEGY || 'kerberos';
+  const strategyRaw = process.env.SP_STRATEGY || 'kerberos';
   const strategy = String(strategyRaw).trim().toLowerCase();
 
   if (strategy === 'kerberos') {
@@ -80,10 +78,7 @@ export async function getSharePointAuthHeaders(
     return { headers: { Accept: 'application/json;odata=nometadata' } };
   }
 
-  const credentials = getPrimaryCredentials({
-    username: inst?.sharePoint.username,
-    password: inst?.sharePoint.password,
-  });
+  const credentials = getPrimaryCredentials();
   if (!credentials) {
     throw new Error('No credentials found. Set SP_USERNAME/SP_PASSWORD.');
   }

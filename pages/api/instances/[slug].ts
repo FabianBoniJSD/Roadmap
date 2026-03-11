@@ -9,13 +9,7 @@ import {
   type PrismaInstanceWithHosts,
 } from '@/utils/instanceConfig';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
-import {
-  buildSettingsPayload,
-  coerceBool,
-  normalizeHosts,
-  sanitizeSlug,
-  serializeSettings,
-} from './helpers';
+import { buildSettingsPayload, normalizeHosts, sanitizeSlug, serializeSettings } from './helpers';
 import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
 import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
 import {
@@ -24,9 +18,6 @@ import {
   parseDepartmentsPayload,
   replaceAllowedDepartmentsForInstance,
 } from '@/utils/instanceDepartmentAccess';
-
-const hasProp = (value: unknown, key: string): boolean =>
-  Boolean(value && typeof value === 'object' && key in (value as Record<string, unknown>));
 
 async function updateHosts(instanceId: number, hosts: string[]) {
   await prisma.roadmapInstanceHost.deleteMany({ where: { instanceId } });
@@ -116,6 +107,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const sharePoint = req.body?.sharePoint || {};
     const data: Record<string, unknown> = {};
+    const forcedStrategy = String(process.env.SP_STRATEGY || 'kerberos')
+      .trim()
+      .toLowerCase();
+    const forcedUsername =
+      process.env.SP_KERBEROS_SERVICE_USER ||
+      process.env.SP_USERNAME ||
+      process.env.USER_NAME ||
+      '';
+    const forcedPassword =
+      process.env.SP_KERBEROS_SERVICE_PASSWORD ||
+      process.env.SP_PASSWORD ||
+      process.env.USER_PASSWORD ||
+      '';
+    const forcedAllowSelfSigned =
+      process.env.SP_ALLOW_SELF_SIGNED === 'true' ||
+      process.env.SP_TLS_FALLBACK_INSECURE === 'true';
+    const forcedTrustedCaPath = process.env.SP_TRUSTED_CA_PATH?.trim() || null;
 
     if (req.body.displayName && typeof req.body.displayName === 'string') {
       data.displayName = req.body.displayName.trim();
@@ -163,24 +171,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (sharePoint.siteUrlProd && typeof sharePoint.siteUrlProd === 'string') {
       data.sharePointSiteUrlProd = sharePoint.siteUrlProd.trim();
     }
-    if (sharePoint.strategy && typeof sharePoint.strategy === 'string') {
-      data.sharePointStrategy = sharePoint.strategy;
-    }
-    if (sharePoint.username && typeof sharePoint.username === 'string') {
-      data.spUsername = sharePoint.username.trim();
-    }
-    if (sharePoint.password && typeof sharePoint.password === 'string') {
-      data.spPassword = sharePoint.password.trim();
-    }
-    if (hasProp(sharePoint, 'allowSelfSigned')) {
-      data.allowSelfSigned = coerceBool(sharePoint.allowSelfSigned);
-    }
-    if (sharePoint.trustedCaPath !== undefined) {
-      data.trustedCaPath =
-        typeof sharePoint.trustedCaPath === 'string' && sharePoint.trustedCaPath.trim()
-          ? sharePoint.trustedCaPath.trim()
-          : null;
-    }
+    data.sharePointStrategy = forcedStrategy;
+    data.spUsername = forcedUsername;
+    data.spPassword = forcedPassword;
+    data.allowSelfSigned = forcedAllowSelfSigned;
+    data.trustedCaPath = forcedTrustedCaPath;
 
     const settings = buildSettingsPayload(req.body);
     if (settings) {
