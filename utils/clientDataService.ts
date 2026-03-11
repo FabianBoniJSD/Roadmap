@@ -1745,7 +1745,11 @@ class ClientDataService {
           });
           if (probeResp.ok) {
             const probeData = await probeResp.json();
-            const raw = probeData?.ItemCount ?? probeData?.d?.ItemCount;
+            const raw =
+              probeData?.ItemCount ??
+              probeData?.d?.ItemCount ??
+              probeData?.value?.[0]?.ItemCount ??
+              probeData?.d?.results?.[0]?.ItemCount;
             const parsed = Number(raw);
             if (!Number.isNaN(parsed)) listItemCount = parsed;
           }

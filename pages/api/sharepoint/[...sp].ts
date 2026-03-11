@@ -524,6 +524,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           '5',
           '--retry',
           '1',
+          '-w',
+          '\n__SP_HTTP_STATUS__:%{http_code}',
           '-H',
           `Accept: ${clientAccept}`,
           targetUrl,
@@ -551,7 +553,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         if (!parsed) {
           // Atom/XML -> lightweight normalization (Ids + Title + selected fields if present)
-          if (/^\s*<\?xml/.test(rawOutput) && /<feed/i.test(rawOutput)) {
+          if (/^\s*<\?xml/.test(rawOutput) && /<m:properties/i.test(rawOutput)) {
             try {
               const entries = rawOutput.match(/<m:properties>[\s\S]*?<\/m:properties>/g) || [];
               const items: Record<string, any>[] = [];
@@ -587,16 +589,72 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return parsed;
       };
 
+      const extractCurlStatusAndBody = (
+        rawOutput: string
+      ): { statusCode: number; payloadText: string } => {
+        const marker = '\n__SP_HTTP_STATUS__:';
+        const idx = rawOutput.lastIndexOf(marker);
+        if (idx < 0) return { statusCode: 0, payloadText: rawOutput };
+
+        const payloadText = rawOutput.slice(0, idx);
+        const codeRaw = rawOutput.slice(idx + marker.length).trim();
+        const parsedCode = Number.parseInt(codeRaw, 10);
+        return {
+          statusCode: Number.isFinite(parsedCode) ? parsedCode : 0,
+          payloadText,
+        };
+      };
+
+      const payloadSnippet = (payload: any): string => {
+        if (typeof payload === 'string') return payload.trim().substring(0, 160);
+        try {
+          return JSON.stringify(payload).substring(0, 160);
+        } catch {
+          return '<no-body>';
+        }
+      };
+
       const detectCurlAuthFailure = (
-        payload: any
-      ): { status: 401 | 403; snippet: string } | null => {
-        if (typeof payload !== 'string') return null;
-        const trimmed = payload.trim();
-        const isHtml401 = /<html/i.test(trimmed) && /401/i.test(trimmed);
-        const isPlain401 = /^401\s+unauthorized$/i.test(trimmed);
-        const isForbidden = /^403\s+forbidden$/i.test(trimmed);
-        if (isHtml401 || isPlain401) return { status: 401, snippet: trimmed.substring(0, 160) };
-        if (isForbidden) return { status: 403, snippet: trimmed.substring(0, 160) };
+        payload: any,
+        statusCode: number
+      ): { status: number; snippet: string } | null => {
+        if (statusCode >= 400) {
+          return { status: statusCode, snippet: payloadSnippet(payload) || `http ${statusCode}` };
+        }
+
+        if (statusCode >= 300 && statusCode < 400 && typeof payload === 'string') {
+          const redirectLooksLikeLogin = /(login|authenticate|signin|sign in)/i.test(payload);
+          if (redirectLooksLikeLogin) {
+            return { status: 401, snippet: payloadSnippet(payload) || `http ${statusCode}` };
+          }
+        }
+
+        if (typeof payload === 'string') {
+          const trimmed = payload.trim();
+          const isHtml401 = /<html/i.test(trimmed) && /401/i.test(trimmed);
+          const isPlain401 = /^401\s+unauthorized$/i.test(trimmed);
+          const isForbidden = /^403\s+forbidden$/i.test(trimmed);
+          if (isHtml401 || isPlain401) return { status: 401, snippet: trimmed.substring(0, 160) };
+          if (isForbidden) return { status: 403, snippet: trimmed.substring(0, 160) };
+        }
+
+        if (payload && typeof payload === 'object') {
+          const p: any = payload;
+          const msg =
+            p?.error?.message?.value ||
+            p?.['odata.error']?.message?.value ||
+            p?.error_description ||
+            p?.error?.message ||
+            p?.error;
+          const msgText = typeof msg === 'string' ? msg : '';
+          if (/access denied|forbidden/i.test(msgText)) {
+            return { status: 403, snippet: payloadSnippet(payload) };
+          }
+          if (/unauthori|not authorized|authentication/i.test(msgText)) {
+            return { status: 401, snippet: payloadSnippet(payload) };
+          }
+        }
+
         return null;
       };
 
@@ -617,8 +675,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
       const duration = Date.now() - start;
       let effectiveOutput = output;
-      let normalized: any = parseCurlPayload(output.stdout);
-      const authFailure = detectCurlAuthFailure(normalized);
+      let negotiatedStatus = extractCurlStatusAndBody(output.stdout);
+      let normalized: any = parseCurlPayload(negotiatedStatus.payloadText);
+      const authFailure = detectCurlAuthFailure(normalized, negotiatedStatus.statusCode);
 
       const ntlmFallbackEnabled = process.env.SP_CURL_NTLM_FALLBACK !== 'false';
       if (
@@ -643,11 +702,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               );
             }
           );
-          const ntlmNormalized = parseCurlPayload(ntlmOutput.stdout);
-          const ntlmFailure = detectCurlAuthFailure(ntlmNormalized);
+          const ntlmStatus = extractCurlStatusAndBody(ntlmOutput.stdout);
+          const ntlmNormalized = parseCurlPayload(ntlmStatus.payloadText);
+          const ntlmFailure = detectCurlAuthFailure(ntlmNormalized, ntlmStatus.statusCode);
           if (!ntlmFailure) {
             normalized = ntlmNormalized;
             effectiveOutput = ntlmOutput;
+            negotiatedStatus = ntlmStatus;
             res.setHeader('x-sp-curl-auth', 'ntlm-fallback');
             if (process.env.SP_PROXY_DEBUG === 'true') {
               console.warn('[sharepoint proxy] curl kerberos 401; NTLM fallback succeeded', {
@@ -661,7 +722,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      const finalAuthFailure = detectCurlAuthFailure(normalized);
+      const finalAuthFailure = detectCurlAuthFailure(normalized, negotiatedStatus.statusCode);
       if (finalAuthFailure) {
         const status = finalAuthFailure.status;
         if (status === 401 && allowCurlFallbackToFetch) {
