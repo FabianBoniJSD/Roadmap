@@ -16,11 +16,10 @@ export const encodeSharePointValue = (value: string): string => value.replace(/'
 
 export const SHAREPOINT_LIST_DEFINITIONS: SharePointListDefinition[] = [
   {
-    key: 'RoadmapProjects',
+    key: 'Roadmap Projects',
     title: 'Roadmap Projects',
     template: 100,
     description: 'Roadmap project records',
-    aliases: ['RoadmapProjects'],
     fields: [
       {
         name: 'ProjectType',
@@ -107,10 +106,9 @@ export const SHAREPOINT_LIST_DEFINITIONS: SharePointListDefinition[] = [
     ],
   },
   {
-    key: 'RoadmapCategories',
+    key: 'Roadmap Categories',
     title: 'Roadmap Categories',
     template: 100,
-    aliases: ['RoadmapCategories'],
     fields: [
       {
         name: 'Color',
@@ -131,10 +129,10 @@ export const SHAREPOINT_LIST_DEFINITIONS: SharePointListDefinition[] = [
     ],
   },
   {
-    key: 'RoadmapFieldTypes',
+    key: 'Roadmap Field Types',
     title: 'Roadmap Field Types',
     template: 100,
-    aliases: ['RoadmapFieldTypes', 'Roadmap Field Types'],
+    aliases: ['Roadmap FieldTypes'],
     fields: [
       {
         name: 'Type',
@@ -148,10 +146,9 @@ export const SHAREPOINT_LIST_DEFINITIONS: SharePointListDefinition[] = [
     ],
   },
   {
-    key: 'RoadmapFields',
+    key: 'Roadmap Fields',
     title: 'Roadmap Fields',
     template: 100,
-    aliases: ['RoadmapFields'],
     fields: [
       {
         name: 'Type',
@@ -169,10 +166,9 @@ export const SHAREPOINT_LIST_DEFINITIONS: SharePointListDefinition[] = [
     ],
   },
   {
-    key: 'RoadmapTeamMembers',
+    key: 'Roadmap Team Members',
     title: 'Roadmap Team Members',
     template: 100,
-    aliases: ['RoadmapTeamMembers'],
     fields: [
       {
         name: 'Role',
@@ -185,10 +181,9 @@ export const SHAREPOINT_LIST_DEFINITIONS: SharePointListDefinition[] = [
     ],
   },
   {
-    key: 'RoadmapProjectLinks',
+    key: 'Roadmap Project Links',
     title: 'Roadmap Project Links',
     template: 100,
-    aliases: ['RoadmapProjectLinks'],
     fields: [
       { name: 'Url', schemaXml: '<Field DisplayName="Url" Name="Url" Type="URL" />' },
       {
@@ -198,10 +193,9 @@ export const SHAREPOINT_LIST_DEFINITIONS: SharePointListDefinition[] = [
     ],
   },
   {
-    key: 'RoadmapSettings',
+    key: 'Roadmap Settings',
     title: 'Roadmap Settings',
     template: 100,
-    aliases: ['RoadmapSettings'],
     fields: [
       {
         name: 'Value',

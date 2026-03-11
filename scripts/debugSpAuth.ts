@@ -24,7 +24,7 @@ async function main() {
     }
     console.log('[debugSpAuth] headers', redacted);
     const site = resolveSharePointSiteUrl().replace(/\/$/, '');
-    const url = `${site}/_api/web/lists/getByTitle('RoadmapProjects')?$select=Id&$top=1`;
+    const url = `${site}/_api/web/lists/getByTitle('Roadmap Projects')?$select=Id&$top=1`;
     const res = await fetch(url, {
       method: 'GET',
       headers: {

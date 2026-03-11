@@ -13,7 +13,7 @@ SharePoint-backed roadmap application built with Next.js 14 (pages router), Type
 
 - **API pattern**: Next.js API route → `utils/clientDataService` → `/api/sharepoint` proxy → SharePoint REST.
 - **Data layer**: Prefer `clientDataService` (OData nometadata → verbose → Atom XML cascade, field probing, caching). Legacy `dataService` (PnP JS) remains for existing bulk flows.
-- **SharePoint lists** (dual names handled): `RoadmapProjects`, `RoadmapCategories`, `RoadmapSettings`, `RoadmapTeamMembers`, `RoadmapProjectLinks`.
+- **SharePoint lists**: `Roadmap Projects`, `Roadmap Categories`, `Roadmap Settings`, `Roadmap Team Members`, `Roadmap Project Links`.
 - **Category normalization**: trim and collapse values like `7.0` → `7` across API and client data service.
 - **Quarter → date derivation**: shared helper maps Q1–Q4 to start/end ISO dates; do not change logic.
 - **Admin check**: `clientDataService.isCurrentUserAdmin()` (site collection admin, owners group, heuristic owners).

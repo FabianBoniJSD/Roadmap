@@ -145,10 +145,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const baseUrl =
       (process.env.INTERNAL_API_BASE_URL || '').replace(/\/$/, '') ||
       `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
-    let listTitle = 'RoadmapProjects';
+    let listTitle = 'Roadmap Projects';
     try {
       listTitle = await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.resolveListTitle('RoadmapProjects', ['Roadmap Projects'])
+        clientDataService.resolveListTitle('Roadmap Projects')
       );
     } catch (err) {
       console.warn('[api/attachments] failed to resolve list title', err);

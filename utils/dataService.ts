@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { getSP, SP_LISTS } from './spConfig';
-import "@pnp/sp/items/get-all";
-// @ts-ignore minimal shims when node types absent
+import '@pnp/sp/items/get-all';
+// @ts-expect-error minimal shims when node types absent
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const process: any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,7 +29,7 @@ export interface Project {
   budget: string;
   // Extended fields required by Roadmap component / frontend types
   startDate: string; // ISO
-  endDate: string;   // ISO
+  endDate: string; // ISO
   ProjectFields: string[];
   projektleitungImageUrl?: string | null;
   teamMembers?: TeamMember[];
@@ -83,24 +84,27 @@ interface IDataService {
 // ---------------- SharePoint Implementation ----------------
 export class SharePointDataService implements IDataService {
   private sp: any;
-  
-  constructor(context?: any) {
-  this.sp = getSP();
+
+  constructor(_context?: unknown) {
+    this.sp = getSP();
   }
 
   // PROJECT OPERATIONS
-  
+
   async getAllProjects(): Promise<Project[]> {
     try {
       // Fetch base project items including ProjectFields if available
-      const items = await this.sp.web.lists.getByTitle(SP_LISTS.PROJECTS).items
-        .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein")
+      const items = await this.sp.web.lists
+        .getByTitle(SP_LISTS.PROJECTS)
+        .items.select(
+          'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein'
+        )
         .getAll();
 
       // Bulk fetch related lists in parallel (links + team)
       const [linkItems, teamItems] = await Promise.all([
-        this.safeGetAllList("RoadmapProjectLinks","Id,Title,Url,ProjectId"),
-        this.safeGetAllList("RoadmapTeamMembers","Id,Title,Role,ProjectId")
+        this.safeGetAllList('Roadmap Project Links', 'Id,Title,Url,ProjectId'),
+        this.safeGetAllList('Roadmap Team Members', 'Id,Title,Role,ProjectId'),
       ]);
 
       const statusMap = (s: string): string => {
@@ -116,11 +120,24 @@ export class SharePointDataService implements IDataService {
       const derive = (q: string, end = false): string => {
         const year = new Date().getFullYear();
         switch (q) {
-          case 'Q1': return end ? new Date(Date.UTC(year,2,31,23,59,59)).toISOString() : new Date(Date.UTC(year,0,1)).toISOString();
-          case 'Q2': return end ? new Date(Date.UTC(year,5,30,23,59,59)).toISOString() : new Date(Date.UTC(year,3,1)).toISOString();
-          case 'Q3': return end ? new Date(Date.UTC(year,8,30,23,59,59)).toISOString() : new Date(Date.UTC(year,6,1)).toISOString();
-          case 'Q4': return end ? new Date(Date.UTC(year,11,31,23,59,59)).toISOString() : new Date(Date.UTC(year,9,1)).toISOString();
-          default: return new Date(Date.UTC(year,0,1)).toISOString();
+          case 'Q1':
+            return end
+              ? new Date(Date.UTC(year, 2, 31, 23, 59, 59)).toISOString()
+              : new Date(Date.UTC(year, 0, 1)).toISOString();
+          case 'Q2':
+            return end
+              ? new Date(Date.UTC(year, 5, 30, 23, 59, 59)).toISOString()
+              : new Date(Date.UTC(year, 3, 1)).toISOString();
+          case 'Q3':
+            return end
+              ? new Date(Date.UTC(year, 8, 30, 23, 59, 59)).toISOString()
+              : new Date(Date.UTC(year, 6, 1)).toISOString();
+          case 'Q4':
+            return end
+              ? new Date(Date.UTC(year, 11, 31, 23, 59, 59)).toISOString()
+              : new Date(Date.UTC(year, 9, 1)).toISOString();
+          default:
+            return new Date(Date.UTC(year, 0, 1)).toISOString();
         }
       };
 
@@ -128,12 +145,21 @@ export class SharePointDataService implements IDataService {
       const linksByProject: Record<string, { id: string; title: string; url: string }[]> = {};
       linkItems.forEach((l: any) => {
         const pid = l.ProjectId?.toString?.() || '';
-        (linksByProject[pid] ||= []).push({ id: l.Id?.toString?.() || '', title: l.Title, url: l.Url });
+        (linksByProject[pid] ||= []).push({
+          id: l.Id?.toString?.() || '',
+          title: l.Title,
+          url: l.Url,
+        });
       });
       const teamByProject: Record<string, TeamMember[]> = {};
       teamItems.forEach((t: any) => {
         const pid = t.ProjectId?.toString?.() || '';
-        (teamByProject[pid] ||= []).push({ id: t.Id?.toString?.() || '', name: t.Title, role: t.Role || 'Teammitglied', projectId: pid });
+        (teamByProject[pid] ||= []).push({
+          id: t.Id?.toString?.() || '',
+          name: t.Title,
+          role: t.Role || 'Teammitglied',
+          projectId: pid,
+        });
       });
 
       return items.map((item: any) => {
@@ -144,8 +170,16 @@ export class SharePointDataService implements IDataService {
         if (rawPF) {
           if (Array.isArray(rawPF)) projectFields = rawPF;
           else if (typeof rawPF === 'string') {
-            if (rawPF.includes('\n')) projectFields = rawPF.split('\n').map((s: string) => s.trim()).filter(Boolean);
-            else if (rawPF.includes(';') || rawPF.includes(',')) projectFields = rawPF.split(/[;,]/).map((s: string) => s.trim()).filter(Boolean);
+            if (rawPF.includes('\n'))
+              projectFields = rawPF
+                .split('\n')
+                .map((s: string) => s.trim())
+                .filter(Boolean);
+            else if (rawPF.includes(';') || rawPF.includes(','))
+              projectFields = rawPF
+                .split(/[;,]/)
+                .map((s: string) => s.trim())
+                .filter(Boolean);
             else projectFields = [rawPF.trim()];
           }
         }
@@ -159,7 +193,7 @@ export class SharePointDataService implements IDataService {
           startQuarter: startQ,
           endQuarter: endQ,
           description: item.Description || '',
-            status: statusMap(item.Status || 'planned'),
+          status: statusMap(item.Status || 'planned'),
           projektleitung: item.Projektleitung || '',
           bisher: item.Bisher || '',
           zukunft: item.Zukunft || '',
@@ -170,10 +204,12 @@ export class SharePointDataService implements IDataService {
           endDate,
           ProjectFields: projectFields,
           projektleitungImageUrl: null,
-          teamMembers: (teamByProject[idStr] || []).filter(tm => tm.name && tm.name !== (item.Projektleitung || '')),
+          teamMembers: (teamByProject[idStr] || []).filter(
+            (tm) => tm.name && tm.name !== (item.Projektleitung || '')
+          ),
           links: linksByProject[idStr] || [],
           projektphase: item.Projektphase || undefined,
-          naechster_meilenstein: item.NaechsterMeilenstein || undefined
+          naechster_meilenstein: item.NaechsterMeilenstein || undefined,
         } as Project;
       });
     } catch (error) {
@@ -184,14 +220,25 @@ export class SharePointDataService implements IDataService {
 
   async getProjectById(id: string): Promise<Project | null> {
     try {
-      const item = await this.sp.web.lists.getByTitle(SP_LISTS.PROJECTS).items
-        .getById(parseInt(id))
-        .select("Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein")();
+      const item = await this.sp.web.lists
+        .getByTitle(SP_LISTS.PROJECTS)
+        .items.getById(parseInt(id))
+        .select(
+          'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein'
+        )();
 
       // Fetch related data for just this project
       const [links, team] = await Promise.all([
-        this.safeFilterList("RoadmapProjectLinks", `ProjectId eq '${id}'`, "Id,Title,Url,ProjectId"),
-        this.safeFilterList("RoadmapTeamMembers", `ProjectId eq '${id}'`, "Id,Title,Role,ProjectId")
+        this.safeFilterList(
+          'Roadmap Project Links',
+          `ProjectId eq '${id}'`,
+          'Id,Title,Url,ProjectId'
+        ),
+        this.safeFilterList(
+          'Roadmap Team Members',
+          `ProjectId eq '${id}'`,
+          'Id,Title,Role,ProjectId'
+        ),
       ]);
 
       let projectFields: string[] = [];
@@ -199,19 +246,40 @@ export class SharePointDataService implements IDataService {
       if (rawPF) {
         if (Array.isArray(rawPF)) projectFields = rawPF;
         else if (typeof rawPF === 'string') {
-          if (rawPF.includes('\n')) projectFields = rawPF.split('\n').map((s: string) => s.trim()).filter(Boolean);
-          else if (rawPF.includes(';') || rawPF.includes(',')) projectFields = rawPF.split(/[;,]/).map((s: string) => s.trim()).filter(Boolean);
+          if (rawPF.includes('\n'))
+            projectFields = rawPF
+              .split('\n')
+              .map((s: string) => s.trim())
+              .filter(Boolean);
+          else if (rawPF.includes(';') || rawPF.includes(','))
+            projectFields = rawPF
+              .split(/[;,]/)
+              .map((s: string) => s.trim())
+              .filter(Boolean);
           else projectFields = [rawPF.trim()];
         }
       }
       const derive = (q: string, end = false): string => {
         const year = new Date().getFullYear();
         switch (q) {
-          case 'Q1': return end ? new Date(Date.UTC(year,2,31,23,59,59)).toISOString() : new Date(Date.UTC(year,0,1)).toISOString();
-          case 'Q2': return end ? new Date(Date.UTC(year,5,30,23,59,59)).toISOString() : new Date(Date.UTC(year,3,1)).toISOString();
-          case 'Q3': return end ? new Date(Date.UTC(year,8,30,23,59,59)).toISOString() : new Date(Date.UTC(year,6,1)).toISOString();
-          case 'Q4': return end ? new Date(Date.UTC(year,11,31,23,59,59)).toISOString() : new Date(Date.UTC(year,9,1)).toISOString();
-          default: return new Date(Date.UTC(year,0,1)).toISOString();
+          case 'Q1':
+            return end
+              ? new Date(Date.UTC(year, 2, 31, 23, 59, 59)).toISOString()
+              : new Date(Date.UTC(year, 0, 1)).toISOString();
+          case 'Q2':
+            return end
+              ? new Date(Date.UTC(year, 5, 30, 23, 59, 59)).toISOString()
+              : new Date(Date.UTC(year, 3, 1)).toISOString();
+          case 'Q3':
+            return end
+              ? new Date(Date.UTC(year, 8, 30, 23, 59, 59)).toISOString()
+              : new Date(Date.UTC(year, 6, 1)).toISOString();
+          case 'Q4':
+            return end
+              ? new Date(Date.UTC(year, 11, 31, 23, 59, 59)).toISOString()
+              : new Date(Date.UTC(year, 9, 1)).toISOString();
+          default:
+            return new Date(Date.UTC(year, 0, 1)).toISOString();
         }
       };
       const startQ = item.StartQuarter || 'Q1';
@@ -247,10 +315,19 @@ export class SharePointDataService implements IDataService {
         endDate,
         ProjectFields: projectFields,
         projektleitungImageUrl: null,
-        teamMembers: team.map((t: any) => ({ id: t.Id?.toString?.() || '', name: t.Title, role: t.Role || 'Teammitglied', projectId: id })),
-        links: links.map((l: any) => ({ id: l.Id?.toString?.() || '', title: l.Title, url: l.Url })),
+        teamMembers: team.map((t: any) => ({
+          id: t.Id?.toString?.() || '',
+          name: t.Title,
+          role: t.Role || 'Teammitglied',
+          projectId: id,
+        })),
+        links: links.map((l: any) => ({
+          id: l.Id?.toString?.() || '',
+          title: l.Title,
+          url: l.Url,
+        })),
         projektphase: item.Projektphase || undefined,
-        naechster_meilenstein: item.NaechsterMeilenstein || undefined
+        naechster_meilenstein: item.NaechsterMeilenstein || undefined,
       } as Project;
     } catch (error) {
       console.error(`Error fetching project ${id}:`, error);
@@ -260,10 +337,22 @@ export class SharePointDataService implements IDataService {
 
   // Safe helpers for bulk fetch / filters (avoid throwing to keep resilience similar to client service)
   private async safeGetAllList(listTitle: string, select: string): Promise<any[]> {
-    try { return await this.sp.web.lists.getByTitle(listTitle).items.select(select).getAll(); } catch { return []; }
+    try {
+      return await this.sp.web.lists.getByTitle(listTitle).items.select(select).getAll();
+    } catch {
+      return [];
+    }
   }
   private async safeFilterList(listTitle: string, filter: string, select: string): Promise<any[]> {
-    try { return await this.sp.web.lists.getByTitle(listTitle).items.filter(filter).select(select).getAll(); } catch { return []; }
+    try {
+      return await this.sp.web.lists
+        .getByTitle(listTitle)
+        .items.filter(filter)
+        .select(select)
+        .getAll();
+    } catch {
+      return [];
+    }
   }
 
   async createProject(project: Omit<Project, 'id'>): Promise<Project> {
@@ -282,12 +371,12 @@ export class SharePointDataService implements IDataService {
         GeplantUmsetzung: project.geplante_umsetzung,
         Budget: project.budget,
         Projektphase: (project as any).projektphase || '',
-        NaechsterMeilenstein: (project as any).naechster_meilenstein || ''
+        NaechsterMeilenstein: (project as any).naechster_meilenstein || '',
       });
-      
+
       return {
         ...project,
-        id: result.data.Id.toString()
+        id: result.data.Id.toString(),
       };
     } catch (error) {
       console.error('Error creating project:', error);
@@ -298,7 +387,7 @@ export class SharePointDataService implements IDataService {
   async updateProject(id: string, project: Partial<Project>): Promise<void> {
     try {
       const updateData: any = {};
-      
+
       if (project.title) updateData.Title = project.title;
       if (project.category) updateData.Category = project.category;
       if (project.startQuarter) updateData.StartQuarter = project.startQuarter;
@@ -309,12 +398,18 @@ export class SharePointDataService implements IDataService {
       if (project.bisher !== undefined) updateData.Bisher = project.bisher;
       if (project.zukunft !== undefined) updateData.Zukunft = project.zukunft;
       if (project.fortschritt !== undefined) updateData.Fortschritt = project.fortschritt;
-      if (project.geplante_umsetzung !== undefined) updateData.GeplantUmsetzung = project.geplante_umsetzung;
-  if (project.budget !== undefined) updateData.Budget = project.budget;
-  if ((project as any).projektphase !== undefined) updateData.Projektphase = (project as any).projektphase;
-  if ((project as any).naechster_meilenstein !== undefined) updateData.NaechsterMeilenstein = (project as any).naechster_meilenstein;
-      
-      await this.sp.web.lists.getByTitle(SP_LISTS.PROJECTS).items.getById(parseInt(id)).update(updateData);
+      if (project.geplante_umsetzung !== undefined)
+        updateData.GeplantUmsetzung = project.geplante_umsetzung;
+      if (project.budget !== undefined) updateData.Budget = project.budget;
+      if ((project as any).projektphase !== undefined)
+        updateData.Projektphase = (project as any).projektphase;
+      if ((project as any).naechster_meilenstein !== undefined)
+        updateData.NaechsterMeilenstein = (project as any).naechster_meilenstein;
+
+      await this.sp.web.lists
+        .getByTitle(SP_LISTS.PROJECTS)
+        .items.getById(parseInt(id))
+        .update(updateData);
     } catch (error) {
       console.error(`Error updating project ${id}:`, error);
       throw error;
@@ -329,33 +424,37 @@ export class SharePointDataService implements IDataService {
       throw error;
     }
   }
-  
+
   // CATEGORY OPERATIONS
-  
+
   async getAllCategories(): Promise<Category[]> {
     try {
-      const items = await this.sp.web.lists.getByTitle(SP_LISTS.CATEGORIES).items
-        .select("Id,Title,Color,Icon")
+      const items = await this.sp.web.lists
+        .getByTitle(SP_LISTS.CATEGORIES)
+        .items.select('Id,Title,Color,Icon')
         .getAll();
-      
-      return items.map((item: { Id: { toString: () => any; }; Title: any; Color: any; Icon: any; }) => ({
-        id: item.Id.toString(),
-        name: item.Title,
-        color: item.Color,
-        icon: item.Icon,
-      }));
+
+      return items.map(
+        (item: { Id: { toString: () => any }; Title: any; Color: any; Icon: any }) => ({
+          id: item.Id.toString(),
+          name: item.Title,
+          color: item.Color,
+          icon: item.Icon,
+        })
+      );
     } catch (error) {
       console.error('Error fetching categories:', error);
       return [];
     }
   }
-  
+
   async getCategoryById(id: string): Promise<Category | null> {
     try {
-      const item = await this.sp.web.lists.getByTitle(SP_LISTS.CATEGORIES).items
-        .getById(parseInt(id))
-        .select("Id,Title,Color,Icon")();
-      
+      const item = await this.sp.web.lists
+        .getByTitle(SP_LISTS.CATEGORIES)
+        .items.getById(parseInt(id))
+        .select('Id,Title,Color,Icon')();
+
       return {
         id: item.Id.toString(),
         name: item.Title,
@@ -367,33 +466,37 @@ export class SharePointDataService implements IDataService {
       return null;
     }
   }
-  
+
   // FIELD TYPE OPERATIONS
-  
+
   async getAllFieldTypes(): Promise<FieldType[]> {
     try {
-      const items = await this.sp.web.lists.getByTitle(SP_LISTS.FIELD_TYPES).items
-        .select("Id,Title,Type,Description")
+      const items = await this.sp.web.lists
+        .getByTitle(SP_LISTS.FIELD_TYPES)
+        .items.select('Id,Title,Type,Description')
         .getAll();
-      
-      return items.map((item: { Id: { toString: () => any; }; Title: any; Type: any; Description: any; }) => ({
-        id: item.Id.toString(),
-        name: item.Title,
-        type: item.Type,
-        description: item.Description || '',
-      }));
+
+      return items.map(
+        (item: { Id: { toString: () => any }; Title: any; Type: any; Description: any }) => ({
+          id: item.Id.toString(),
+          name: item.Title,
+          type: item.Type,
+          description: item.Description || '',
+        })
+      );
     } catch (error) {
       console.error('Error fetching field types:', error);
       return [];
     }
   }
-  
+
   async getFieldTypeById(id: string): Promise<FieldType | null> {
     try {
-      const item = await this.sp.web.lists.getByTitle(SP_LISTS.FIELD_TYPES).items
-        .getById(parseInt(id))
-        .select("Id,Title,Type,Description")();
-      
+      const item = await this.sp.web.lists
+        .getByTitle(SP_LISTS.FIELD_TYPES)
+        .items.getById(parseInt(id))
+        .select('Id,Title,Type,Description')();
+
       return {
         id: item.Id.toString(),
         name: item.Title,
@@ -405,41 +508,47 @@ export class SharePointDataService implements IDataService {
       return null;
     }
   }
-  
+
   // Get fields for a specific project
   async getFieldsByProjectId(projectId: string): Promise<Field[]> {
     try {
-      const items = await this.sp.web.lists.getByTitle(SP_LISTS.FIELDS).items
-        .filter(`ProjectId eq '${projectId}'`)
-        .select("Id,Type,Value,ProjectId")
+      const items = await this.sp.web.lists
+        .getByTitle(SP_LISTS.FIELDS)
+        .items.filter(`ProjectId eq '${projectId}'`)
+        .select('Id,Type,Value,ProjectId')
         .getAll();
-      
-      return items.map((item: { Id: { toString: () => any; }; Type: any; Value: any; ProjectId: any; }) => ({
-        id: item.Id.toString(),
-        type: item.Type,
-        value: item.Value,
-        projectId: item.ProjectId,
-      }));
+
+      return items.map(
+        (item: { Id: { toString: () => any }; Type: any; Value: any; ProjectId: any }) => ({
+          id: item.Id.toString(),
+          type: item.Type,
+          value: item.Value,
+          projectId: item.ProjectId,
+        })
+      );
     } catch (error) {
       console.error(`Error fetching fields for project ${projectId}:`, error);
       return [];
     }
   }
-  
+
   // Get team members for a specific project
   async getTeamMembersByProjectId(projectId: string): Promise<TeamMember[]> {
     try {
-      const items = await this.sp.web.lists.getByTitle(SP_LISTS.TEAM_MEMBERS).items
-        .filter(`ProjectId eq '${projectId}'`)
-        .select("Id,Title,Role,ProjectId")
+      const items = await this.sp.web.lists
+        .getByTitle(SP_LISTS.TEAM_MEMBERS)
+        .items.filter(`ProjectId eq '${projectId}'`)
+        .select('Id,Title,Role,ProjectId')
         .getAll();
-      
-      return items.map((item: { Id: { toString: () => any; }; Title: any; Role: any; ProjectId: any; }) => ({
-        id: item.Id.toString(),
-        name: item.Title,
-        role: item.Role,
-        projectId: item.ProjectId,
-      }));
+
+      return items.map(
+        (item: { Id: { toString: () => any }; Title: any; Role: any; ProjectId: any }) => ({
+          id: item.Id.toString(),
+          name: item.Title,
+          role: item.Role,
+          projectId: item.ProjectId,
+        })
+      );
     } catch (error) {
       console.error(`Error fetching team members for project ${projectId}:`, error);
       return [];
@@ -456,7 +565,7 @@ class LocalJsonDataService implements IDataService {
     categories: 'categories.json',
     fieldTypes: 'fieldTypes.json',
     fields: 'fields.json',
-    team: 'teamMembers.json'
+    team: 'teamMembers.json',
   } as const;
 
   constructor() {
@@ -481,16 +590,22 @@ class LocalJsonDataService implements IDataService {
     const p = path.join(this.baseDir, this.files[key]);
     fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
   }
-  private genId(): string { return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  private genId(): string {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
 
-  async getAllProjects(): Promise<Project[]> { return this.read<Project>('projects'); }
-  async getProjectById(id: string): Promise<Project | null> { return this.read<Project>('projects').find(p => p.id === id) || null; }
+  async getAllProjects(): Promise<Project[]> {
+    return this.read<Project>('projects');
+  }
+  async getProjectById(id: string): Promise<Project | null> {
+    return this.read<Project>('projects').find((p) => p.id === id) || null;
+  }
   async createProject(project: Omit<Project, 'id'>): Promise<Project> {
     const list = this.read<Project>('projects');
     const now = new Date();
     const ensureDates = (p: any): any => {
-      if (!p.startDate) p.startDate = new Date(now.getFullYear(),0,1).toISOString();
-      if (!p.endDate) p.endDate = new Date(now.getFullYear(),11,31).toISOString();
+      if (!p.startDate) p.startDate = new Date(now.getFullYear(), 0, 1).toISOString();
+      if (!p.endDate) p.endDate = new Date(now.getFullYear(), 11, 31).toISOString();
       return p;
     };
     const created: Project = ensureDates({
@@ -499,26 +614,44 @@ class LocalJsonDataService implements IDataService {
       ProjectFields: project.ProjectFields || [],
       projektleitungImageUrl: project.projektleitungImageUrl || null,
       teamMembers: project.teamMembers || [],
-      links: project.links || []
+      links: project.links || [],
     });
-    list.push(created); this.write('projects', list); return created;
+    list.push(created);
+    this.write('projects', list);
+    return created;
   }
   async updateProject(id: string, project: Partial<Project>): Promise<void> {
     const list = this.read<Project>('projects');
-    const idx = list.findIndex(p => p.id === id); if (idx === -1) throw new Error('Not found');
-    list[idx] = { ...list[idx], ...project, id }; this.write('projects', list);
+    const idx = list.findIndex((p) => p.id === id);
+    if (idx === -1) throw new Error('Not found');
+    list[idx] = { ...list[idx], ...project, id };
+    this.write('projects', list);
   }
   async deleteProject(id: string): Promise<void> {
-    const list = this.read<Project>('projects').filter(p => p.id !== id); this.write('projects', list);
+    const list = this.read<Project>('projects').filter((p) => p.id !== id);
+    this.write('projects', list);
   }
-  async getAllCategories(): Promise<Category[]> { return this.read<Category>('categories'); }
-  async getCategoryById(id: string): Promise<Category | null> { return this.read<Category>('categories').find(c => c.id === id) || null; }
-  async getAllFieldTypes(): Promise<FieldType[]> { return this.read<FieldType>('fieldTypes'); }
-  async getFieldTypeById(id: string): Promise<FieldType | null> { return this.read<FieldType>('fieldTypes').find(f => (f.id||'') === id) || null; }
-  async getFieldsByProjectId(projectId: string): Promise<Field[]> { return this.read<Field>('fields').filter(f => f.projectId === projectId); }
-  async getTeamMembersByProjectId(projectId: string): Promise<TeamMember[]> { return this.read<TeamMember>('team').filter(t => t.projectId === projectId); }
+  async getAllCategories(): Promise<Category[]> {
+    return this.read<Category>('categories');
+  }
+  async getCategoryById(id: string): Promise<Category | null> {
+    return this.read<Category>('categories').find((c) => c.id === id) || null;
+  }
+  async getAllFieldTypes(): Promise<FieldType[]> {
+    return this.read<FieldType>('fieldTypes');
+  }
+  async getFieldTypeById(id: string): Promise<FieldType | null> {
+    return this.read<FieldType>('fieldTypes').find((f) => (f.id || '') === id) || null;
+  }
+  async getFieldsByProjectId(projectId: string): Promise<Field[]> {
+    return this.read<Field>('fields').filter((f) => f.projectId === projectId);
+  }
+  async getTeamMembersByProjectId(projectId: string): Promise<TeamMember[]> {
+    return this.read<TeamMember>('team').filter((t) => t.projectId === projectId);
+  }
 }
 
 // ---------------- Switcher ----------------
 const mode = (process.env.DATA_MODE || 'sharepoint').toLowerCase();
-export const dataService: IDataService = mode === 'local' ? new LocalJsonDataService() : new SharePointDataService();
+export const dataService: IDataService =
+  mode === 'local' ? new LocalJsonDataService() : new SharePointDataService();

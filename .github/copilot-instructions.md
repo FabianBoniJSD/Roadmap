@@ -23,19 +23,19 @@
 
 **Pattern**: API route → `clientDataService` → proxy → SharePoint REST
 
-### SharePoint Lists (dual naming)
+### SharePoint Lists (canonical titles)
 
 ```typescript
 const SP_LISTS = {
-  PROJECTS: 'RoadmapProjects', // aka 'Roadmap Projects'
-  CATEGORIES: 'RoadmapCategories', // aka 'Roadmap Categories'
-  SETTINGS: 'RoadmapSettings', // aka 'Roadmap Settings'
-  TEAM_MEMBERS: 'RoadmapTeamMembers', // aka 'Roadmap Team Members'
-  PROJECT_LINKS: 'RoadmapProjectLinks', // aka 'Roadmap Project Links'
+  PROJECTS: 'Roadmap Projects',
+  CATEGORIES: 'Roadmap Categories',
+  SETTINGS: 'Roadmap Settings',
+  TEAM_MEMBERS: 'Roadmap Team Members',
+  PROJECT_LINKS: 'Roadmap Project Links',
 };
 ```
 
-Use `clientDataService.resolveListTitle(preferred, [variants])` to handle naming inconsistencies.
+Use canonical list titles (with spaces) as default.
 
 ### Data Flow
 
@@ -212,14 +212,14 @@ Redirects to `/admin/login` if `hasAdminAccess()` returns false (see `components
 
 ## Quick Reference
 
-| Task                     | Solution                                                                            |
-| ------------------------ | ----------------------------------------------------------------------------------- |
-| Fetch projects           | `await clientDataService.getAllProjects()`                                          |
-| Check admin              | `await clientDataService.isCurrentUserAdmin()`                                      |
-| Add new field            | Append to `candidateFields` array (~line 344 in `clientDataService.ts`)             |
-| Normalize category       | Trim + collapse "X.0" → "X" (see pattern above)                                     |
-| Derive date from quarter | Copy `derive()` from `dataService.ts` line ~108                                     |
-| Resolve list title       | `await clientDataService.resolveListTitle('RoadmapProjects', ['Roadmap Projects'])` |
-| Auth mode                | `getAuthMode()` in `utils/authMode.ts`                                              |
+| Task                     | Solution                                                                |
+| ------------------------ | ----------------------------------------------------------------------- |
+| Fetch projects           | `await clientDataService.getAllProjects()`                              |
+| Check admin              | `await clientDataService.isCurrentUserAdmin()`                          |
+| Add new field            | Append to `candidateFields` array (~line 344 in `clientDataService.ts`) |
+| Normalize category       | Trim + collapse "X.0" → "X" (see pattern above)                         |
+| Derive date from quarter | Copy `derive()` from `dataService.ts` line ~108                         |
+| Resolve list title       | `await clientDataService.resolveListTitle('Roadmap Projects')`          |
+| Auth mode                | `getAuthMode()` in `utils/authMode.ts`                                  |
 
 **Reference**: See `docs/ADMIN_AUTH_CHANGES.md` for admin migration details, `README.md` Kerberos section for auth setup.

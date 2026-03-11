@@ -106,10 +106,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    let listTitle = 'RoadmapProjects';
+    let listTitle = 'Roadmap Projects';
     try {
       listTitle = await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.resolveListTitle('RoadmapProjects', ['Roadmap Projects'])
+        clientDataService.resolveListTitle('Roadmap Projects')
       );
     } catch (err) {
       console.warn('[attachments:download] failed to resolve list title', err);

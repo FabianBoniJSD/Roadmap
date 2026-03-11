@@ -6,7 +6,7 @@ param(
   [string]$SharePointPassword,
 
   [string]$SharePointBaseUrl = 'https://spi.intranet.bs.ch/bdm/Projekte',
-  [string]$ListTitle = 'RoadmapProjects',
+  [string]$ListTitle = 'Roadmap Projects',
   [string]$RoadmapInstance = 'bdm-projekte',
   [string]$ProxyBaseUrl = 'http://localhost:3000',
   [switch]$SkipTlsValidation
@@ -131,37 +131,93 @@ function Show-Result {
   }
 }
 
-$spReadUrl = "$SharePointBaseUrl/_api/web/lists/getByTitle('$ListTitle')/items?`$select=Id&`$top=1"
-$spReadNoAuthUrl = $spReadUrl
-$proxyReadUrl = "$ProxyBaseUrl/api/sharepoint/_api/web/lists/getByTitle('$ListTitle')/items?%24select=Id&%24top=1&roadmapInstance=$RoadmapInstance"
+function New-SharePointListReadUrl {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$BaseUrl,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Title
+  )
+
+  $encodedTitle = [System.Uri]::EscapeDataString($Title)
+  "$BaseUrl/_api/web/lists/getByTitle('$encodedTitle')/items?`$select=Id&`$top=1"
+}
+
+function New-ProxyListReadUrl {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$BaseUrl,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Title,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Instance
+  )
+
+  $encodedTitle = [System.Uri]::EscapeDataString($Title)
+  "$BaseUrl/api/sharepoint/_api/web/lists/getByTitle('$encodedTitle')/items?%24select=Id&%24top=1&roadmapInstance=$Instance"
+}
 
 Write-Host 'Running SharePoint auth probes...'
 Write-Host "User: $SharePointUser"
 Write-Host "SharePoint base: $SharePointBaseUrl"
-Write-Host "List title: $ListTitle"
 Write-Host "Roadmap instance: $RoadmapInstance"
 Write-Host "Proxy base: $ProxyBaseUrl"
 
-$directNegotiate = Invoke-CurlProbe -Name 'Direct SharePoint (Negotiate)' -Url $spReadUrl -Auth negotiate -User $SharePointUser -Password $SharePointPassword -InsecureTls:$SkipTlsValidation
-$directNtlm = Invoke-CurlProbe -Name 'Direct SharePoint (NTLM)' -Url $spReadUrl -Auth ntlm -User $SharePointUser -Password $SharePointPassword -InsecureTls:$SkipTlsValidation
-$directNoAuth = Invoke-CurlProbe -Name 'Direct SharePoint (No Auth)' -Url $spReadNoAuthUrl -Auth none -InsecureTls:$SkipTlsValidation
-$proxyCall = Invoke-CurlProbe -Name 'Roadmap Proxy (Local)' -Url $proxyReadUrl -Auth none -InsecureTls:$SkipTlsValidation
+# Force a single list target to avoid ambiguous diagnostics across title variants.
+$ListTitle = 'Roadmap Projects'
+Write-Host "List title (fixed): $ListTitle"
 
-Show-Result -Result $directNegotiate
-Show-Result -Result $directNtlm
-Show-Result -Result $directNoAuth
-Show-Result -Result $proxyCall
+$allResults = New-Object System.Collections.Generic.List[object]
+$spReadUrl = New-SharePointListReadUrl -BaseUrl $SharePointBaseUrl -Title $ListTitle
+$proxyReadUrl = New-ProxyListReadUrl -BaseUrl $ProxyBaseUrl -Title $ListTitle -Instance $RoadmapInstance
+
+$directKerberos = Invoke-CurlProbe -Name "Direct SharePoint (Kerberos/Negotiate) [List=$ListTitle]" -Url $spReadUrl -Auth negotiate -User $SharePointUser -Password $SharePointPassword -InsecureTls:$SkipTlsValidation
+$directNtlm = Invoke-CurlProbe -Name "Direct SharePoint (NTLM) [List=$ListTitle]" -Url $spReadUrl -Auth ntlm -User $SharePointUser -Password $SharePointPassword -InsecureTls:$SkipTlsValidation
+$directNoAuth = Invoke-CurlProbe -Name "Direct SharePoint (No Auth) [List=$ListTitle]" -Url $spReadUrl -Auth none -InsecureTls:$SkipTlsValidation
+$proxyCall = Invoke-CurlProbe -Name "Roadmap Proxy (Local) [List=$ListTitle]" -Url $proxyReadUrl -Auth none -InsecureTls:$SkipTlsValidation
+
+$allResults.Add($directKerberos)
+$allResults.Add($directNtlm)
+$allResults.Add($directNoAuth)
+$allResults.Add($proxyCall)
+
+$currentUserUrl = "$SharePointBaseUrl/_api/web/currentuser?`$select=Id,Title,LoginName,IsSiteAdmin"
+$proxyCurrentUserUrl = "$ProxyBaseUrl/api/sharepoint/_api/web/currentuser?%24select=Id%2CTitle%2CLoginName%2CIsSiteAdmin&roadmapInstance=$RoadmapInstance"
+
+$allResults.Add(
+  (Invoke-CurlProbe -Name 'Direct SharePoint (Kerberos/Negotiate) [CurrentUser]' -Url $currentUserUrl -Auth negotiate -User $SharePointUser -Password $SharePointPassword -InsecureTls:$SkipTlsValidation)
+)
+$allResults.Add(
+  (Invoke-CurlProbe -Name 'Direct SharePoint (NTLM) [CurrentUser]' -Url $currentUserUrl -Auth ntlm -User $SharePointUser -Password $SharePointPassword -InsecureTls:$SkipTlsValidation)
+)
+$allResults.Add(
+  (Invoke-CurlProbe -Name 'Direct SharePoint (No Auth) [CurrentUser]' -Url $currentUserUrl -Auth none -InsecureTls:$SkipTlsValidation)
+)
+$allResults.Add(
+  (Invoke-CurlProbe -Name 'Roadmap Proxy (Local) [CurrentUser]' -Url $proxyCurrentUserUrl -Auth none -InsecureTls:$SkipTlsValidation)
+)
+
+foreach ($result in $allResults) {
+  Show-Result -Result $result
+}
 
 Write-Host ''
 Write-Host ('=' * 90)
 Write-Host 'Summary:'
-Write-Host ("Negotiate: {0}" -f $directNegotiate.StatusCode)
-Write-Host ("NTLM     : {0}" -f $directNtlm.StatusCode)
-Write-Host ("No Auth  : {0}" -f $directNoAuth.StatusCode)
-Write-Host ("Proxy    : {0}" -f $proxyCall.StatusCode)
+foreach ($result in $allResults) {
+  Write-Host ("{0}: {1}" -f $result.Name, $result.StatusCode)
+}
 
-$proxyHeaders = $proxyCall.Headers | Where-Object { $_ -match '^(x-sp-curl-auth|x-sp-proxy-mode)\s*:' }
-if ($proxyHeaders.Count -gt 0) {
+$proxyHeaders = $allResults |
+  Where-Object { $_.Name -like 'Roadmap Proxy*' } |
+  ForEach-Object { $_.Headers } |
+  Where-Object { $_ -match '(?i)^(x-sp-curl-auth|x-sp-proxy-mode)\s*:' } |
+  Select-Object -Unique
+
+if ($proxyHeaders -and $proxyHeaders.Count -gt 0) {
   Write-Host 'Proxy auth headers:'
   $proxyHeaders | ForEach-Object { Write-Host $_ }
 }

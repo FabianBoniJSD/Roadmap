@@ -60,20 +60,13 @@ const applyNoCacheHeaders = (res: NextApiResponse) => {
 
 // Whitelisted lists for safety
 const ALLOWED_LISTS = new Set([
-  'RoadmapProjects',
   'Roadmap Projects',
-  'RoadmapCategories',
   'Roadmap Categories',
-  'RoadmapSettings',
   'Roadmap Settings',
-  'RoadmapFieldTypes',
   'Roadmap FieldTypes',
   'Roadmap Field Types',
-  'RoadmapFields',
   'Roadmap Fields',
-  'RoadmapTeamMembers',
   'Roadmap Team Members',
-  'RoadmapProjectLinks',
   'Roadmap Project Links',
 ]);
 
@@ -317,6 +310,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const servicePass = process.env.SP_KERBEROS_SERVICE_PASSWORD || '';
       const kerberosIdentity = serviceUser || '<process-default-kerberos-identity>';
       if (process.env.SP_PROXY_DEBUG === 'true') {
+        // eslint-disable-next-line no-console
         console.info('[sharepoint proxy] kerberos identity', {
           instance: instance.slug,
           kerberosIdentity,

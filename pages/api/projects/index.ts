@@ -128,7 +128,7 @@ const fetchProjectsViaExplicitInstanceProxy = async (
 ): Promise<ProxyProbeResult> => {
   const baseUrl = buildAbsoluteBaseUrl(req);
   const encodedInstance = encodeURIComponent(instance.slug);
-  const candidateLists = ['RoadmapProjects', 'Roadmap Projects'];
+  const candidateLists = ['Roadmap Projects'];
   const select = encodeURIComponent(
     'Id,Title,ProjectType,Category,Bereich,Bereiche,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate'
   );
@@ -283,7 +283,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         try {
           const listTitle = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
             clientDataService.withInstance(instance.slug, () =>
-              clientDataService.resolveListTitle('RoadmapProjects', ['Roadmap Projects'])
+              clientDataService.resolveListTitle('Roadmap Projects')
             )
           );
           const encodedTitle = encodeURIComponent(listTitle);

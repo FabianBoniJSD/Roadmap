@@ -20,7 +20,7 @@ export const getSP = () => {
 export const SP_LISTS = {
   PROJECTS: 'Roadmap Projects',
   CATEGORIES: 'Roadmap Categories',
-  FIELD_TYPES: 'Roadmap FieldTypes',
+  FIELD_TYPES: 'Roadmap Field Types',
   FIELDS: 'Roadmap Fields',
   TEAM_MEMBERS: 'Roadmap Team Members',
 };

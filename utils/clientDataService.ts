@@ -58,23 +58,23 @@ const getRequestHeadersContextStorage =
   };
 
 const SP_LISTS = {
-  PROJECTS: 'RoadmapProjects',
-  CATEGORIES: 'RoadmapCategories',
-  SETTINGS: 'RoadmapSettings',
-  TEAM_MEMBERS: 'RoadmapTeamMembers',
-  PROJECT_LINKS: 'RoadmapProjectLinks',
-  FIELD_TYPES: 'RoadmapFieldTypes',
-  FIELDS: 'RoadmapFields',
+  PROJECTS: 'Roadmap Projects',
+  CATEGORIES: 'Roadmap Categories',
+  SETTINGS: 'Roadmap Settings',
+  TEAM_MEMBERS: 'Roadmap Team Members',
+  PROJECT_LINKS: 'Roadmap Project Links',
+  FIELD_TYPES: 'Roadmap Field Types',
+  FIELDS: 'Roadmap Fields',
 };
 
 const SP_LIST_VARIANTS: Record<string, string[]> = {
-  [SP_LISTS.PROJECTS]: ['Roadmap Projects'],
-  [SP_LISTS.CATEGORIES]: ['Roadmap Categories'],
-  [SP_LISTS.SETTINGS]: ['Roadmap Settings'],
-  [SP_LISTS.FIELD_TYPES]: ['Roadmap Field Types', 'Roadmap FieldTypes'],
-  [SP_LISTS.FIELDS]: ['Roadmap Fields'],
-  [SP_LISTS.TEAM_MEMBERS]: ['Roadmap Team Members'],
-  [SP_LISTS.PROJECT_LINKS]: ['Roadmap Project Links'],
+  [SP_LISTS.PROJECTS]: [],
+  [SP_LISTS.CATEGORIES]: [],
+  [SP_LISTS.SETTINGS]: [],
+  [SP_LISTS.FIELD_TYPES]: ['Roadmap FieldTypes'],
+  [SP_LISTS.FIELDS]: [],
+  [SP_LISTS.TEAM_MEMBERS]: [],
+  [SP_LISTS.PROJECT_LINKS]: [],
 };
 
 class ClientDataService {
@@ -3706,7 +3706,7 @@ class ClientDataService {
       }
 
       return out;
-    } catch (e) {
+    } catch {
       // Keep it safe/quiet: return what we have.
       return out;
     }
