@@ -273,7 +273,7 @@ class ClientDataService {
       : [];
     const autoSpaced = normalizedPreferred.replace(/([a-z])([A-Z])/g, '$1 $2');
     const candidates = Array.from(
-      new Set([...generatedNames, normalizedPreferred, autoSpaced, ...variants].filter(Boolean))
+      new Set([normalizedPreferred, autoSpaced, ...variants, ...generatedNames].filter(Boolean))
     );
     const webUrl = this.getWebUrl();
     for (const name of candidates) {
