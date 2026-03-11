@@ -430,7 +430,14 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
   // Handle clicks on projects
   const handleProjectClick = (projectId: string) => {
-    router.push(`/project/${projectId}`);
+    if (typeof instanceSlug === 'string' && instanceSlug) {
+      void router.push({
+        pathname: `/project/${projectId}`,
+        query: { [INSTANCE_QUERY_PARAM]: instanceSlug },
+      });
+      return;
+    }
+    void router.push(`/project/${projectId}`);
   };
 
   // Calculate position for quarter view

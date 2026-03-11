@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
+import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 
 interface Project {
   id: string;
@@ -90,7 +91,16 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({ projects, categories 
   });
 
   const handleProjectClick = (projectId: string) => {
-    router.push(`/project/${projectId}`);
+    const rawInstance = router.query?.[INSTANCE_QUERY_PARAM];
+    const instanceSlug = Array.isArray(rawInstance) ? rawInstance[0] : rawInstance;
+    if (typeof instanceSlug === 'string' && instanceSlug) {
+      void router.push({
+        pathname: `/project/${projectId}`,
+        query: { [INSTANCE_QUERY_PARAM]: instanceSlug },
+      });
+      return;
+    }
+    void router.push(`/project/${projectId}`);
   };
 
   const handleMouseEnter = (
