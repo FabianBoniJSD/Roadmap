@@ -678,6 +678,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let negotiatedStatus = extractCurlStatusAndBody(output.stdout);
       let normalized: any = parseCurlPayload(negotiatedStatus.payloadText);
       const authFailure = detectCurlAuthFailure(normalized, negotiatedStatus.statusCode);
+      let ntlmAttempted = false;
+      let ntlmFailureStatus: number | null = null;
+      let ntlmFailureSnippet: string | null = null;
 
       const ntlmFallbackEnabled = process.env.SP_CURL_NTLM_FALLBACK !== 'false';
       if (
@@ -687,6 +690,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         servicePass &&
         !allowCurlFallbackToFetch
       ) {
+        ntlmAttempted = true;
+        if (process.env.SP_PROXY_DEBUG === 'true') {
+          console.warn('[sharepoint proxy] curl kerberos 401; trying NTLM fallback', {
+            instance: instance.slug,
+            targetUrl,
+          });
+        }
         try {
           const ntlmArgs = makeReadCurlArgs('ntlm');
           const ntlmOutput: { stdout: string; stderr: string } = await new Promise(
@@ -716,9 +726,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 targetUrl,
               });
             }
+          } else {
+            ntlmFailureStatus = ntlmFailure.status;
+            ntlmFailureSnippet = ntlmFailure.snippet;
+            if (process.env.SP_PROXY_DEBUG === 'true') {
+              console.warn('[sharepoint proxy] NTLM fallback failed', {
+                instance: instance.slug,
+                targetUrl,
+                status: ntlmFailure.status,
+                snippet: ntlmFailure.snippet,
+              });
+            }
           }
         } catch {
-          // ignore and keep original negotiate failure handling below
+          if (process.env.SP_PROXY_DEBUG === 'true') {
+            console.warn('[sharepoint proxy] NTLM fallback execution failed', {
+              instance: instance.slug,
+              targetUrl,
+            });
+          }
         }
       }
 
@@ -741,6 +767,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             snippet: finalAuthFailure.snippet,
             instance: instance.slug,
             targetUrl,
+            ntlmAttempted,
+            ntlmFailureStatus,
+            ntlmFailureSnippet,
             stderr: process.env.SP_CURL_VERBOSE === 'true' ? effectiveOutput.stderr : undefined,
           });
         }
