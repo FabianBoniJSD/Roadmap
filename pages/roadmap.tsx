@@ -186,6 +186,23 @@ export default RoadmapPage;
 
 export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (ctx) => {
   try {
+    if (ctx.res) {
+      ctx.res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      ctx.res.setHeader('Pragma', 'no-cache');
+      ctx.res.setHeader('Expires', '0');
+      ctx.res.setHeader('Surrogate-Control', 'no-store');
+      const existingVary = ctx.res.getHeader('Vary');
+      const varyValues = new Set(
+        String(existingVary || '')
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      );
+      varyValues.add('Cookie');
+      varyValues.add('Authorization');
+      ctx.res.setHeader('Vary', Array.from(varyValues).join(', '));
+    }
+
     const session = extractAdminSessionFromHeaders({
       authorization: ctx.req.headers.authorization,
       cookie: ctx.req.headers.cookie,

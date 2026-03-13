@@ -45,6 +45,9 @@ const AdminPage: React.FC = () => {
       ? router.query[INSTANCE_QUERY_PARAM]
       : '';
   const pushWithInstance = (pathname: string) => router.push({ pathname, query: router.query });
+  const roadmapHref = instanceSlug
+    ? { pathname: '/roadmap', query: { [INSTANCE_QUERY_PARAM]: instanceSlug } }
+    : '/roadmap';
   const [projects, setProjects] = useState<Project[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<AppSettings[]>([]);
@@ -369,7 +372,7 @@ const AdminPage: React.FC = () => {
                   Admin-Handbuch
                 </Link>
                 <Link
-                  href="/"
+                  href={roadmapHref}
                   className="rounded-full border border-slate-700 px-4 py-2 text-center font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
                 >
                   Zur Roadmap

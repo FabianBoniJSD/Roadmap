@@ -7,7 +7,12 @@ import prisma from '@/lib/prisma';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import JSDoITLoader from '@/components/JSDoITLoader';
-import { buildInstanceAwareUrl, hasValidAdminSession, persistAdminSession } from '@/utils/auth';
+import {
+  buildInstanceAwareUrl,
+  getAdminSessionToken,
+  hasValidAdminSession,
+  persistAdminSession,
+} from '@/utils/auth';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { getInstanceSlugsFromPrincipal, isSuperAdminPrincipal } from '@/utils/instanceAccess';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
@@ -266,9 +271,28 @@ const LandingPage = ({ instances }: LandingPageProps) => {
     setSelectingSlug(instance.slug);
     setErrorMessage(null);
     try {
+      document.cookie = `roadmap-instance=${encodeURIComponent(instance.slug)}; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`;
+
+      const token = getAdminSessionToken();
+      if (token) {
+        try {
+          await fetch('/api/instances/select', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ slug: instance.slug }),
+          });
+        } catch {
+          // ignore and continue with client-side redirect + cookie fallback
+        }
+      }
+
       const target = buildClientRedirectUrl(instance.frontendTarget) || '/roadmap';
       const redirectTarget = appendInstanceQuery(target, instance.slug);
-      window.location.href = redirectTarget;
+      window.location.assign(redirectTarget);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
       setErrorMessage(message);
