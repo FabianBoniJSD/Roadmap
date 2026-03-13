@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useEffect, useMemo, useState, type FC, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react';
 import type { GetServerSideProps } from 'next';
 import { FiArrowLeft, FiExternalLink, FiInfo } from 'react-icons/fi';
 import JSDoITLoader from '@/components/JSDoITLoader';
@@ -86,6 +86,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
   >([]);
   const [leadImageBroken, setLeadImageBroken] = useState(false);
   const [memberImageErrors, setMemberImageErrors] = useState<Record<number, boolean>>({});
+  const fetchRequestIdRef = useRef(0);
 
   const buildAttachmentDownloadUrl = (projectId: string, fileName: string) => {
     const base = `/api/attachments/${encodeURIComponent(projectId)}/download?name=${encodeURIComponent(
@@ -103,6 +104,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
   }, [accessDenied]);
 
   useEffect(() => {
+    const requestId = ++fetchRequestIdRef.current;
     const fetchProject = async () => {
       if (!id) return;
       if (accessDeniedState) return;
@@ -119,12 +121,14 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
         });
 
         if (projectResp.status === 401) {
+          if (requestId !== fetchRequestIdRef.current) return;
           const returnUrl = typeof router.asPath === 'string' ? router.asPath : '/roadmap';
           void router.push(`/admin/login?returnUrl=${encodeURIComponent(returnUrl)}`);
           return;
         }
 
         if (projectResp.status === 403) {
+          if (requestId !== fetchRequestIdRef.current) return;
           setAccessDeniedState(true);
           setProject(null);
           setAttachments([]);
@@ -142,6 +146,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
         }
 
         const data = await projectResp.json();
+        if (requestId !== fetchRequestIdRef.current) return;
         setAccessDeniedState(false);
         setProject(data);
 
@@ -163,15 +168,19 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
             setAttachments([]);
           } else {
             const files = await attResp.json();
+            if (requestId !== fetchRequestIdRef.current) return;
             setAttachments(Array.isArray(files) ? files : []);
           }
         } catch {
+          if (requestId !== fetchRequestIdRef.current) return;
           setAttachments([]);
         }
       } catch (error) {
         console.error('Error fetching project:', error);
+        if (requestId !== fetchRequestIdRef.current) return;
         setProject(null);
       } finally {
+        if (requestId !== fetchRequestIdRef.current) return;
         setLoading(false);
       }
     };

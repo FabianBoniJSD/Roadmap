@@ -316,6 +316,32 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
     return () => controller.abort();
   }, [instanceSlug]);
 
+  useEffect(() => {
+    if (categories.length === 0) return;
+
+    const validCategoryIds = new Set([
+      ...categories.map((category) => category.id),
+      UNCATEGORIZED_ID,
+    ]);
+    setActiveCategories((prev) => {
+      if (prev.length === 0) return prev;
+
+      const filtered = prev.filter((categoryId) => validCategoryIds.has(categoryId));
+      if (filtered.length === 0) {
+        return [...categories.map((category) => category.id), UNCATEGORIZED_ID];
+      }
+
+      if (
+        filtered.length === prev.length &&
+        filtered.every((categoryId, index) => categoryId === prev[index])
+      ) {
+        return prev;
+      }
+
+      return filtered;
+    });
+  }, [categories]);
+
   // Debug logs removed (noise in production); enable via manual insertion if needed.
 
   const toggleCategory = (categoryId: string) => {

@@ -83,7 +83,7 @@ class ClientDataService {
   private listFieldTypeCache: Record<string, Record<string, string>> = {};
   private requestDigestCache: Record<string, { value: string; expiration: number }> = {};
   private metadataCache: Record<string, string> = {};
-  private _validProjectFields: string[] | null = null;
+  private validProjectFieldsCache: Record<string, string[]> = {};
 
   private prepareFetch(url: string, init: RequestInit = {}) {
     const prepared: RequestInit = { ...init };
@@ -100,7 +100,7 @@ class ClientDataService {
       }
     }
 
-    const activeSlug = this.getActiveInstanceSlug();
+    const activeSlug = this.getEffectiveInstanceSlug();
     if (activeSlug) {
       headers.set('x-roadmap-instance', activeSlug);
       const cookieValue = `${INSTANCE_COOKIE_NAME}=${activeSlug}`;
@@ -176,21 +176,17 @@ class ClientDataService {
     return storage.getStore() ?? null;
   }
 
+  private getEffectiveInstanceSlug(): string | null {
+    return this.getActiveInstanceSlug() ?? this.getClientInstanceSlugHint();
+  }
+
+  private getInstanceCacheKey(suffix?: string): string {
+    const prefix = this.getEffectiveInstanceSlug() || '__default__';
+    return suffix ? `${prefix}:${suffix}` : prefix;
+  }
+
   private getDigestCacheKey(): string {
-    const slug = this.getActiveInstanceSlug();
-    if (slug) return slug;
-    if (typeof window !== 'undefined') {
-      try {
-        const cookies = document.cookie || '';
-        const match = cookies.match(
-          new RegExp(`(?:^|;\\s*)${INSTANCE_COOKIE_NAME}=([^;\\s]+)`, 'i')
-        );
-        if (match && match[1]) return decodeURIComponent(match[1]);
-      } catch {
-        /* ignore cookie access issues */
-      }
-    }
-    return '__default__';
+    return this.getInstanceCacheKey();
   }
 
   private getClientInstanceSlugHint(): string | null {
@@ -260,7 +256,7 @@ class ClientDataService {
 
   // Resolve actual list title by trying preferred and known variants, cache per instance slug
   async resolveListTitle(preferred: string, variants: string[] = []): Promise<string> {
-    const cacheKey = `${this.getActiveInstanceSlug() || 'default'}:${preferred}`;
+    const cacheKey = this.getInstanceCacheKey(preferred);
     if (this.listTitleCache[cacheKey]) return this.listTitleCache[cacheKey];
 
     const normalizedPreferred = preferred.trim();
@@ -296,7 +292,7 @@ class ClientDataService {
 
   // Discover internal field names for a list and cache them (per instance)
   async getListFieldNames(listName: string): Promise<Set<string>> {
-    const cacheKey = `${this.getActiveInstanceSlug() || 'default'}:${listName}`;
+    const cacheKey = this.getInstanceCacheKey(listName);
     if (this.listFieldsCache[cacheKey]) return this.listFieldsCache[cacheKey];
     try {
       const webUrl = this.getWebUrl();
@@ -329,7 +325,7 @@ class ClientDataService {
 
   // Discover InternalName -> TypeAsString for a list (cached)
   async getListFieldTypes(listName: string): Promise<Record<string, string>> {
-    const cacheKey = `${this.getActiveInstanceSlug() || 'default'}:${listName}`;
+    const cacheKey = this.getInstanceCacheKey(listName);
     if (this.listFieldTypeCache[cacheKey]) return this.listFieldTypeCache[cacheKey];
     try {
       const resolvedName = await this.resolveListTitle(listName, SP_LIST_VARIANTS[listName] || []);
@@ -531,9 +527,10 @@ class ClientDataService {
 
   // Helper method to get the correct metadata type for a list
   private async getListMetadata(listName: string): Promise<string> {
+    const cacheKey = this.getInstanceCacheKey(listName);
     // Check if we have the metadata type cached
-    if (this.metadataCache[listName]) {
-      return this.metadataCache[listName];
+    if (this.metadataCache[cacheKey]) {
+      return this.metadataCache[cacheKey];
     }
 
     try {
@@ -565,14 +562,14 @@ class ClientDataService {
       const metadataType = data.ListItemEntityTypeFullName;
 
       // Cache the result
-      this.metadataCache[listName] = metadataType;
+      this.metadataCache[cacheKey] = metadataType;
 
       return metadataType;
     } catch (error) {
       console.error(`Error getting metadata for list ${listName}:`, error);
       // Fallback to the standard format
       const fallbackType = `SP.Data.${listName}ListItem`;
-      this.metadataCache[listName] = fallbackType;
+      this.metadataCache[cacheKey] = fallbackType;
       return fallbackType;
     }
   }
@@ -724,7 +721,9 @@ class ClientDataService {
     };
 
     // Attempt full fetch first (use cached successful set if we already probed)
-    let fieldsToUse = (this as any)._validProjectFields || candidateFields.slice();
+    const projectFieldsCacheKey = this.getInstanceCacheKey('project-fields');
+    let fieldsToUse =
+      this.validProjectFieldsCache[projectFieldsCacheKey] || candidateFields.slice();
     let initialResult = await fetchItems(fieldsToUse);
 
     // Detect InvalidClientQueryException / invalid argument / unknown field errors
@@ -759,7 +758,7 @@ class ClientDataService {
       }
       // Always ensure required base fields present
       if (!valid.includes('Title')) valid.unshift('Title');
-      (this as any)._validProjectFields = valid;
+      this.validProjectFieldsCache[projectFieldsCacheKey] = valid;
       fieldsToUse = valid;
       initialResult = await fetchItems(fieldsToUse);
     }
@@ -940,7 +939,7 @@ class ClientDataService {
               const second = await fetchItems(refetchFields);
               if (Array.isArray(second) && second.length > 0) {
                 items = second;
-                (this as any)._validProjectFields = refetchFields; // cache for future
+                this.validProjectFieldsCache[projectFieldsCacheKey] = refetchFields;
                 // annotate items with Category if missing so downstream mapping picks it up
                 for (const it of items) {
                   if (

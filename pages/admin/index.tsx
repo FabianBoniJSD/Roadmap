@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import Link from 'next/link';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
@@ -50,8 +50,10 @@ const AdminPage: React.FC = () => {
   const [editingSetting, setEditingSetting] = useState<AppSettings | null>(null);
   const [newSettingValue, setNewSettingValue] = useState('');
   const [adminUsername, setAdminUsername] = useState<string | null>(null);
+  const fetchRequestIdRef = useRef(0);
 
   useEffect(() => {
+    const requestId = ++fetchRequestIdRef.current;
     const fetchData = async () => {
       setLoading(true);
       setError(null);
@@ -70,13 +72,17 @@ const AdminPage: React.FC = () => {
             }))
           : projectData;
 
+        if (requestId !== fetchRequestIdRef.current) return;
+
         setProjects(normalizedProjects);
         setCategories(categoryData);
         setSettings(settingsData);
       } catch (err) {
         console.error('Error fetching data:', err);
+        if (requestId !== fetchRequestIdRef.current) return;
         setError('Die Daten konnten nicht geladen werden.');
       } finally {
+        if (requestId !== fetchRequestIdRef.current) return;
         setLoading(false);
       }
     };

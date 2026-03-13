@@ -32,6 +32,7 @@ const EditProjectPage: FC = () => {
 
   const uploadAbortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const fetchRequestIdRef = useRef(0);
 
   const buildAttachmentDownloadUrl = (projectId: string, fileName: string) => {
     const base = `/api/attachments/${encodeURIComponent(projectId)}/download?name=${encodeURIComponent(
@@ -55,6 +56,7 @@ const EditProjectPage: FC = () => {
   };
 
   useEffect(() => {
+    const requestId = ++fetchRequestIdRef.current;
     const fetchData = async () => {
       if (!id || typeof id !== 'string') return;
 
@@ -69,14 +71,18 @@ const EditProjectPage: FC = () => {
           clientDataService.listAttachments(id),
         ]);
 
+        if (requestId !== fetchRequestIdRef.current) return;
+
         setProject(projectData);
         setCategories(categoriesData);
         setTeamMembers(teamMembersData);
         setAttachments(attachmentsData);
       } catch (err) {
         console.error('Error fetching project data:', err);
+        if (requestId !== fetchRequestIdRef.current) return;
         setError('Projekt konnte nicht geladen werden. Bitte versuchen Sie es erneut.');
       } finally {
+        if (requestId !== fetchRequestIdRef.current) return;
         setLoading(false);
       }
     };

@@ -14,22 +14,29 @@ const NewProjectPage: FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchCategories = async () => {
       try {
         setLoading(true);
         setError(null);
         const categoriesData = await clientDataService.getAllCategories();
+        if (cancelled) return;
         setCategories(categoriesData);
       } catch (err) {
         console.error('Error fetching categories:', err);
+        if (cancelled) return;
         setError('Kategorien konnten nicht geladen werden. Bitte versuchen Sie es erneut.');
       } finally {
+        if (cancelled) return;
         setLoading(false);
       }
     };
 
     fetchCategories();
     // Refetch when route (instance) changes so the category list stays in sync
+    return () => {
+      cancelled = true;
+    };
   }, [router.asPath]);
 
   const handleCancel = () => {

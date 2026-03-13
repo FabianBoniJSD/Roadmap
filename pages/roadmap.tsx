@@ -29,6 +29,7 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects, accessDenied }) => 
   const [accessDeniedState, setAccessDeniedState] = useState<boolean>(Boolean(accessDenied));
   const [loading, setLoading] = useState<boolean>(false);
   const prevInstanceSlugRef = useRef<string | null>(null);
+  const projectsRequestIdRef = useRef(0);
 
   useEffect(() => {
     // Keep client state in sync if SSR provided data changes (e.g., hot reload)
@@ -53,6 +54,7 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects, accessDenied }) => 
     prevInstanceSlugRef.current = currentSlug;
 
     const controller = new AbortController();
+    const requestId = ++projectsRequestIdRef.current;
     const run = async () => {
       setLoading(true);
       setProjectsState([]);
@@ -67,12 +69,14 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects, accessDenied }) => 
         });
 
         if (resp.status === 401) {
+          if (controller.signal.aborted || requestId !== projectsRequestIdRef.current) return;
           const returnUrl = typeof router.asPath === 'string' ? router.asPath : '/roadmap';
           void router.push(`/admin/login?returnUrl=${encodeURIComponent(returnUrl)}`);
           return;
         }
 
         if (resp.status === 403) {
+          if (controller.signal.aborted || requestId !== projectsRequestIdRef.current) return;
           setAccessDeniedState(true);
           setProjectsState([]);
           return;
@@ -84,12 +88,14 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects, accessDenied }) => 
         }
 
         const data = await resp.json();
+        if (controller.signal.aborted || requestId !== projectsRequestIdRef.current) return;
         setAccessDeniedState(false);
         setProjectsState(Array.isArray(data) ? data : []);
       } catch (err) {
         if ((err as { name?: string })?.name === 'AbortError') return;
         console.error('[roadmap] client refetch failed after instance change', err);
       } finally {
+        if (controller.signal.aborted || requestId !== projectsRequestIdRef.current) return;
         setLoading(false);
       }
     };

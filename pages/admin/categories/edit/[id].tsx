@@ -16,6 +16,7 @@ const EditCategoryPage: FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchCategory = async () => {
       if (!id || typeof id !== 'string') return;
 
@@ -23,17 +24,23 @@ const EditCategoryPage: FC = () => {
         setLoading(true);
         setError(null);
         const data = await clientDataService.getCategoryById(id);
+        if (cancelled) return;
         setCategory(data);
       } catch (err) {
         console.error('Error fetching category:', err);
+        if (cancelled) return;
         setError('Kategorie konnte nicht geladen werden.');
       } finally {
+        if (cancelled) return;
         setLoading(false);
       }
     };
 
     fetchCategory();
     // Refresh category when switching instance (route) so data stays aligned
+    return () => {
+      cancelled = true;
+    };
   }, [id, router.asPath]);
 
   const handleCancel = () => {
