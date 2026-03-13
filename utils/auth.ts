@@ -232,9 +232,18 @@ export function buildInstanceAwareUrl(path: string): string {
 
   const slug = getBrowserInstanceSlug();
   if (!slug) return withBasePath;
-  const hasQuery = withBasePath.includes('?');
+
+  const hashIndex = withBasePath.indexOf('#');
+  const base = hashIndex >= 0 ? withBasePath.slice(0, hashIndex) : withBasePath;
+  const hash = hashIndex >= 0 ? withBasePath.slice(hashIndex) : '';
+
+  if (/(^|[?&])roadmapInstance=/.test(base)) {
+    return withBasePath;
+  }
+
+  const hasQuery = base.includes('?');
   const separator = hasQuery ? '&' : '?';
-  return `${withBasePath}${separator}roadmapInstance=${encodeURIComponent(slug)}`;
+  return `${base}${separator}roadmapInstance=${encodeURIComponent(slug)}${hash}`;
 }
 
 export function getAdminSessionToken(): string | null {
