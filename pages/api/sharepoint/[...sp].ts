@@ -43,11 +43,18 @@ interface CurlCacheEntry {
   payload: any;
 }
 const curlCache: Record<string, CurlCacheEntry> = {};
+type CurlAuthScheme = 'negotiate' | 'ntlm';
 const kerberos401FailuresByTarget: Record<string, number> = {};
-const NTLM_FALLBACK_AFTER_KERBEROS_FAILURES = 3;
+const ntlmPreferredTargets: Record<string, true> = {};
 
 const getKerberosFailureKey = (instanceSlug: string, targetUrl: string) =>
   `${instanceSlug}|${targetUrl}`;
+
+const getNtlmFallbackThreshold = () => {
+  const raw = process.env.SP_KERBEROS_NTLM_FALLBACK_AFTER_401S;
+  const parsed = Number.parseInt(String(raw || ''), 10);
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
+};
 
 const getKerberosFailureCount = (instanceSlug: string, targetUrl: string) => {
   const key = getKerberosFailureKey(instanceSlug, targetUrl);
@@ -64,6 +71,24 @@ const incrementKerberosFailureCount = (instanceSlug: string, targetUrl: string) 
 const resetKerberosFailureCount = (instanceSlug: string, targetUrl: string) => {
   const key = getKerberosFailureKey(instanceSlug, targetUrl);
   delete kerberos401FailuresByTarget[key];
+};
+
+const prefersNtlm = (instanceSlug: string, targetUrl: string) => {
+  const key = getKerberosFailureKey(instanceSlug, targetUrl);
+  return ntlmPreferredTargets[key] === true;
+};
+
+const setPreferredCurlAuthScheme = (
+  instanceSlug: string,
+  targetUrl: string,
+  authScheme: CurlAuthScheme
+) => {
+  const key = getKerberosFailureKey(instanceSlug, targetUrl);
+  if (authScheme === 'ntlm') {
+    ntlmPreferredTargets[key] = true;
+    return;
+  }
+  delete ntlmPreferredTargets[key];
 };
 
 const invalidateCurlCache = () => {
@@ -675,124 +700,158 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return null;
       };
 
-      const curlArgs = makeReadCurlArgs('negotiate');
+      const executeReadCurl = async (authScheme: CurlAuthScheme) => {
+        const output = await runCurl(makeReadCurlArgs(authScheme), { timeout: 15000 });
+        const status = extractCurlStatusAndBody(output.stdout);
+        const payload = parseCurlPayload(status.payloadText);
+        return {
+          authScheme,
+          output,
+          status,
+          payload,
+          authFailure: detectCurlAuthFailure(payload, status.statusCode),
+        };
+      };
+
       const start = Date.now();
-      const output: { stdout: string; stderr: string } = await new Promise(
-        (resolveExec, rejectExec) => {
-          execFile(
-            'curl',
-            curlArgs,
-            { timeout: 15000 },
-            (err: any, stdout: string, stderr: string) => {
-              if (err) return rejectExec(Object.assign(err, { stderr }));
-              resolveExec({ stdout, stderr });
-            }
-          );
-        }
-      );
-      const duration = Date.now() - start;
-      let effectiveOutput = output;
-      let negotiatedStatus = extractCurlStatusAndBody(output.stdout);
-      let normalized: any = parseCurlPayload(negotiatedStatus.payloadText);
-      const authFailure = detectCurlAuthFailure(normalized, negotiatedStatus.statusCode);
-      let ntlmAttempted = false;
+      const ntlmFallbackEnabled = process.env.SP_CURL_NTLM_FALLBACK !== 'false';
+      const ntlmFallbackThreshold = getNtlmFallbackThreshold();
+      const canUseNtlmFallback =
+        ntlmFallbackEnabled && serviceUser && servicePass && !allowCurlFallbackToFetch;
+      const primaryAuthScheme: CurlAuthScheme =
+        canUseNtlmFallback && prefersNtlm(instance.slug, targetUrl) ? 'ntlm' : 'negotiate';
+
+      const attempt = await executeReadCurl(primaryAuthScheme);
+      let effectiveOutput = attempt.output;
+      let negotiatedStatus = attempt.status;
+      let normalized: any = attempt.payload;
+      let currentAuthFailure = attempt.authFailure;
+      let ntlmAttempted = primaryAuthScheme === 'ntlm';
       let ntlmFailureStatus: number | null = null;
       let ntlmFailureSnippet: string | null = null;
-
-      const ntlmFallbackEnabled = process.env.SP_CURL_NTLM_FALLBACK !== 'false';
       let kerberosFailureCount = getKerberosFailureCount(instance.slug, targetUrl);
-      if (authFailure?.status === 401) {
-        kerberosFailureCount = incrementKerberosFailureCount(instance.slug, targetUrl);
-      } else {
+
+      if (primaryAuthScheme === 'negotiate') {
+        if (currentAuthFailure?.status === 401) {
+          kerberosFailureCount = incrementKerberosFailureCount(instance.slug, targetUrl);
+        } else {
+          resetKerberosFailureCount(instance.slug, targetUrl);
+          kerberosFailureCount = 0;
+          if (!currentAuthFailure)
+            setPreferredCurlAuthScheme(instance.slug, targetUrl, 'negotiate');
+        }
+      } else if (!currentAuthFailure) {
         resetKerberosFailureCount(instance.slug, targetUrl);
         kerberosFailureCount = 0;
+        setPreferredCurlAuthScheme(instance.slug, targetUrl, 'ntlm');
+        res.setHeader('x-sp-curl-auth', 'ntlm-preferred');
       }
 
-      if (
-        authFailure?.status === 401 &&
-        ntlmFallbackEnabled &&
-        serviceUser &&
-        servicePass &&
-        !allowCurlFallbackToFetch &&
-        kerberosFailureCount >= NTLM_FALLBACK_AFTER_KERBEROS_FAILURES
-      ) {
-        ntlmAttempted = true;
-        if (process.env.SP_PROXY_DEBUG === 'true') {
-          console.warn('[sharepoint proxy] curl kerberos 401; trying NTLM fallback', {
-            instance: instance.slug,
-            targetUrl,
-            kerberosFailureCount,
-            fallbackThreshold: NTLM_FALLBACK_AFTER_KERBEROS_FAILURES,
-          });
-        }
-        try {
-          const ntlmArgs = makeReadCurlArgs('ntlm');
-          const ntlmOutput: { stdout: string; stderr: string } = await new Promise(
-            (resolveExec, rejectExec) => {
-              execFile(
-                'curl',
-                ntlmArgs,
-                { timeout: 15000 },
-                (err: any, stdout: string, stderr: string) => {
-                  if (err) return rejectExec(Object.assign(err, { stderr }));
-                  resolveExec({ stdout, stderr });
-                }
-              );
-            }
-          );
-          const ntlmStatus = extractCurlStatusAndBody(ntlmOutput.stdout);
-          const ntlmNormalized = parseCurlPayload(ntlmStatus.payloadText);
-          const ntlmFailure = detectCurlAuthFailure(ntlmNormalized, ntlmStatus.statusCode);
-          if (!ntlmFailure) {
-            normalized = ntlmNormalized;
-            effectiveOutput = ntlmOutput;
-            negotiatedStatus = ntlmStatus;
-            res.setHeader('x-sp-curl-auth', 'ntlm-fallback');
-            resetKerberosFailureCount(instance.slug, targetUrl);
-            if (process.env.SP_PROXY_DEBUG === 'true') {
-              console.warn('[sharepoint proxy] curl kerberos 401; NTLM fallback succeeded', {
-                instance: instance.slug,
-                targetUrl,
-                kerberosFailureCount,
-              });
-            }
-          } else {
-            ntlmFailureStatus = ntlmFailure.status;
-            ntlmFailureSnippet = ntlmFailure.snippet;
-            if (process.env.SP_PROXY_DEBUG === 'true') {
-              console.warn('[sharepoint proxy] NTLM fallback failed', {
-                instance: instance.slug,
-                targetUrl,
-                status: ntlmFailure.status,
-                snippet: ntlmFailure.snippet,
-                kerberosFailureCount,
-              });
-            }
-          }
-        } catch {
+      const shouldTrySecondaryAuth =
+        currentAuthFailure?.status === 401 &&
+        (primaryAuthScheme === 'ntlm' ||
+          (canUseNtlmFallback && kerberosFailureCount >= ntlmFallbackThreshold));
+
+      if (shouldTrySecondaryAuth) {
+        const secondaryAuthScheme: CurlAuthScheme =
+          primaryAuthScheme === 'ntlm' ? 'negotiate' : 'ntlm';
+
+        if (secondaryAuthScheme === 'ntlm') {
+          ntlmAttempted = true;
           if (process.env.SP_PROXY_DEBUG === 'true') {
-            console.warn('[sharepoint proxy] NTLM fallback execution failed', {
+            console.warn('[sharepoint proxy] curl kerberos 401; trying NTLM fallback', {
               instance: instance.slug,
               targetUrl,
               kerberosFailureCount,
+              fallbackThreshold: ntlmFallbackThreshold,
+            });
+          }
+        } else if (process.env.SP_PROXY_DEBUG === 'true') {
+          console.warn('[sharepoint proxy] preferred NTLM failed; retrying negotiate', {
+            instance: instance.slug,
+            targetUrl,
+          });
+        }
+
+        try {
+          const secondaryAttempt = await executeReadCurl(secondaryAuthScheme);
+          const secondaryFailure = secondaryAttempt.authFailure;
+          if (!secondaryFailure) {
+            normalized = secondaryAttempt.payload;
+            effectiveOutput = secondaryAttempt.output;
+            negotiatedStatus = secondaryAttempt.status;
+            currentAuthFailure = null;
+
+            if (secondaryAuthScheme === 'ntlm') {
+              res.setHeader('x-sp-curl-auth', 'ntlm-fallback');
+              resetKerberosFailureCount(instance.slug, targetUrl);
+              kerberosFailureCount = 0;
+              setPreferredCurlAuthScheme(instance.slug, targetUrl, 'ntlm');
+              if (process.env.SP_PROXY_DEBUG === 'true') {
+                console.warn('[sharepoint proxy] curl kerberos 401; NTLM fallback succeeded', {
+                  instance: instance.slug,
+                  targetUrl,
+                  kerberosFailureCount,
+                });
+              }
+            } else {
+              setPreferredCurlAuthScheme(instance.slug, targetUrl, 'negotiate');
+              if (process.env.SP_PROXY_DEBUG === 'true') {
+                console.warn('[sharepoint proxy] negotiate recovery succeeded after NTLM failure', {
+                  instance: instance.slug,
+                  targetUrl,
+                });
+              }
+            }
+          } else {
+            currentAuthFailure = secondaryFailure;
+            if (secondaryAuthScheme === 'ntlm') {
+              ntlmFailureStatus = secondaryFailure.status;
+              ntlmFailureSnippet = secondaryFailure.snippet;
+              if (process.env.SP_PROXY_DEBUG === 'true') {
+                console.warn('[sharepoint proxy] NTLM fallback failed', {
+                  instance: instance.slug,
+                  targetUrl,
+                  status: secondaryFailure.status,
+                  snippet: secondaryFailure.snippet,
+                  kerberosFailureCount,
+                });
+              }
+            } else {
+              setPreferredCurlAuthScheme(instance.slug, targetUrl, 'negotiate');
+            }
+          }
+        } catch {
+          if (secondaryAuthScheme === 'ntlm') {
+            if (process.env.SP_PROXY_DEBUG === 'true') {
+              console.warn('[sharepoint proxy] NTLM fallback execution failed', {
+                instance: instance.slug,
+                targetUrl,
+                kerberosFailureCount,
+              });
+            }
+          } else if (process.env.SP_PROXY_DEBUG === 'true') {
+            console.warn('[sharepoint proxy] negotiate recovery execution failed', {
+              instance: instance.slug,
+              targetUrl,
             });
           }
         }
       } else if (
-        authFailure?.status === 401 &&
-        ntlmFallbackEnabled &&
-        serviceUser &&
-        servicePass &&
-        !allowCurlFallbackToFetch &&
+        currentAuthFailure?.status === 401 &&
+        canUseNtlmFallback &&
+        primaryAuthScheme === 'negotiate' &&
         process.env.SP_PROXY_DEBUG === 'true'
       ) {
         console.warn('[sharepoint proxy] kerberos 401 observed; NTLM fallback deferred', {
           instance: instance.slug,
           targetUrl,
           kerberosFailureCount,
-          fallbackThreshold: NTLM_FALLBACK_AFTER_KERBEROS_FAILURES,
+          fallbackThreshold: ntlmFallbackThreshold,
         });
       }
+
+      const duration = Date.now() - start;
 
       const finalAuthFailure = detectCurlAuthFailure(normalized, negotiatedStatus.statusCode);
       if (finalAuthFailure) {
