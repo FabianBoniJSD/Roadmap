@@ -6,6 +6,17 @@ import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const disableCache = () => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+    const maybeRemovable = res as NextApiResponse & { removeHeader?: (name: string) => void };
+    if (typeof maybeRemovable.removeHeader === 'function') {
+      maybeRemovable.removeHeader('etag');
+    }
+  };
+
   let instance: RoadmapInstanceConfig | null = null;
   try {
     instance = await getInstanceConfigFromRequest(req, { fallbackToDefault: false });
@@ -25,6 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // GET - Fetch all categories
   if (req.method === 'GET') {
+    disableCache();
     try {
       const session = requireAdminSession(req);
       if (
@@ -42,6 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         clientDataService.getAllCategories()
       );
 
+      res.setHeader('x-categories-instance', instance.slug);
       res.status(200).json(categories);
     } catch (error) {
       console.error('Error fetching categories:', error);

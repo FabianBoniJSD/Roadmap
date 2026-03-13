@@ -22,9 +22,10 @@ const getQuarterFromDate = (date: Date): number => {
 
 interface RoadmapProps {
   initialProjects: Project[];
+  initialCategories: Category[];
 }
 
-const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
+const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories }) => {
   const router = useRouter();
 
   const instanceSlug = useMemo(() => {
@@ -33,7 +34,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   }, [router.query]);
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [displayedProjects, setDisplayedProjects] = useState<Project[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [activeCategories, setActiveCategories] = useState<string[]>([]);
   const [hoveredProject, setHoveredProject] = useState<Project | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
@@ -58,11 +59,13 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
   // Track whether URL-derived category selection has been applied to prevent race conditions
   const urlCatsAppliedRef = useRef(false);
 
-  // When the active instance changes, reset state immediately to avoid showing stale data.
+  useEffect(() => {
+    setCategories(initialCategories);
+  }, [initialCategories]);
+
+  // When the active instance changes, reset category selection derived from the previous instance.
   useEffect(() => {
     urlCatsAppliedRef.current = false;
-    setDisplayedProjects([]);
-    setCategories([]);
     setActiveCategories([]);
   }, [instanceSlug]);
 
@@ -273,48 +276,6 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects }) => {
 
     setDisplayedProjects(filteredProjects);
   }, [currentYear, initialProjects]);
-
-  // Fetch categories (protected API) whenever instance changes.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const controller = new AbortController();
-
-    const fetchCategories = async () => {
-      try {
-        const url = instanceSlug
-          ? `/api/categories?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(instanceSlug)}`
-          : '/api/categories';
-        const resp = await fetch(url, {
-          credentials: 'same-origin',
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        });
-
-        if (!resp.ok) {
-          // Page-level access control should prevent 401/403, but handle defensively.
-          setCategories([]);
-          setActiveCategories([]);
-          return;
-        }
-
-        const categoriesData = await resp.json();
-        const list = Array.isArray(categoriesData) ? (categoriesData as Category[]) : [];
-        setCategories(list);
-        setActiveCategories((prev) => {
-          if (prev.length === 0 && !urlCatsAppliedRef.current) {
-            return [...list.map((c) => c.id), UNCATEGORIZED_ID];
-          }
-          return prev;
-        });
-      } catch (error) {
-        if ((error as { name?: string })?.name === 'AbortError') return;
-        console.error('Error fetching categories:', error);
-      }
-    };
-
-    fetchCategories();
-    return () => controller.abort();
-  }, [instanceSlug]);
 
   useEffect(() => {
     if (categories.length === 0) return;

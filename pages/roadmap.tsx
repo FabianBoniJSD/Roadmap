@@ -12,103 +12,59 @@ import {
   resolveFirstAllowedInstanceForAdminSession,
   resolveInstanceForAdminSession,
 } from '@/utils/instanceSelection';
-import type { Project } from '../types';
+import type { Category, Project } from '../types';
 
 type RoadmapPageProps = {
   projects: Project[];
+  categories: Category[];
+  resolvedInstanceSlug: string;
   accessDenied?: boolean;
 };
 
-const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects, accessDenied }) => {
+const RoadmapPage: React.FC<RoadmapPageProps> = ({
+  projects,
+  categories,
+  resolvedInstanceSlug,
+  accessDenied,
+}) => {
   const router = useRouter();
-  const instanceSlug = useMemo(() => {
+  const currentInstanceSlug = useMemo(() => {
     const raw = router.query?.[INSTANCE_QUERY_PARAM];
-    return Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
-  }, [router.query]);
-  const [projectsState, setProjectsState] = useState<Project[]>(projects);
-  const [accessDeniedState, setAccessDeniedState] = useState<boolean>(Boolean(accessDenied));
-  const [loading, setLoading] = useState<boolean>(false);
-  const prevInstanceSlugRef = useRef<string | null>(null);
-  const projectsRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    // Keep client state in sync if SSR provided data changes (e.g., hot reload)
-    setProjectsState(projects);
-  }, [projects]);
-
-  useEffect(() => {
-    setAccessDeniedState(Boolean(accessDenied));
-  }, [accessDenied]);
-
-  useEffect(() => {
-    // When switching instances client-side, refetch via protected API routes
-    // (avoid direct SharePoint proxy calls which bypass instance access checks).
-    if (!router.isReady) return;
-
-    const currentSlug = String(instanceSlug || '');
-    if (prevInstanceSlugRef.current === null) {
-      prevInstanceSlugRef.current = currentSlug;
-      return;
-    }
-    if (prevInstanceSlugRef.current === currentSlug) return;
-    prevInstanceSlugRef.current = currentSlug;
-
-    const controller = new AbortController();
-    const requestId = ++projectsRequestIdRef.current;
-    const run = async () => {
-      setLoading(true);
-      setProjectsState([]);
-      try {
-        const url = instanceSlug
-          ? `/api/projects?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(instanceSlug)}`
-          : '/api/projects';
-        const resp = await fetch(url, {
-          credentials: 'same-origin',
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        });
-
-        if (resp.status === 401) {
-          if (controller.signal.aborted || requestId !== projectsRequestIdRef.current) return;
-          const returnUrl = typeof router.asPath === 'string' ? router.asPath : '/roadmap';
-          void router.push(`/admin/login?returnUrl=${encodeURIComponent(returnUrl)}`);
-          return;
+    if (!router.isReady) return resolvedInstanceSlug;
+    if (Array.isArray(raw)) return raw[0] ?? '';
+    if (typeof raw === 'string' && raw) return raw;
+    if (typeof window !== 'undefined') {
+      const match = document.cookie.match(
+        new RegExp(`(?:^|;\\s*)roadmap-instance=([^;\\s]+)`, 'i')
+      );
+      if (match?.[1]) {
+        try {
+          return decodeURIComponent(match[1]);
+        } catch {
+          return match[1];
         }
-
-        if (resp.status === 403) {
-          if (controller.signal.aborted || requestId !== projectsRequestIdRef.current) return;
-          setAccessDeniedState(true);
-          setProjectsState([]);
-          return;
-        }
-
-        if (!resp.ok) {
-          const payload = await resp.json().catch(() => null);
-          throw new Error(payload?.error || `Failed to fetch projects (${resp.status})`);
-        }
-
-        const data = await resp.json();
-        if (controller.signal.aborted || requestId !== projectsRequestIdRef.current) return;
-        setAccessDeniedState(false);
-        setProjectsState(Array.isArray(data) ? data : []);
-      } catch (err) {
-        if ((err as { name?: string })?.name === 'AbortError') return;
-        console.error('[roadmap] client refetch failed after instance change', err);
-      } finally {
-        if (controller.signal.aborted || requestId !== projectsRequestIdRef.current) return;
-        setLoading(false);
       }
-    };
+    }
+    return '';
+  }, [resolvedInstanceSlug, router.isReady, router.query]);
 
-    void run();
-    return () => controller.abort();
-  }, [instanceSlug, router]);
+  const accessDeniedState = Boolean(accessDenied);
+  const loading = currentInstanceSlug !== resolvedInstanceSlug;
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteHeader activeRoute="roadmap" />
       <main className="flex-1 pt-12">
-        {accessDeniedState ? (
+        {loading ? (
+          <div className="mx-auto w-full max-w-4xl px-6 py-16 sm:px-8">
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-8 shadow-xl shadow-slate-950/40">
+              <h1 className="text-lg font-semibold text-white">Lade Roadmap …</h1>
+              <p className="mt-3 text-sm text-slate-300">
+                Projekte werden für die ausgewählte Instanz geladen.
+              </p>
+            </div>
+          </div>
+        ) : accessDeniedState ? (
           <div className="mx-auto w-full max-w-4xl px-6 py-16 sm:px-8">
             <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-8 shadow-xl shadow-slate-950/40">
               <h1 className="text-xl font-semibold text-white">Kein Zugriff</h1>
@@ -121,20 +77,11 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({ projects, accessDenied }) => 
             </div>
           </div>
         ) : (
-          <>
-            {loading && projectsState.length === 0 ? (
-              <div className="mx-auto w-full max-w-4xl px-6 py-16 sm:px-8">
-                <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-8 shadow-xl shadow-slate-950/40">
-                  <h1 className="text-lg font-semibold text-white">Lade Roadmap …</h1>
-                  <p className="mt-3 text-sm text-slate-300">
-                    Projekte werden für die ausgewählte Instanz geladen.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <Roadmap key={String(instanceSlug || 'default')} initialProjects={projectsState} />
-            )}
-          </>
+          <Roadmap
+            key={resolvedInstanceSlug || 'default'}
+            initialProjects={projects}
+            initialCategories={categories}
+          />
         )}
       </main>
       <SiteFooter />
@@ -201,26 +148,35 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
       return {
         props: {
           projects: [],
+          categories: [],
+          resolvedInstanceSlug: instance.slug,
           accessDenied: true,
         },
       };
     }
 
-    const projects = await clientDataService.withInstance(instance.slug, () =>
-      clientDataService.getAllProjects()
+    const [projects, categories] = await clientDataService.withRequestHeaders(
+      forwardedHeaders,
+      () =>
+        clientDataService.withInstance(instance.slug, () =>
+          Promise.all([clientDataService.getAllProjects(), clientDataService.getAllCategories()])
+        )
     );
 
     const safeProjects = Array.isArray(projects) ? projects : [];
+    const safeCategories = Array.isArray(categories) ? categories : [];
 
     return {
       props: {
         projects: safeProjects,
+        categories: safeCategories,
+        resolvedInstanceSlug: instance.slug,
       },
     };
   } catch (error) {
     console.error('[roadmap] getServerSideProps failed', error);
     return {
-      props: { projects: [] },
+      props: { projects: [], categories: [], resolvedInstanceSlug: '', accessDenied: false },
     };
   }
 };
