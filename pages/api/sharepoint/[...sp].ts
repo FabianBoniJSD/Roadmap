@@ -47,13 +47,21 @@ type CurlAuthScheme = 'negotiate' | 'ntlm';
 const kerberos401FailuresByTarget: Record<string, number> = {};
 const ntlmPreferredTargets: Record<string, true> = {};
 
+const getTargetAuthScope = (targetUrl: string) => {
+  const trimmed = String(targetUrl || '').trim();
+  if (!trimmed) return '';
+  return trimmed.replace(/\/(?:_api|_layouts)\/.*$/i, '').replace(/\/+$/, '');
+};
+
 const getKerberosFailureKey = (instanceSlug: string, targetUrl: string) =>
-  `${instanceSlug}|${targetUrl}`;
+  `${instanceSlug}|${getTargetAuthScope(targetUrl) || targetUrl}`;
 
 const getNtlmFallbackThreshold = () => {
   const raw = process.env.SP_KERBEROS_NTLM_FALLBACK_AFTER_401S;
   const parsed = Number.parseInt(String(raw || ''), 10);
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  if (process.env.SP_PROXY_DEBUG === 'true') return parsed;
+  return 1;
 };
 
 const getKerberosFailureCount = (instanceSlug: string, targetUrl: string) => {
@@ -872,7 +880,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             snippet: finalAuthFailure.snippet,
             instance: instance.slug,
             targetUrl,
+            authScope: getTargetAuthScope(targetUrl),
             ntlmAttempted,
+            ntlmEligible: Boolean(canUseNtlmFallback),
+            ntlmEnabled: ntlmFallbackEnabled,
+            fallbackThreshold: ntlmFallbackThreshold,
             ntlmFailureStatus,
             ntlmFailureSnippet,
             stderr: process.env.SP_CURL_VERBOSE === 'true' ? effectiveOutput.stderr : undefined,
