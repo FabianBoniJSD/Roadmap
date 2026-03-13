@@ -28,6 +28,7 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
   accessDenied,
 }) => {
   const router = useRouter();
+  const fetchRequestIdRef = useRef(0);
   const currentInstanceSlug = useMemo(() => {
     const raw = router.query?.[INSTANCE_QUERY_PARAM];
     if (!router.isReady) return resolvedInstanceSlug;
@@ -45,11 +46,103 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
         }
       }
     }
-    return '';
+    return resolvedInstanceSlug;
   }, [resolvedInstanceSlug, router.isReady, router.query]);
 
-  const accessDeniedState = Boolean(accessDenied);
-  const loading = currentInstanceSlug !== resolvedInstanceSlug;
+  const [projectsState, setProjectsState] = useState<Project[]>(projects);
+  const [categoriesState, setCategoriesState] = useState<Category[]>(categories);
+  const [accessDeniedState, setAccessDeniedState] = useState(Boolean(accessDenied));
+  const [activeInstanceSlug, setActiveInstanceSlug] = useState(resolvedInstanceSlug);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setProjectsState(projects);
+    setCategoriesState(categories);
+    setAccessDeniedState(Boolean(accessDenied));
+    setActiveInstanceSlug(resolvedInstanceSlug);
+    setLoading(false);
+  }, [accessDenied, categories, projects, resolvedInstanceSlug]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (currentInstanceSlug === activeInstanceSlug) return;
+
+    const requestId = ++fetchRequestIdRef.current;
+    const controller = new AbortController();
+
+    const run = async () => {
+      setLoading(true);
+
+      const projectsUrl = currentInstanceSlug
+        ? `/api/projects?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(currentInstanceSlug)}`
+        : '/api/projects';
+      const categoriesUrl = currentInstanceSlug
+        ? `/api/categories?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(currentInstanceSlug)}`
+        : '/api/categories';
+
+      try {
+        const [projectsResp, categoriesResp] = await Promise.all([
+          fetch(projectsUrl, {
+            credentials: 'same-origin',
+            signal: controller.signal,
+            headers: { Accept: 'application/json' },
+          }),
+          fetch(categoriesUrl, {
+            credentials: 'same-origin',
+            signal: controller.signal,
+            headers: { Accept: 'application/json' },
+          }),
+        ]);
+
+        if (projectsResp.status === 401 || categoriesResp.status === 401) {
+          if (controller.signal.aborted || requestId !== fetchRequestIdRef.current) return;
+          const returnUrl = typeof router.asPath === 'string' ? router.asPath : '/roadmap';
+          void router.push(`/admin/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+          return;
+        }
+
+        if (projectsResp.status === 403 || categoriesResp.status === 403) {
+          if (controller.signal.aborted || requestId !== fetchRequestIdRef.current) return;
+          setProjectsState([]);
+          setCategoriesState([]);
+          setAccessDeniedState(true);
+          setActiveInstanceSlug(currentInstanceSlug);
+          return;
+        }
+
+        if (!projectsResp.ok || !categoriesResp.ok) {
+          const projectPayload = await projectsResp.json().catch(() => null);
+          const categoryPayload = await categoriesResp.json().catch(() => null);
+          throw new Error(
+            projectPayload?.error ||
+              categoryPayload?.error ||
+              `Failed to fetch roadmap data (${projectsResp.status}/${categoriesResp.status})`
+          );
+        }
+
+        const [nextProjects, nextCategories] = await Promise.all([
+          projectsResp.json(),
+          categoriesResp.json(),
+        ]);
+
+        if (controller.signal.aborted || requestId !== fetchRequestIdRef.current) return;
+
+        setProjectsState(Array.isArray(nextProjects) ? nextProjects : []);
+        setCategoriesState(Array.isArray(nextCategories) ? nextCategories : []);
+        setAccessDeniedState(false);
+        setActiveInstanceSlug(currentInstanceSlug);
+      } catch (error) {
+        if ((error as { name?: string })?.name === 'AbortError') return;
+        console.error('[roadmap] client recovery fetch failed', error);
+      } finally {
+        if (controller.signal.aborted || requestId !== fetchRequestIdRef.current) return;
+        setLoading(false);
+      }
+    };
+
+    void run();
+    return () => controller.abort();
+  }, [activeInstanceSlug, currentInstanceSlug, router, router.isReady]);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
@@ -78,9 +171,9 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
           </div>
         ) : (
           <Roadmap
-            key={resolvedInstanceSlug || 'default'}
-            initialProjects={projects}
-            initialCategories={categories}
+            key={activeInstanceSlug || resolvedInstanceSlug || 'default'}
+            initialProjects={projectsState}
+            initialCategories={categoriesState}
           />
         )}
       </main>

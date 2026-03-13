@@ -1503,9 +1503,7 @@ const AdminInstancePicker = () => {
       }
       const payload = await effectiveResp.json().catch(() => null);
       if (!effectiveResp.ok) throw new Error(payload?.error || `Fehler ${effectiveResp.status}`);
-      await router.push(
-        buildInstanceAwareUrl(`/admin?roadmapInstance=${encodeURIComponent(slug)}`)
-      );
+      await router.push(`/admin?roadmapInstance=${encodeURIComponent(slug)}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
       setError(message);
