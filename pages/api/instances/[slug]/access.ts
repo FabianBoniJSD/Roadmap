@@ -2,7 +2,11 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { requireSuperAdminAccess } from '@/utils/superAdminAccessServer';
 import { mapInstanceRecord, type PrismaInstanceWithHosts } from '@/utils/instanceConfig';
-import { coerceAllowedUsersPayload, getInstanceAdminAccessConfig } from '@/utils/instanceAccess';
+import {
+  coerceAllowedGroupsPayload,
+  coerceAllowedUsersPayload,
+  getInstanceAdminAccessConfig,
+} from '@/utils/instanceAccess';
 
 const sanitizeSlug = (value: string) => value.trim().toLowerCase();
 
@@ -53,11 +57,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const cfg = getInstanceAdminAccessConfig(mapped.metadata);
     return res.status(200).json({
       users: cfg?.allowedUsers ?? [],
+      groups: cfg?.allowedGroups ?? [],
     });
   }
 
   if (req.method === 'PUT') {
     const users = coerceAllowedUsersPayload((req.body ?? {})?.users);
+    const groups = coerceAllowedGroupsPayload((req.body ?? {})?.groups);
 
     const settings = decodeSettings(record.settingsJson ?? null);
     const metadata = ensureRecordObject(settings.metadata);
@@ -67,6 +73,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       delete adminAccess.allowedUsers;
     } else {
       adminAccess.allowedUsers = users;
+    }
+
+    if (groups.length === 0) {
+      delete adminAccess.allowedGroups;
+    } else {
+      adminAccess.allowedGroups = groups;
     }
 
     if (Object.keys(adminAccess).length === 0) {
@@ -82,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: { settingsJson: JSON.stringify(settings) },
     });
 
-    return res.status(200).json({ users });
+    return res.status(200).json({ users, groups });
   }
 
   res.setHeader('Allow', ['GET', 'PUT']);

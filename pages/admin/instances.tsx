@@ -19,6 +19,21 @@ type ApiInstanceResponse = {
   instances: RoadmapInstanceSummary[];
 };
 
+type ApiAccessResponse = {
+  users: string[];
+  groups: string[];
+};
+
+type SuperAdminRecord = {
+  id: number;
+  username: string;
+  normalizedUsername: string;
+  isActive: boolean;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type AdminFormState = {
   slug: string;
   displayName: string;
@@ -106,6 +121,20 @@ const createListPanelState = (): InstanceListPanelState => ({
   lists: null,
   pending: {},
 });
+
+const normalizeAccessEntry = (value: string) => value.trim().toLowerCase();
+
+const parseAccessEntries = (value: string): string[] =>
+  Array.from(
+    new Set(
+      value
+        .split(/[\n,;]/)
+        .map((entry) => normalizeAccessEntry(entry))
+        .filter(Boolean)
+    )
+  );
+
+const formatAccessEntries = (value: string[]) => value.join('\n');
 
 const extractDetailMessages = (details: unknown): string[] => {
   const lines: string[] = [];
@@ -271,6 +300,17 @@ const AdminInstancesPage = () => {
   >([]);
   const [tokenMissing, setTokenMissing] = useState(true);
   const [listPanels, setListPanels] = useState<Record<string, InstanceListPanelState>>({});
+  const [accessUsersInput, setAccessUsersInput] = useState('');
+  const [accessGroupsInput, setAccessGroupsInput] = useState('');
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessSaving, setAccessSaving] = useState(false);
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [superAdmins, setSuperAdmins] = useState<SuperAdminRecord[]>([]);
+  const [superAdminLoading, setSuperAdminLoading] = useState(false);
+  const [superAdminSaving, setSuperAdminSaving] = useState(false);
+  const [superAdminError, setSuperAdminError] = useState<string | null>(null);
+  const [superAdminUsername, setSuperAdminUsername] = useState('');
+  const [superAdminNote, setSuperAdminNote] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -288,6 +328,9 @@ const AdminInstancesPage = () => {
     setForm(defaultForm);
     setMode('create');
     setSelectedSlug(null);
+    setAccessUsersInput('');
+    setAccessGroupsInput('');
+    setAccessError(null);
   };
 
   const fetchInstances = useCallback(async () => {
@@ -308,6 +351,54 @@ const AdminInstancesPage = () => {
       setError(message);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const loadInstanceAccess = useCallback(async (slug: string) => {
+    setAccessLoading(true);
+    setAccessError(null);
+    try {
+      const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/access`, {
+        headers: headersWithAuth(),
+      });
+      const payload = (await resp.json().catch(() => null)) as ApiAccessResponse | null;
+      if (!resp.ok) {
+        throw new Error(
+          (payload as { error?: string } | null)?.error || 'Rollen konnten nicht geladen werden'
+        );
+      }
+      setAccessUsersInput(formatAccessEntries(Array.isArray(payload?.users) ? payload.users : []));
+      setAccessGroupsInput(
+        formatAccessEntries(Array.isArray(payload?.groups) ? payload.groups : [])
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setAccessError(message);
+      setAccessUsersInput('');
+      setAccessGroupsInput('');
+    } finally {
+      setAccessLoading(false);
+    }
+  }, []);
+
+  const fetchSuperAdmins = useCallback(async () => {
+    setSuperAdminLoading(true);
+    setSuperAdminError(null);
+    try {
+      const resp = await fetch('/api/superadmins', {
+        headers: headersWithAuth(),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(payload?.error || 'Superadmins konnten nicht geladen werden');
+      }
+      setSuperAdmins(Array.isArray(payload?.superadmins) ? payload.superadmins : []);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setSuperAdminError(message);
+      setSuperAdmins([]);
+    } finally {
+      setSuperAdminLoading(false);
     }
   }, []);
 
@@ -368,9 +459,11 @@ const AdminInstancesPage = () => {
   };
 
   useEffect(() => {
-    if (!tokenMissing) fetchInstances();
-    else setLoading(false);
-  }, [fetchInstances, tokenMissing]);
+    if (!tokenMissing) {
+      void fetchInstances();
+      void fetchSuperAdmins();
+    } else setLoading(false);
+  }, [fetchInstances, fetchSuperAdmins, tokenMissing]);
 
   const updateField = (key: keyof AdminFormState, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -398,6 +491,7 @@ const AdminInstancesPage = () => {
       trustedCaPath: instance.sharePoint.trustedCaPath || '',
       hostsInput: instance.hosts.join(', '),
     });
+    void loadInstanceAccess(instance.slug);
   };
 
   const buildPayload = () => {
@@ -445,13 +539,88 @@ const AdminInstancesPage = () => {
       sharePoint: {
         siteUrlDev: sharePointSiteUrlDev,
         siteUrlProd: sharePointSiteUrlProd || sharePointSiteUrlDev,
-        strategy: sharePointStrategy,
-        username: spUsername || undefined,
-        password: spPassword || undefined,
-        allowSelfSigned,
-        trustedCaPath: trustedCaPath || undefined,
+        strategy: 'kerberos',
       },
     };
+  };
+
+  const saveInstanceAccess = async () => {
+    if (!selectedSlug) return;
+    setAccessSaving(true);
+    setAccessError(null);
+    try {
+      const resp = await fetch(`/api/instances/${encodeURIComponent(selectedSlug)}/access`, {
+        method: 'PUT',
+        headers: headersWithAuth(),
+        body: JSON.stringify({
+          users: parseAccessEntries(accessUsersInput),
+          groups: parseAccessEntries(accessGroupsInput),
+        }),
+      });
+      const payload = (await resp.json().catch(() => null)) as ApiAccessResponse | null;
+      if (!resp.ok) {
+        throw new Error(
+          (payload as { error?: string } | null)?.error || 'Rollen konnten nicht gespeichert werden'
+        );
+      }
+      setAccessUsersInput(formatAccessEntries(Array.isArray(payload?.users) ? payload.users : []));
+      setAccessGroupsInput(
+        formatAccessEntries(Array.isArray(payload?.groups) ? payload.groups : [])
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setAccessError(message);
+    } finally {
+      setAccessSaving(false);
+    }
+  };
+
+  const addSuperAdmin = async () => {
+    const username = superAdminUsername.trim();
+    if (!username) return;
+    setSuperAdminSaving(true);
+    setSuperAdminError(null);
+    try {
+      const resp = await fetch('/api/superadmins', {
+        method: 'POST',
+        headers: headersWithAuth(),
+        body: JSON.stringify({ username, note: superAdminNote.trim() || undefined }),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(payload?.error || 'Superadmin konnte nicht gespeichert werden');
+      }
+      setSuperAdminUsername('');
+      setSuperAdminNote('');
+      await fetchSuperAdmins();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setSuperAdminError(message);
+    } finally {
+      setSuperAdminSaving(false);
+    }
+  };
+
+  const deleteSuperAdmin = async (username: string) => {
+    if (!window.confirm(`Superadmin "${username}" wirklich entfernen?`)) return;
+    setSuperAdminSaving(true);
+    setSuperAdminError(null);
+    try {
+      const resp = await fetch(`/api/superadmins?username=${encodeURIComponent(username)}`, {
+        method: 'DELETE',
+        headers: headersWithAuth(),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(payload?.error || 'Superadmin konnte nicht gelöscht werden');
+      }
+      await fetchSuperAdmins();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setSuperAdminError(message);
+    } finally {
+      setSuperAdminSaving(false);
+    }
   };
 
   const submitForm = async () => {
@@ -906,45 +1075,15 @@ const AdminInstancesPage = () => {
               </label>
             </div>
 
-            <label className="space-y-1">
-              <span className="text-slate-300">Strategy</span>
-              <select
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
-                value={form.sharePointStrategy}
-                onChange={(e) => updateField('sharePointStrategy', e.target.value)}
-              >
-                <option value="kerberos">kerberos</option>
-                <option value="fba">fba</option>
-                <option value="basic">basic</option>
-              </select>
-            </label>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-slate-300">
-                  Service Account (neuer Wert optional beim Bearbeiten)
-                </span>
-                <input
-                  type="text"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
-                  placeholder={
-                    mode === 'edit' ? 'leer lassen falls unverändert' : 'z. B. DOMAIN\\user'
-                  }
-                  value={form.spUsername}
-                  onChange={(e) => updateField('spUsername', e.target.value)}
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-slate-300">
-                  Passwort (nur ausfüllen, wenn du es neu setzen willst)
-                </span>
-                <input
-                  type="password"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
-                  value={form.spPassword}
-                  onChange={(e) => updateField('spPassword', e.target.value)}
-                />
-              </label>
+            <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4 text-sm text-sky-100">
+              <div className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-200">
+                SharePoint Auth
+              </div>
+              <p className="mt-2">
+                Diese Verwaltung nutzt jetzt wie der Health Check ausschließlich serverseitiges
+                Kerberos. Strategie, Service-Account, TLS-Flags und CA-Pfad kommen aus der
+                Deployment-Umgebung und werden hier nicht mehr instanzweise gepflegt.
+              </p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-1">
@@ -959,16 +1098,7 @@ const AdminInstancesPage = () => {
               </label>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-slate-300">Trusted CA Pfad</span>
-                <input
-                  type="text"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
-                  value={form.trustedCaPath}
-                  onChange={(e) => updateField('trustedCaPath', e.target.value)}
-                />
-              </label>
+            <div className="grid gap-4 sm:grid-cols-1">
               <label className="space-y-1">
                 <span className="text-slate-300">Deployment Umgebung</span>
                 <input
@@ -1001,16 +1131,6 @@ const AdminInstancesPage = () => {
               </label>
             </div>
 
-            <label className="flex items-center gap-2 text-slate-300">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-sky-500 focus:ring-sky-500"
-                checked={Boolean(form.allowSelfSigned)}
-                onChange={(e) => updateField('allowSelfSigned', e.target.checked)}
-              />
-              <span>Self-Signed Zertifikate erlauben</span>
-            </label>
-
             <button
               type="button"
               onClick={submitForm}
@@ -1026,6 +1146,70 @@ const AdminInstancesPage = () => {
                   ? 'Instanz anlegen'
                   : 'Änderungen speichern'}
             </button>
+
+            {selectedSlug && mode === 'edit' && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Instanzrollen</h3>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Direkte Benutzer- und Gruppenzuweisungen für {selectedSlug}. SharePoint-
+                      Gruppen wie <span className="font-mono">admin-{selectedSlug}</span> wirken
+                      weiterhin zusätzlich.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={saveInstanceAccess}
+                    disabled={accessLoading || accessSaving}
+                    className={clsx(
+                      'rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-sky-400',
+                      (accessLoading || accessSaving) && 'cursor-not-allowed opacity-60'
+                    )}
+                  >
+                    {accessSaving ? 'Speichere Rollen …' : 'Rollen speichern'}
+                  </button>
+                </div>
+
+                {accessError && (
+                  <div className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                    {accessError}
+                  </div>
+                )}
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="text-slate-300">Direkt erlaubte Benutzer</span>
+                    <textarea
+                      rows={5}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+                      placeholder="alice\nbob@bs.ch"
+                      value={accessUsersInput}
+                      onChange={(e) => setAccessUsersInput(e.target.value)}
+                      disabled={accessLoading || accessSaving}
+                    />
+                    <span className="text-xs text-slate-500">
+                      Trennung per Zeilenumbruch, Komma oder Semikolon.
+                    </span>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-slate-300">Direkt erlaubte Gruppen</span>
+                    <textarea
+                      rows={5}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+                      placeholder="admin-bdm-projekte\nprojektleitung-bdm"
+                      value={accessGroupsInput}
+                      onChange={(e) => setAccessGroupsInput(e.target.value)}
+                      disabled={accessLoading || accessSaving}
+                    />
+                    <span className="text-xs text-slate-500">
+                      Gruppen werden normalisiert gespeichert und zusätzlich zu den impliziten
+                      <span className="font-mono"> admin-&lt;slug&gt;</span>-Gruppen ausgewertet.
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1052,6 +1236,101 @@ const AdminInstancesPage = () => {
               >
                 Aktualisieren
               </button>
+            </div>
+          </div>
+          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Superadmins</h3>
+                <p className="mt-1 text-xs text-slate-400">
+                  Nur diese Benutzer dürfen die Instanzverwaltung und die zugehörigen Instanz-APIs
+                  verwalten.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchSuperAdmins}
+                disabled={superAdminLoading || superAdminSaving}
+                className={clsx(
+                  'text-xs text-slate-400 underline underline-offset-4 hover:text-white',
+                  (superAdminLoading || superAdminSaving) && 'cursor-not-allowed opacity-60'
+                )}
+              >
+                Neu laden
+              </button>
+            </div>
+
+            {superAdminError && (
+              <div className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                {superAdminError}
+              </div>
+            )}
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1.2fr,1fr,auto]">
+              <input
+                type="text"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                placeholder="Benutzername oder Mail"
+                value={superAdminUsername}
+                onChange={(e) => setSuperAdminUsername(e.target.value)}
+                disabled={superAdminSaving}
+              />
+              <input
+                type="text"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                placeholder="Notiz (optional)"
+                value={superAdminNote}
+                onChange={(e) => setSuperAdminNote(e.target.value)}
+                disabled={superAdminSaving}
+              />
+              <button
+                type="button"
+                onClick={addSuperAdmin}
+                disabled={superAdminSaving || !superAdminUsername.trim()}
+                className={clsx(
+                  'rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400',
+                  (superAdminSaving || !superAdminUsername.trim()) &&
+                    'cursor-not-allowed opacity-60'
+                )}
+              >
+                Hinzufügen
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {superAdminLoading ? (
+                <p className="text-sm text-slate-400">Lade Superadmins …</p>
+              ) : superAdmins.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  Noch keine zusätzlichen Superadmins gepflegt.
+                </p>
+              ) : (
+                superAdmins.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm"
+                  >
+                    <div>
+                      <div className="font-semibold text-white">{entry.username}</div>
+                      <div className="text-xs text-slate-400">
+                        {entry.note || 'Ohne Notiz'}
+                        {entry.isActive ? ' · aktiv' : ' · inaktiv'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => deleteSuperAdmin(entry.username)}
+                      disabled={superAdminSaving}
+                      className={clsx(
+                        'rounded-lg border border-rose-500/40 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-400 hover:text-white',
+                        superAdminSaving && 'cursor-not-allowed opacity-60'
+                      )}
+                    >
+                      Entfernen
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
           {bulkProvisionSummary && (
@@ -1426,92 +1705,6 @@ const AdminInstancesPage = () => {
 type SlugInstance = { slug: string; displayName: string };
 
 const AdminInstancePicker = () => {
-  const router = useRouter();
-  const [instances, setInstances] = useState<SlugInstance[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selecting, setSelecting] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const token = getAdminSessionToken();
-        if (!token) {
-          setInstances([]);
-          setError('Keine gültige Admin-Session gefunden.');
-          return;
-        }
-        const resp = await fetch(buildInstanceAwareUrl('/api/instances/slugs'), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const payload = await resp.json().catch(() => null);
-        if (!resp.ok) {
-          throw new Error(payload?.error || `Fehler ${resp.status}`);
-        }
-        const list = Array.isArray(payload?.instances) ? payload.instances : [];
-        const next = list
-          .map((e: unknown) => (e && typeof e === 'object' ? (e as Record<string, unknown>) : {}))
-          .map((e) => ({
-            slug: typeof e.slug === 'string' ? e.slug : '',
-            displayName: typeof e.displayName === 'string' ? e.displayName : '',
-          }))
-          .filter((e) => Boolean(e.slug));
-        if (!cancelled) setInstances(next);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
-        if (!cancelled) setError(message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const selectInstance = async (slug: string) => {
-    setSelecting(slug);
-    setError(null);
-    try {
-      const token = getAdminSessionToken();
-      if (!token) {
-        throw new Error('Keine gültige Admin-Session gefunden.');
-      }
-      const resp = await fetch(buildInstanceAwareUrl('/api/instances/select'), {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ slug }),
-      });
-      let effectiveResp = resp;
-      if (resp.status === 403 || resp.status === 405) {
-        effectiveResp = await fetch(
-          buildInstanceAwareUrl(`/api/instances/select?slug=${encodeURIComponent(slug)}`),
-          {
-            method: 'GET',
-            credentials: 'same-origin',
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-      }
-      const payload = await effectiveResp.json().catch(() => null);
-      if (!effectiveResp.ok) throw new Error(payload?.error || `Fehler ${effectiveResp.status}`);
-      await router.push(`/admin?roadmapInstance=${encodeURIComponent(slug)}`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
-      setError(message);
-    } finally {
-      setSelecting(null);
-    }
-  };
-
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteHeader activeRoute="admin" />
@@ -1522,60 +1715,34 @@ const AdminInstancePicker = () => {
               <p className="text-xs font-semibold uppercase tracking-[0.4em] text-sky-300/90">
                 Roadmap Administration
               </p>
-              <h1 className="text-3xl font-semibold text-white">Instanz wählen</h1>
+              <h1 className="text-3xl font-semibold text-white">Zugriff eingeschränkt</h1>
               <p className="text-sm text-slate-300">
-                Du siehst nur Instanzen, für die du eine Gruppe im Format{' '}
-                <span className="font-mono">admin-&lt;instanz&gt;</span> hast.
+                Dieses Menü ist ausschließlich für Superadmins vorgesehen. Normale Instanz-Admins
+                arbeiten im jeweiligen Adminbereich der ausgewählten Instanz.
               </p>
             </header>
 
             <section className="rounded-3xl border border-slate-800/80 bg-slate-900/70 p-8 shadow-xl shadow-slate-950/40">
-              {loading ? (
-                <JSDoITLoader message="Instanzen werden geladen …" />
-              ) : instances.length === 0 ? (
-                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6">
-                  <h2 className="text-lg font-semibold text-white">Kein Zugriff</h2>
-                  <p className="mt-2 text-sm text-slate-200">
-                    Du hast keinen Zugriff auf eine Roadmap-Instanz. Bitte lasse dir eine passende
-                    Gruppe (z.B. <span className="font-mono">admin-bdm-projects</span>) zuweisen.
-                    Für Vollzugriff gibt es die Gruppe <span className="font-mono">superadmin</span>
-                    .
-                  </p>
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6">
+                <h2 className="text-lg font-semibold text-white">Nur für Superadmins</h2>
+                <p className="mt-2 text-sm text-slate-200">
+                  Für Zugriff auf die Instanzverwaltung brauchst du die Rolle
+                  <span className="font-mono"> superadmin</span>. Wenn du nur eine bestimmte Instanz
+                  verwalten sollst, nutze bitte den normalen Adminbereich dieser Instanz.
+                </p>
+                <div className="mt-4">
+                  <Link
+                    href="/admin"
+                    className="inline-flex rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
+                  >
+                    Zum Adminbereich
+                  </Link>
                 </div>
-              ) : (
-                <div className="grid gap-3">
-                  {instances.map((inst) => (
-                    <button
-                      key={inst.slug}
-                      type="button"
-                      onClick={() => void selectInstance(inst.slug)}
-                      disabled={Boolean(selecting)}
-                      className={clsx(
-                        'flex items-center justify-between rounded-2xl border px-5 py-4 text-left transition',
-                        selecting === inst.slug
-                          ? 'border-sky-400 bg-sky-500/10'
-                          : 'border-slate-800 bg-slate-950/40 hover:border-sky-500/60'
-                      )}
-                    >
-                      <div>
-                        <div className="text-sm font-semibold text-white">
-                          {inst.displayName || inst.slug}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-400">{inst.slug}</div>
-                      </div>
-                      <div className="text-xs font-semibold text-sky-200">
-                        {selecting === inst.slug ? 'wird gesetzt…' : 'Auswählen'}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {error && !loading && <p className="mt-4 text-sm text-amber-200">{error}</p>}
+              </div>
             </section>
 
             <p className="text-xs text-slate-500">
-              Hinweis: Instanzen verwalten (Create/Provisioning) ist nur für{' '}
+              Hinweis: Instanzen verwalten, provisionieren und Rollen pflegen ist nur für{' '}
               <span className="font-mono">superadmin</span> möglich.
             </p>
           </div>

@@ -80,10 +80,21 @@ export const isAdminPrincipalAllowedForInstance = (
   principal: AdminPrincipal,
   instance: Pick<RoadmapInstanceConfig, 'metadata' | 'slug'>
 ): boolean => {
+  const normalizedUsername = normalize(principal.username);
   const groups = normalizeGroups(principal.groups);
   if (groups.some(isSuperAdminGroup)) return true;
 
-  // Strict model: non-superadmins only get access via implicit instance groups.
+  const accessConfig = getInstanceAdminAccessConfig(instance.metadata);
+  if (normalizedUsername && accessConfig?.allowedUsers?.includes(normalizedUsername)) {
+    return true;
+  }
+  if (
+    accessConfig?.allowedGroups?.some((allowedGroup) => groups.includes(normalize(allowedGroup)))
+  ) {
+    return true;
+  }
+
+  // Default model: non-superadmins get access via explicit role config or implicit instance groups.
   const implicitSlugs = getImplicitInstanceGroupsFromPrincipal(groups);
   if (implicitSlugs.length === 0) return false;
   return implicitSlugs.includes(String(instance.slug || '').toLowerCase());
@@ -93,10 +104,10 @@ export const isAdminUserAllowedForInstance = (
   username: string | null | undefined,
   instance: Pick<RoadmapInstanceConfig, 'metadata'>
 ): boolean => {
-  return isAdminPrincipalAllowedForInstance(
-    { username, groups: null },
-    { metadata: instance.metadata, slug: '' }
-  );
+  const normalizedUsername = normalize(username);
+  if (!normalizedUsername) return false;
+  const accessConfig = getInstanceAdminAccessConfig(instance.metadata);
+  return Boolean(accessConfig?.allowedUsers?.includes(normalizedUsername));
 };
 
 export const filterInstancesForAdminUser = <T extends Pick<RoadmapInstanceConfig, 'metadata'>>(
@@ -107,6 +118,12 @@ export const filterInstancesForAdminUser = <T extends Pick<RoadmapInstanceConfig
 };
 
 export const coerceAllowedUsersPayload = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const normalized = value.map((entry) => normalize(entry)).filter(Boolean);
+  return Array.from(new Set(normalized));
+};
+
+export const coerceAllowedGroupsPayload = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   const normalized = value.map((entry) => normalize(entry)).filter(Boolean);
   return Array.from(new Set(normalized));

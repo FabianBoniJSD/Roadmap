@@ -29,7 +29,7 @@ const statusBadgeClasses = (status: string | undefined) =>
   );
 
 type ApiInstanceResponse = { instance: RoadmapInstanceSummary };
-type ApiAccessResponse = { users: string[] };
+type ApiAccessResponse = { users: string[]; groups: string[] };
 
 type IgnoreKind = 'missing' | 'unexpected' | 'typeMismatch';
 
@@ -47,10 +47,12 @@ const InstanceHealthPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [accessUsers, setAccessUsers] = useState<string[]>([]);
+  const [accessGroups, setAccessGroups] = useState<string[]>([]);
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessSaving, setAccessSaving] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [accessNewUser, setAccessNewUser] = useState('');
+  const [accessNewGroup, setAccessNewGroup] = useState('');
 
   const loadInstance = useCallback(async (slugValue: string) => {
     setLoading(true);
@@ -90,11 +92,14 @@ const InstanceHealthPage = () => {
       }
       const data = (await resp.json()) as ApiAccessResponse;
       const users = Array.isArray(data.users) ? data.users : [];
+      const groups = Array.isArray(data.groups) ? data.groups : [];
       setAccessUsers(users.map((u) => normalizeUser(String(u))).filter(Boolean));
+      setAccessGroups(groups.map((g) => normalizeUser(String(g))).filter(Boolean));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
       setAccessError(message);
       setAccessUsers([]);
+      setAccessGroups([]);
     } finally {
       setAccessLoading(false);
     }
@@ -117,6 +122,17 @@ const InstanceHealthPage = () => {
     setAccessUsers((prev) => prev.filter((u) => u !== user));
   };
 
+  const addAccessGroup = () => {
+    const normalized = normalizeUser(accessNewGroup);
+    if (!normalized) return;
+    setAccessGroups((prev) => Array.from(new Set([...prev, normalized])).sort());
+    setAccessNewGroup('');
+  };
+
+  const removeAccessGroup = (group: string) => {
+    setAccessGroups((prev) => prev.filter((g) => g !== group));
+  };
+
   const saveAccess = async () => {
     if (!slug || typeof slug !== 'string') return;
     setAccessSaving(true);
@@ -128,7 +144,7 @@ const InstanceHealthPage = () => {
       const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}/access`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify({ users: accessUsers }),
+        body: JSON.stringify({ users: accessUsers, groups: accessGroups }),
       });
       if (!resp.ok) {
         const payload = await resp.json().catch(() => null);
@@ -136,7 +152,9 @@ const InstanceHealthPage = () => {
       }
       const data = (await resp.json()) as ApiAccessResponse;
       const users = Array.isArray(data.users) ? data.users : [];
+      const groups = Array.isArray(data.groups) ? data.groups : [];
       setAccessUsers(users.map((u) => normalizeUser(String(u))).filter(Boolean));
+      setAccessGroups(groups.map((g) => normalizeUser(String(g))).filter(Boolean));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
       setAccessError(message);
@@ -388,7 +406,7 @@ const InstanceHealthPage = () => {
               <div>
                 <h2 className="text-lg font-semibold text-white">Instanz-Zugriff</h2>
                 <p className="text-xs text-slate-400">
-                  Legt fest, welche Admin-Benutzer diese Instanz verwalten dürfen.
+                  Legt fest, welche Admin-Benutzer und Gruppen diese Instanz verwalten dürfen.
                 </p>
               </div>
               <button
@@ -456,6 +474,52 @@ const InstanceHealthPage = () => {
               </button>
             </div>
 
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[240px]">
+                <label className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                  Gruppe hinzufügen
+                </label>
+                <input
+                  type="text"
+                  value={accessNewGroup}
+                  onChange={(e) => setAccessNewGroup(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addAccessGroup();
+                    }
+                  }}
+                  placeholder="z.B. admin-bdm-projekte"
+                  className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                  disabled={accessLoading || accessSaving}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={addAccessGroup}
+                disabled={accessLoading || accessSaving || !normalizeUser(accessNewGroup)}
+                className={clsx(
+                  'rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white',
+                  (accessLoading || accessSaving || !normalizeUser(accessNewGroup)) &&
+                    'cursor-not-allowed opacity-60'
+                )}
+              >
+                Gruppe hinzufügen
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccessGroups([])}
+                disabled={accessLoading || accessSaving || accessGroups.length === 0}
+                className={clsx(
+                  'rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-rose-400 hover:text-white',
+                  (accessLoading || accessSaving || accessGroups.length === 0) &&
+                    'cursor-not-allowed opacity-60'
+                )}
+              >
+                Gruppen leeren
+              </button>
+            </div>
+
             <div className="mt-4">
               <div className="text-xs text-slate-400">
                 {accessUsers.length === 0
@@ -476,6 +540,35 @@ const InstanceHealthPage = () => {
                         disabled={accessLoading || accessSaving}
                         className="text-slate-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                         aria-label={`Entferne ${user}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4">
+              <div className="text-xs text-slate-400">
+                {accessGroups.length === 0
+                  ? 'Keine zusätzlichen Gruppen gepflegt.'
+                  : `${accessGroups.length} Gruppen erlaubt:`}
+              </div>
+              {accessGroups.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {accessGroups.map((group) => (
+                    <span
+                      key={group}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs font-semibold text-slate-200"
+                    >
+                      {group}
+                      <button
+                        type="button"
+                        onClick={() => removeAccessGroup(group)}
+                        disabled={accessLoading || accessSaving}
+                        className="text-slate-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        aria-label={`Entferne ${group}`}
                       >
                         ×
                       </button>

@@ -190,9 +190,12 @@ export async function hasAdminAccessToCurrentInstance(): Promise<boolean> {
     const slug = getBrowserInstanceSlug();
     if (!slug) return true;
 
-    const resp = await fetch(`/api/instances/${encodeURIComponent(slug)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const resp = await fetch(
+      buildInstanceAwareUrl(`/api/instances/select?slug=${encodeURIComponent(slug)}`),
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
 
     if (resp.status === 403) return false;
     return true;

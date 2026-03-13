@@ -1,7 +1,11 @@
 import type { AdminSessionPayload } from '@/utils/apiAuth';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 import { clientDataService } from '@/utils/clientDataService';
-import { isAdminPrincipalAllowedForInstance } from '@/utils/instanceAccess';
+import { getInstanceConfigBySlug } from '@/utils/instanceConfig';
+import {
+  isAdminPrincipalAllowedForInstance,
+  isAdminUserAllowedForInstance,
+} from '@/utils/instanceAccess';
 import {
   isAnyDepartmentCandidateAllowedForInstance,
   normalizeDepartment,
@@ -36,10 +40,15 @@ const extractIdentifiers = (session: AdminSessionPayload | null | undefined) => 
 
 export async function isAdminSessionAllowedForInstance(opts: {
   session: AdminSessionPayload;
-  instance: Pick<RoadmapInstanceConfig, 'slug'>;
+  instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
   requestHeaders?: ForwardedRequestHeaders;
 }): Promise<boolean> {
   const { session, instance } = opts;
+
+  const effectiveInstance =
+    instance.metadata !== undefined
+      ? instance
+      : ((await getInstanceConfigBySlug(String(instance.slug || ''))) ?? instance);
 
   if (
     await isSuperAdminSessionWithSharePointFallback(session, {
@@ -57,17 +66,26 @@ export async function isAdminSessionAllowedForInstance(opts: {
     groups: session?.groups,
   };
 
+  const ids = extractIdentifiers(session);
+  const directUserCandidates = [ids.username, ids.upn, ids.mail, ids.displayName];
+  if (
+    directUserCandidates.some((candidate) =>
+      isAdminUserAllowedForInstance(candidate, effectiveInstance)
+    )
+  ) {
+    return true;
+  }
+
   // Fast path: token already contains the needed groups.
-  if (isAdminPrincipalAllowedForInstance(principal, instance)) return true;
+  if (isAdminPrincipalAllowedForInstance(principal, effectiveInstance)) return true;
 
   // DB-based department access: allow instance access when the user's department
   // is explicitly linked to the instance.
-  const ids = extractIdentifiers(session);
   if (!ids.department) {
     const resolvedOnPremDepartment = await clientDataService.withRequestHeaders(
       opts.requestHeaders,
       () =>
-        clientDataService.withInstance(String(instance.slug || ''), () =>
+        clientDataService.withInstance(String(effectiveInstance.slug || ''), () =>
           clientDataService.resolveUserDepartmentFromSharePoint({
             username: ids.username,
             upn: ids.upn,
@@ -88,7 +106,7 @@ export async function isAdminSessionAllowedForInstance(opts: {
   );
   if (departmentCandidates.length > 0) {
     const allowedByDepartment = await isAnyDepartmentCandidateAllowedForInstance({
-      instanceSlug: String(instance.slug || ''),
+      instanceSlug: String(effectiveInstance.slug || ''),
       candidates: departmentCandidates,
     });
     if (allowedByDepartment) return true;
@@ -100,7 +118,7 @@ export async function isAdminSessionAllowedForInstance(opts: {
 
   try {
     return await clientDataService.withRequestHeaders(opts.requestHeaders, () =>
-      clientDataService.withInstance(String(instance.slug || ''), async () => {
+      clientDataService.withInstance(String(effectiveInstance.slug || ''), async () => {
         const [inAdminGroup, inSuperAdminGroup] = await Promise.all([
           clientDataService.isUserInSharePointGroupByTitle(groupTitle, ids),
           clientDataService.isUserInSharePointGroupByTitle('superadmin', ids),
@@ -110,7 +128,7 @@ export async function isAdminSessionAllowedForInstance(opts: {
     );
   } catch (error) {
     console.warn('[instanceAccess] SharePoint membership fallback failed', {
-      slug: String(instance.slug || ''),
+      slug: String(effectiveInstance.slug || ''),
       error,
     });
     return false;

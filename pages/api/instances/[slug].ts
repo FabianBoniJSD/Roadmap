@@ -1,14 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { extractAdminSession } from '@/utils/apiAuth';
 import { requireSuperAdminAccess } from '@/utils/superAdminAccessServer';
-import { clientDataService } from '@/utils/clientDataService';
 import {
   mapInstanceRecord,
   toInstanceSummary,
   type PrismaInstanceWithHosts,
 } from '@/utils/instanceConfig';
-import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { buildSettingsPayload, normalizeHosts, sanitizeSlug, serializeSettings } from './helpers';
 import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
 import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
@@ -39,46 +36,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid slug' });
   }
 
-  const session = extractAdminSession(req);
-  const forwardedHeaders = {
-    authorization:
-      typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
-    cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
-  };
-
-  const ensureAdminForInstance = async (record: PrismaInstanceWithHosts | null) => {
-    if (session?.isAdmin) return true;
-    if (!record) return false;
-    try {
-      const mapped = mapInstanceRecord(record);
-      return await clientDataService.withInstance(mapped.slug, () =>
-        clientDataService.isCurrentUserAdmin()
-      );
-    } catch (error) {
-      console.error('[instances] service-account admin check failed', error);
-      return false;
-    }
-  };
-
   if (req.method === 'GET') {
+    try {
+      await requireSuperAdminAccess(req);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Forbidden';
+      const status = msg === 'Unauthorized' ? 401 : 403;
+      return res.status(status).json({ error: status === 401 ? 'Unauthorized' : 'Forbidden' });
+    }
+
     const record = (await prisma.roadmapInstance.findUnique({
       where: { slug },
       include: { hosts: true },
     })) as PrismaInstanceWithHosts | null;
     if (!record) return res.status(404).json({ error: 'Instance not found' });
     const mapped = mapInstanceRecord(record);
-    if (
-      session?.isAdmin &&
-      !(await isAdminSessionAllowedForInstance({
-        session,
-        instance: mapped,
-        requestHeaders: forwardedHeaders,
-      }))
-    ) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-    if (!(await ensureAdminForInstance(record)))
-      return res.status(401).json({ error: 'Unauthorized' });
     const allowedBySlug = await getAllowedDepartmentsForInstanceSlugs([mapped.slug]);
     const summary = toInstanceSummary(mapped);
     return res.status(200).json({
