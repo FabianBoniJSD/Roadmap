@@ -7,8 +7,8 @@ import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import withAdminAuth from '@/components/withAdminAuth';
 import { AppSettings, Category, Project } from '@/types';
-import { clientDataService } from '@/utils/clientDataService';
-import { getAdminUsername, hasValidAdminSession, logout } from '@/utils/auth';
+import { getAdminSessionToken, getAdminUsername, hasValidAdminSession, logout } from '@/utils/auth';
+import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { normalizeCategoryId, resolveCategoryName, UNCATEGORIZED_ID } from '@/utils/categoryUtils';
 
 type AdminTab = 'projects' | 'categories' | 'settings';
@@ -39,6 +39,11 @@ const AdminShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 const AdminPage: React.FC = () => {
   const router = useRouter();
+  const instanceSlug = Array.isArray(router.query?.[INSTANCE_QUERY_PARAM])
+    ? router.query[INSTANCE_QUERY_PARAM][0]
+    : typeof router.query?.[INSTANCE_QUERY_PARAM] === 'string'
+      ? router.query[INSTANCE_QUERY_PARAM]
+      : '';
   const pushWithInstance = (pathname: string) => router.push({ pathname, query: router.query });
   const [projects, setProjects] = useState<Project[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -52,17 +57,57 @@ const AdminPage: React.FC = () => {
   const [adminUsername, setAdminUsername] = useState<string | null>(null);
   const fetchRequestIdRef = useRef(0);
 
+  const buildApiUrl = (path: string) => {
+    if (!instanceSlug) return path;
+    const separator = path.includes('?') ? '&' : '?';
+    return `${path}${separator}${INSTANCE_QUERY_PARAM}=${encodeURIComponent(instanceSlug)}`;
+  };
+
+  const getAuthHeaders = () => {
+    const token = getAdminSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   useEffect(() => {
+    if (!router.isReady) return;
+
     const requestId = ++fetchRequestIdRef.current;
     const fetchData = async () => {
       setLoading(true);
       setError(null);
 
       try {
+        const [projectsResp, categoriesResp, settingsResp] = await Promise.all([
+          fetch(buildApiUrl('/api/projects'), {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json', ...getAuthHeaders() },
+          }),
+          fetch(buildApiUrl('/api/categories'), {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json', ...getAuthHeaders() },
+          }),
+          fetch(buildApiUrl('/api/settings'), {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json', ...getAuthHeaders() },
+          }),
+        ]);
+
+        if (!projectsResp.ok || !categoriesResp.ok || !settingsResp.ok) {
+          const projectPayload = await projectsResp.json().catch(() => null);
+          const categoryPayload = await categoriesResp.json().catch(() => null);
+          const settingsPayload = await settingsResp.json().catch(() => null);
+          throw new Error(
+            projectPayload?.error ||
+              categoryPayload?.error ||
+              settingsPayload?.message ||
+              `Fehler beim Laden der Admin-Daten (${projectsResp.status}/${categoriesResp.status}/${settingsResp.status})`
+          );
+        }
+
         const [projectData, categoryData, settingsData] = await Promise.all([
-          clientDataService.getAllProjects(),
-          clientDataService.getAllCategories(),
-          clientDataService.getAppSettings(),
+          projectsResp.json(),
+          categoriesResp.json(),
+          settingsResp.json(),
         ]);
 
         const normalizedProjects = Array.isArray(projectData)
@@ -89,7 +134,7 @@ const AdminPage: React.FC = () => {
 
     fetchData();
     // Refetch whenever the route (and thus instance query) changes to avoid stale data
-  }, [router.asPath]);
+  }, [instanceSlug, router.asPath, router.isReady]);
 
   useEffect(() => {
     const verifyAccess = async () => {
@@ -132,7 +177,15 @@ const AdminPage: React.FC = () => {
   const handleDeleteProject = async (id: string) => {
     if (!window.confirm('Möchten Sie dieses Projekt wirklich löschen?')) return;
     try {
-      await clientDataService.deleteProject(id);
+      const resp = await fetch(buildApiUrl(`/api/projects/${encodeURIComponent(id)}`), {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: getAuthHeaders(),
+      });
+      if (!resp.ok) {
+        const payload = await resp.json().catch(() => null);
+        throw new Error(payload?.error || 'Projekt konnte nicht gelöscht werden.');
+      }
       setProjects((prev) => prev.filter((project) => project.id !== id));
     } catch (err) {
       console.error('Error deleting project:', err);
@@ -151,7 +204,15 @@ const AdminPage: React.FC = () => {
     }
 
     try {
-      await clientDataService.deleteCategory(categoryId);
+      const resp = await fetch(buildApiUrl(`/api/categories/${encodeURIComponent(categoryId)}`), {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: getAuthHeaders(),
+      });
+      if (!resp.ok) {
+        const payload = await resp.json().catch(() => null);
+        throw new Error(payload?.error || 'Kategorie konnte nicht gelöscht werden.');
+      }
       setCategories((prev) => prev.filter((category) => category.id !== categoryId));
       setDeleteConfirmation(null);
     } catch (err) {
@@ -196,7 +257,23 @@ const AdminPage: React.FC = () => {
         value: newSettingValue,
       };
 
-      const saved = await clientDataService.updateSetting(updatedSetting);
+      const resp = await fetch(
+        buildApiUrl(`/api/settings/${encodeURIComponent(editingSetting.id)}`),
+        {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify(updatedSetting),
+        }
+      );
+      if (!resp.ok) {
+        const payload = await resp.json().catch(() => null);
+        throw new Error(payload?.message || 'Einstellung konnte nicht gespeichert werden.');
+      }
+      const saved = (await resp.json()) as AppSettings;
       setSettings((prev) => prev.map((setting) => (setting.id === saved.id ? saved : setting)));
       setEditingSetting(null);
       setNewSettingValue('');
