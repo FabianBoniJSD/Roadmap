@@ -52,6 +52,10 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
 
   const instanceSlug = querySlug || cookieSlug || '';
   const maybeQuery = instanceSlug ? { [INSTANCE_QUERY_PARAM]: instanceSlug } : undefined;
+  const adminLinkSlug = querySlug || (currentRoute === 'admin' ? cookieSlug : '');
+  const adminHref = adminLinkSlug
+    ? { pathname: '/admin', query: { [INSTANCE_QUERY_PARAM]: adminLinkSlug } }
+    : null;
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/85 backdrop-blur supports-[backdrop-filter]:bg-slate-950/70">
@@ -87,17 +91,19 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
         </nav>
 
         <div className="flex items-center gap-3">
-          <Link
-            href={maybeQuery ? { pathname: '/admin/login', query: maybeQuery } : '/admin/login'}
-            className={clsx(
-              'rounded-full border px-4 py-2 text-sm font-semibold transition',
-              currentRoute === 'admin'
-                ? 'border-sky-400 text-white shadow-inner shadow-sky-900/40'
-                : 'border-sky-500/60 text-sky-200 hover:border-sky-400 hover:text-white'
-            )}
-          >
-            Adminbereich
-          </Link>
+          {adminHref ? (
+            <Link
+              href={adminHref}
+              className={clsx(
+                'rounded-full border px-4 py-2 text-sm font-semibold transition',
+                currentRoute === 'admin'
+                  ? 'border-sky-400 text-white shadow-inner shadow-sky-900/40'
+                  : 'border-sky-500/60 text-sky-200 hover:border-sky-400 hover:text-white'
+              )}
+            >
+              Adminbereich
+            </Link>
+          ) : null}
         </div>
       </div>
     </header>
