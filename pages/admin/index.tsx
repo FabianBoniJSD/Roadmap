@@ -8,7 +8,7 @@ import SiteHeader from '@/components/SiteHeader';
 import withAdminAuth from '@/components/withAdminAuth';
 import { AppSettings, Category, Project } from '@/types';
 import { clientDataService } from '@/utils/clientDataService';
-import { getAdminUsername, hasAdminAccess, logout } from '@/utils/auth';
+import { getAdminUsername, hasValidAdminSession, logout } from '@/utils/auth';
 import { normalizeCategoryId, resolveCategoryName, UNCATEGORIZED_ID } from '@/utils/categoryUtils';
 
 type AdminTab = 'projects' | 'categories' | 'settings';
@@ -94,7 +94,7 @@ const AdminPage: React.FC = () => {
   useEffect(() => {
     const verifyAccess = async () => {
       try {
-        const hasAccess = await hasAdminAccess();
+        const hasAccess = await hasValidAdminSession();
         if (!hasAccess) {
           setError(
             'Sie haben keine Admin-Berechtigung. Bitte wenden Sie sich an Ihr Roadmap-Team.'

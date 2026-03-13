@@ -8,7 +8,7 @@ import JSDoITLoader from '@/components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import { Project, TeamMember } from '@/types';
-import { hasAdminAccess } from '@/utils/auth';
+import { hasValidAdminSession } from '@/utils/auth';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { setInstanceCookieHeader } from '@/utils/instanceConfig';
@@ -191,7 +191,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
   useEffect(() => {
     const checkAdmin = async () => {
       try {
-        const allowed = await hasAdminAccess();
+        const allowed = await hasValidAdminSession();
         setIsAdmin(Boolean(allowed));
       } catch {
         setIsAdmin(false);

@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import {
   buildInstanceAwareUrl,
   getAdminSessionToken,
-  hasAdminAccess,
+  hasValidAdminSession,
   persistAdminSession,
 } from '@/utils/auth';
 import JSDoITLoader from '@/components/JSDoITLoader';
@@ -40,7 +40,7 @@ export default function withSuperAdminAuth<P extends object>(
             // ignore
           }
 
-          const ok = await hasAdminAccess();
+          const ok = await hasValidAdminSession();
           if (!ok) {
             router.push('/admin/login?returnUrl=' + encodeURIComponent(router.asPath));
             return;

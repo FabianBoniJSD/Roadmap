@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
-import { buildInstanceAwareUrl, hasAdminAccess, persistAdminSession } from '@/utils/auth';
+import { buildInstanceAwareUrl, hasValidAdminSession, persistAdminSession } from '@/utils/auth';
 
 const AdminLogin: React.FC = () => {
   const router = useRouter();
@@ -59,10 +59,10 @@ const AdminLogin: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      setStatus('Prüfe Service Account …');
+      setStatus('Prüfe Admin-Session …');
 
       try {
-        const alreadyAuthed = await hasAdminAccess();
+        const alreadyAuthed = await hasValidAdminSession();
         if (alreadyAuthed) {
           setStatus('Bereits angemeldet. Weiterleitung …');
           setTimeout(() => router.push(returnUrl), 200);
@@ -71,25 +71,10 @@ const AdminLogin: React.FC = () => {
       } catch {
         // ignore and continue
       }
-
-      const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin'));
-      if (!response.ok) {
-        throw new Error('check-admin failed');
-      }
-
-      const data = await response.json();
-      if (data.isAdmin) {
-        setStatus('Service Account bestätigt. Weiterleitung …');
-        setTimeout(() => router.push(returnUrl), 600);
-      } else {
-        setError(
-          'Service Account hat keine Admin-Berechtigung. Bitte Berechtigungen in SharePoint prüfen.'
-        );
-        setStatus('');
-      }
+      setStatus('');
     } catch (err) {
       console.error('Admin check failed:', err);
-      setError('Fehler bei der Admin-Prüfung. Bitte Verbindung zu SharePoint kontrollieren.');
+      setError('Fehler bei der Session-Prüfung. Bitte erneut anmelden.');
       setStatus('');
     } finally {
       setLoading(false);

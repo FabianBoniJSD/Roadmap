@@ -285,7 +285,12 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
       UNCATEGORIZED_ID,
     ]);
     setActiveCategories((prev) => {
-      if (prev.length === 0) return prev;
+      if (prev.length === 0) {
+        if (!urlCatsAppliedRef.current) {
+          return [...categories.map((category) => category.id), UNCATEGORIZED_ID];
+        }
+        return prev;
+      }
 
       const filtered = prev.filter((categoryId) => validCategoryIds.has(categoryId));
       if (filtered.length === 0) {

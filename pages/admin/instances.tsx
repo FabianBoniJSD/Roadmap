@@ -9,7 +9,7 @@ import SiteHeader from '@/components/SiteHeader';
 import {
   buildInstanceAwareUrl,
   getAdminSessionToken,
-  hasAdminAccess,
+  hasValidAdminSession,
   persistAdminSession,
 } from '@/utils/auth';
 import type { RoadmapInstanceSummary } from '@/types/roadmapInstance';
@@ -1643,7 +1643,7 @@ const AdminInstancesGate = () => {
           // ignore
         }
 
-        const ok = await hasAdminAccess();
+        const ok = await hasValidAdminSession();
         if (!cancelled) setAuthed(ok);
 
         if (ok) {

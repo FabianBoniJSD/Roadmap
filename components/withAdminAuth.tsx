@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { hasAdminAccess, hasAdminAccessToCurrentInstance, persistAdminSession } from '@/utils/auth';
+import {
+  hasAdminAccessToCurrentInstance,
+  hasValidAdminSession,
+  persistAdminSession,
+} from '@/utils/auth';
 import JSDoITLoader from '@/components/JSDoITLoader';
 
 // Define a generic type parameter for the component props
@@ -41,21 +45,18 @@ export default function withAdminAuth<P extends object>(WrappedComponent: React.
             // ignore
           }
 
-          // Check service account admin access directly
-          const hasAccess = await hasAdminAccess();
+          const hasAccess = await hasValidAdminSession();
           if (dbg()) {
             // eslint-disable-next-line no-console
-            console.log('[withAdminAuth] Service account admin check =', hasAccess);
+            console.log('[withAdminAuth] Valid admin session =', hasAccess);
           }
 
           if (!hasAccess) {
             if (dbg()) {
               // eslint-disable-next-line no-console
-              console.log('[withAdminAuth] Service account has no admin access');
+              console.log('[withAdminAuth] No valid admin session');
             }
-            // Show error page instead of redirect (no user login possible)
             setIsLoading(false);
-            // Could redirect to an error page or show inline error
             router.push('/admin/login?returnUrl=' + encodeURIComponent(router.asPath));
             return;
           }
