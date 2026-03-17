@@ -238,7 +238,7 @@ const LandingPage = ({ instances }: LandingPageProps) => {
       if (!token) return;
       setInstancesLoading(true);
       try {
-        const resp = await fetch(buildInstanceAwareUrl('/api/instances/landing'), {
+        const resp = await fetch(buildInstanceAwareUrl('/api/instances/slugs?details=landing'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         const payload = await resp.json().catch(() => null);
