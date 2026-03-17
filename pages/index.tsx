@@ -162,13 +162,13 @@ const LandingPage = ({ instances }: LandingPageProps) => {
       if (!token) return;
 
       persistAdminSession(token, u || 'Microsoft SSO');
-      window.location.hash = '';
       setAuthStatus('Anmeldung erfolgreich. Lade Instanzen …');
-      router.replace(returnUrl);
+      const cleanUrl = returnUrl || '/';
+      window.location.replace(cleanUrl);
     } catch {
       // ignore
     }
-  }, [router.isReady, router, returnUrl]);
+  }, [router.isReady, returnUrl]);
 
   // Load Entra availability and validate session
   useEffect(() => {
