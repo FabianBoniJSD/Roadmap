@@ -270,9 +270,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .send(renderPopupResultHtml({ ok: true, token: appToken, username: displayName }));
     }
 
-    // Non-popup: send token in fragment so it doesn't hit server logs.
-    const target = `${returnUrl}#token=${encodeURIComponent(appToken)}&username=${encodeURIComponent(displayName)}`;
-    return res.redirect(302, target);
+    // Non-popup: the admin JWT is already set as a cookie, so return with a normal redirect.
+    // This guarantees a full page load on the target route and avoids client-side hash timing.
+    return res.redirect(302, returnUrl);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'SSO fehlgeschlagen';
     res.setHeader('Set-Cookie', clearCookies);
