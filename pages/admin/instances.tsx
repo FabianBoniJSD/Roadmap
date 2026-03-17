@@ -1760,6 +1760,7 @@ const AdminInstancesGate = () => {
   const [superAdmin, setSuperAdmin] = useState(false);
   const [entraEnabled, setEntraEnabled] = useState(false);
   const [status, setStatus] = useState<string>('');
+  const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
 
   const returnUrl = useMemo(() => {
     const raw = typeof router.asPath === 'string' ? router.asPath : '/admin/instances';
@@ -1784,8 +1785,15 @@ const AdminInstancesGate = () => {
       if (!token) return;
 
       persistAdminSession(token, u || 'Microsoft SSO');
-      window.location.hash = '';
+      try {
+        const cleanUrl = window.location.pathname + window.location.search;
+        window.history.replaceState(null, document.title, cleanUrl);
+      } catch {
+        window.location.hash = '';
+      }
+      setChecking(true);
       setStatus('Anmeldung erfolgreich. Lade Instanzen …');
+      setSessionRefreshKey((prev) => prev + 1);
     } catch {
       // ignore
     }
@@ -1840,7 +1848,7 @@ const AdminInstancesGate = () => {
     return () => {
       cancelled = true;
     };
-  }, [router.isReady]);
+  }, [router.isReady, sessionRefreshKey]);
 
   // Optional auto-start SSO (full page redirect)
   useEffect(() => {
