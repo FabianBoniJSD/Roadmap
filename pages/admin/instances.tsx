@@ -7,6 +7,7 @@ import JSDoITLoader from '@/components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import {
+  ADMIN_SESSION_CHANGED_EVENT,
   buildInstanceAwareUrl,
   getAdminSessionToken,
   hasValidAdminSession,
@@ -298,7 +299,10 @@ const AdminInstancesPage = () => {
   const [bulkProvisionFailures, setBulkProvisionFailures] = useState<
     Array<{ slug: string; message?: string }>
   >([]);
-  const [tokenMissing, setTokenMissing] = useState(true);
+  const [tokenMissing, setTokenMissing] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return !getAdminSessionToken();
+  });
   const [listPanels, setListPanels] = useState<Record<string, InstanceListPanelState>>({});
   const [accessUsersInput, setAccessUsersInput] = useState('');
   const [accessGroupsInput, setAccessGroupsInput] = useState('');
@@ -311,10 +315,19 @@ const AdminInstancesPage = () => {
   const [superAdminError, setSuperAdminError] = useState<string | null>(null);
   const [superAdminUsername, setSuperAdminUsername] = useState('');
   const [superAdminNote, setSuperAdminNote] = useState('');
+  const [sessionRevision, setSessionRevision] = useState(0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    setTokenMissing(!getAdminSessionToken());
+    const handleSessionChanged = () => {
+      setSessionRevision((prev) => prev + 1);
+    };
+    window.addEventListener(ADMIN_SESSION_CHANGED_EVENT, handleSessionChanged);
+    window.addEventListener('focus', handleSessionChanged);
+    return () => {
+      window.removeEventListener(ADMIN_SESSION_CHANGED_EVENT, handleSessionChanged);
+      window.removeEventListener('focus', handleSessionChanged);
+    };
   }, []);
 
   const headersWithAuth = () => {
@@ -459,11 +472,19 @@ const AdminInstancesPage = () => {
   };
 
   useEffect(() => {
-    if (!tokenMissing) {
-      void fetchInstances();
-      void fetchSuperAdmins();
-    } else setLoading(false);
-  }, [fetchInstances, fetchSuperAdmins, tokenMissing]);
+    const hasToken = Boolean(getAdminSessionToken());
+    setTokenMissing(!hasToken);
+
+    if (!hasToken) {
+      setInstances([]);
+      setSuperAdmins([]);
+      setLoading(false);
+      return;
+    }
+
+    void fetchInstances();
+    void fetchSuperAdmins();
+  }, [fetchInstances, fetchSuperAdmins, sessionRevision]);
 
   const updateField = (key: keyof AdminFormState, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));

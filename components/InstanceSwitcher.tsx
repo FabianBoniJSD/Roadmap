@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { buildInstanceAwareUrl, getAdminSessionToken } from '@/utils/auth';
+import {
+  ADMIN_SESSION_CHANGED_EVENT,
+  buildInstanceAwareUrl,
+  getAdminSessionToken,
+} from '@/utils/auth';
 
 export type InstanceOption = { slug: string; displayName: string };
 
@@ -28,6 +32,7 @@ const InstanceSwitcher = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string>('');
+  const [sessionRevision, setSessionRevision] = useState(0);
 
   // Initialize selected from query or cookie
   useEffect(() => {
@@ -41,8 +46,22 @@ const InstanceSwitcher = () => {
     }
   }, [querySlug]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleSessionChanged = () => {
+      setSessionRevision((prev) => prev + 1);
+    };
+    window.addEventListener(ADMIN_SESSION_CHANGED_EVENT, handleSessionChanged);
+    window.addEventListener('focus', handleSessionChanged);
+    return () => {
+      window.removeEventListener(ADMIN_SESSION_CHANGED_EVENT, handleSessionChanged);
+      window.removeEventListener('focus', handleSessionChanged);
+    };
+  }, []);
+
   // Load available instances (admin-only; filtered by group membership)
   useEffect(() => {
+    if (!router.isReady) return;
     let cancelled = false;
     const run = async () => {
       setLoading(true);
@@ -85,7 +104,7 @@ const InstanceSwitcher = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router.isReady, sessionRevision]);
 
   const buildQuery = (slug: string) => {
     const { roadmapInstance, cats, ...rest } = router.query;

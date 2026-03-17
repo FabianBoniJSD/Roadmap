@@ -7,6 +7,16 @@ const TOKEN_KEY = 'adminToken';
 const USERNAME_KEY = 'adminUsername';
 const INSTANCE_COOKIE_KEY = 'roadmap-instance';
 const ADMIN_TOKEN_COOKIE_KEY = 'roadmap-admin-token';
+export const ADMIN_SESSION_CHANGED_EVENT = 'roadmap-admin-session-changed';
+
+function dispatchAdminSessionChanged() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.dispatchEvent(new Event(ADMIN_SESSION_CHANGED_EVENT));
+  } catch {
+    // ignore
+  }
+}
 
 // Lightweight debug switch for verbose console logs around auth/admin flows
 function debugAuthEnabled(): boolean {
@@ -137,6 +147,7 @@ function clearStoredSession() {
     }
   }
   clearAdminTokenCookie();
+  dispatchAdminSessionChanged();
 }
 
 function setStoredSession(token: string, username: string) {
@@ -153,6 +164,7 @@ function setStoredSession(token: string, username: string) {
 export function persistAdminSession(token: string, username: string) {
   setStoredSession(token, username);
   setAdminTokenCookie(token);
+  dispatchAdminSessionChanged();
 }
 
 function getBrowserInstanceSlug(): string | null {
