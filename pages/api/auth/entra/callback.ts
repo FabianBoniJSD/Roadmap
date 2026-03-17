@@ -27,6 +27,8 @@ const COOKIE_STATE = 'entra_state';
 const COOKIE_VERIFIER = 'entra_pkce_verifier';
 const COOKIE_RETURN_URL = 'entra_return_url';
 const COOKIE_POPUP = 'entra_popup';
+const COOKIE_ADMIN_TOKEN = 'roadmap-admin-token';
+const ADMIN_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24;
 
 function normalizeReturnUrl(input: string | undefined | null, fallback = '/admin'): string {
   const raw = typeof input === 'string' ? input.trim() : '';
@@ -251,7 +253,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       { expiresIn: JWT_EXPIRES_IN }
     );
 
-    res.setHeader('Set-Cookie', clearCookies);
+    res.setHeader('Set-Cookie', [
+      ...clearCookies,
+      buildSetCookie(COOKIE_ADMIN_TOKEN, appToken, {
+        maxAgeSeconds: ADMIN_TOKEN_MAX_AGE_SECONDS,
+        httpOnly: false,
+        sameSite: 'Lax',
+        secure,
+      }),
+    ]);
 
     if (popup) {
       res.setHeader('Content-Type', 'text/html');

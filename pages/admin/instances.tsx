@@ -1809,12 +1809,13 @@ const AdminInstancesGate = () => {
       try {
         const cleanUrl = window.location.pathname + window.location.search;
         window.history.replaceState(null, document.title, cleanUrl);
+        window.location.replace(cleanUrl);
+        return;
       } catch {
         window.location.hash = '';
       }
-      setChecking(true);
       setStatus('Anmeldung erfolgreich. Lade Instanzen …');
-      setSessionRefreshKey((prev) => prev + 1);
+      window.location.reload();
     } catch {
       // ignore
     }

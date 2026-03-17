@@ -125,9 +125,15 @@ const AdminLogin: React.FC = () => {
       if (!token) return;
 
       persistAdminSession(token, u || 'Microsoft SSO');
-      window.location.hash = '';
       setStatus('Anmeldung erfolgreich. Weiterleitung …');
-      setTimeout(() => router.replace(returnUrl), 150);
+      try {
+        const cleanUrl = returnUrl || '/admin';
+        window.location.replace(cleanUrl);
+        return;
+      } catch {
+        window.location.hash = '';
+      }
+      setTimeout(() => window.location.reload(), 150);
     } catch {
       // ignore
     }
@@ -175,7 +181,7 @@ const AdminLogin: React.FC = () => {
           } catch {
             // ignore
           }
-          setTimeout(() => router.push(returnUrl), 150);
+          setTimeout(() => window.location.replace(returnUrl), 150);
         }
 
         if (msg.type === 'AUTH_ERROR') {

@@ -29,9 +29,15 @@ export default function withSuperAdminAuth<P extends object>(
                 const u = params.get('username');
                 if (token) {
                   persistAdminSession(token, u || 'Microsoft SSO');
-                  window.location.hash = '';
                   const clean = window.location.pathname + window.location.search;
-                  router.replace(clean);
+                  try {
+                    window.history.replaceState(null, document.title, clean);
+                    window.location.replace(clean);
+                    return;
+                  } catch {
+                    window.location.hash = '';
+                  }
+                  window.location.reload();
                   return;
                 }
               }
