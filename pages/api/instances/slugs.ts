@@ -112,6 +112,25 @@ const toLandingInstance = (record: {
   };
 };
 
+const instanceQuery = {
+  select: {
+    slug: true,
+    displayName: true,
+    department: true,
+    description: true,
+    sharePointSiteUrlProd: true,
+    sharePointSiteUrlDev: true,
+    sharePointStrategy: true,
+    settingsJson: true,
+    landingPage: true,
+    hosts: {
+      select: {
+        host: true,
+      },
+    },
+  },
+} as const;
+
 /**
  * Public endpoint: returns minimal instance identifiers (slug + displayName) for UI switching.
  */
@@ -149,73 +168,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const tokenAllowedSlugs = isSuperAdmin ? null : getInstanceSlugsFromPrincipal(principal);
     if (tokenAllowedSlugs && tokenAllowedSlugs.length > 0) {
       const records = await prisma.roadmapInstance.findMany({
-        ...(details
-          ? {
-              include: { hosts: true },
-            }
-          : {
-              select: { slug: true, displayName: true },
-            }),
+        ...instanceQuery,
         where: { slug: { in: tokenAllowedSlugs } },
         orderBy: { slug: 'asc' },
       });
       const instances = details
-        ? records.map((r) =>
-            toLandingInstance(
-              r as {
-                slug: string;
-                displayName: string | null;
-                department: string | null;
-                description: string | null;
-                sharePointSiteUrlProd: string | null;
-                sharePointSiteUrlDev: string;
-                sharePointStrategy: string | null;
-                settingsJson: string | null;
-                landingPage: string | null;
-                hosts: Array<{ host: string }>;
-              }
-            )
-          )
-        : records.map((r) =>
-            toInstanceOption(r as { slug: string; displayName: string | null })
-          );
+        ? records.map((r) => toLandingInstance(r))
+        : records.map((r) => toInstanceOption(r));
       return res.status(200).json({ instances });
     }
 
     // Fallback: if no implicit groups are present in the JWT, verify membership in
     // SharePoint site group "admin-<slug>" for each instance.
     const allRecords = await prisma.roadmapInstance.findMany({
-      ...(details
-        ? {
-            include: { hosts: true },
-          }
-        : {
-            select: { slug: true, displayName: true },
-          }),
+      ...instanceQuery,
       orderBy: { slug: 'asc' },
     });
 
     if (isSuperAdmin) {
       const instances = details
-        ? allRecords.map((r) =>
-            toLandingInstance(
-              r as {
-                slug: string;
-                displayName: string | null;
-                department: string | null;
-                description: string | null;
-                sharePointSiteUrlProd: string | null;
-                sharePointSiteUrlDev: string;
-                sharePointStrategy: string | null;
-                settingsJson: string | null;
-                landingPage: string | null;
-                hosts: Array<{ host: string }>;
-              }
-            )
-          )
-        : allRecords.map((r) =>
-            toInstanceOption(r as { slug: string; displayName: string | null })
-          );
+        ? allRecords.map((r) => toLandingInstance(r))
+        : allRecords.map((r) => toInstanceOption(r));
       return res.status(200).json({ instances });
     }
 
@@ -232,24 +205,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const instances = checks
       .filter((c) => c.allowed)
-      .map((c) =>
-        details
-          ? toLandingInstance(
-              c.record as {
-                slug: string;
-                displayName: string | null;
-                department: string | null;
-                description: string | null;
-                sharePointSiteUrlProd: string | null;
-                sharePointSiteUrlDev: string;
-                sharePointStrategy: string | null;
-                settingsJson: string | null;
-                landingPage: string | null;
-                hosts: Array<{ host: string }>;
-              }
-            )
-          : toInstanceOption(c.record as { slug: string; displayName: string | null })
-      );
+      .map((c) => (details ? toLandingInstance(c.record) : toInstanceOption(c.record)));
 
     return res.status(200).json({ instances });
   } catch (error) {

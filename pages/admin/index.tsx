@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import Link from 'next/link';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
@@ -60,11 +60,14 @@ const AdminPage: React.FC = () => {
   const [adminUsername, setAdminUsername] = useState<string | null>(null);
   const fetchRequestIdRef = useRef(0);
 
-  const buildApiUrl = (path: string) => {
-    if (!instanceSlug) return path;
-    const separator = path.includes('?') ? '&' : '?';
-    return `${path}${separator}${INSTANCE_QUERY_PARAM}=${encodeURIComponent(instanceSlug)}`;
-  };
+  const buildApiUrl = useCallback(
+    (path: string) => {
+      if (!instanceSlug) return path;
+      const separator = path.includes('?') ? '&' : '?';
+      return `${path}${separator}${INSTANCE_QUERY_PARAM}=${encodeURIComponent(instanceSlug)}`;
+    },
+    [instanceSlug]
+  );
 
   const getAuthHeaders = () => {
     const token = getAdminSessionToken();
@@ -137,7 +140,7 @@ const AdminPage: React.FC = () => {
 
     fetchData();
     // Refetch whenever the route (and thus instance query) changes to avoid stale data
-  }, [instanceSlug, router.asPath, router.isReady]);
+  }, [buildApiUrl, instanceSlug, router.asPath, router.isReady]);
 
   useEffect(() => {
     const verifyAccess = async () => {

@@ -528,11 +528,6 @@ const AdminInstancesPage = () => {
       landingPage,
       sharePointSiteUrlDev,
       sharePointSiteUrlProd,
-      sharePointStrategy,
-      spUsername,
-      spPassword,
-      allowSelfSigned,
-      trustedCaPath,
       hostsInput,
     } = form;
 
@@ -1723,8 +1718,6 @@ const AdminInstancesPage = () => {
   );
 };
 
-type SlugInstance = { slug: string; displayName: string };
-
 const AdminInstancePicker = () => {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
@@ -1781,7 +1774,6 @@ const AdminInstancesGate = () => {
   const [superAdmin, setSuperAdmin] = useState(false);
   const [entraEnabled, setEntraEnabled] = useState(false);
   const [status, setStatus] = useState<string>('');
-  const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
 
   const returnUrl = useMemo(() => {
     const raw = typeof router.asPath === 'string' ? router.asPath : '/admin/instances';
@@ -1870,7 +1862,7 @@ const AdminInstancesGate = () => {
     return () => {
       cancelled = true;
     };
-  }, [router.isReady, sessionRefreshKey]);
+  }, [router.isReady]);
 
   // Optional auto-start SSO (full page redirect)
   useEffect(() => {
