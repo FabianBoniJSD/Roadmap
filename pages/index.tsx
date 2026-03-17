@@ -8,6 +8,7 @@ import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import {
+  ADMIN_SESSION_CHANGED_EVENT,
   buildInstanceAwareUrl,
   getAdminSessionToken,
   hasValidAdminSession,
@@ -132,12 +133,15 @@ const LandingPage = ({ instances }: LandingPageProps) => {
   const router = useRouter();
   const [selectingSlug, setSelectingSlug] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [visibleInstances, setVisibleInstances] = useState<LandingInstance[]>(instances);
+  const [instancesLoading, setInstancesLoading] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [entraEnabled, setEntraEnabled] = useState(false);
   const [authStatus, setAuthStatus] = useState<string>('');
+  const [sessionRevision, setSessionRevision] = useState(0);
 
-  const defaultInstance = useMemo(() => instances[0], [instances]);
+  const defaultInstance = useMemo(() => visibleInstances[0], [visibleInstances]);
 
   const returnUrl = useMemo(() => {
     const raw = typeof router.asPath === 'string' ? router.asPath : '/';
@@ -148,6 +152,23 @@ const LandingPage = ({ instances }: LandingPageProps) => {
   const autoEntraSso =
     String(process.env.NEXT_PUBLIC_ENTRA_AUTO_LOGIN || '').toLowerCase() === 'true' ||
     String(router.query.autoSso || '') === '1';
+
+  useEffect(() => {
+    setVisibleInstances(instances);
+  }, [instances]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleSessionChanged = () => {
+      setSessionRevision((prev) => prev + 1);
+    };
+    window.addEventListener(ADMIN_SESSION_CHANGED_EVENT, handleSessionChanged);
+    window.addEventListener('focus', handleSessionChanged);
+    return () => {
+      window.removeEventListener(ADMIN_SESSION_CHANGED_EVENT, handleSessionChanged);
+      window.removeEventListener('focus', handleSessionChanged);
+    };
+  }, []);
 
   // Consume non-popup Entra callback token (fragment)
   useEffect(() => {
@@ -162,9 +183,15 @@ const LandingPage = ({ instances }: LandingPageProps) => {
       if (!token) return;
 
       persistAdminSession(token, u || 'Microsoft SSO');
+      try {
+        const cleanUrl = window.location.pathname + window.location.search;
+        window.history.replaceState(null, document.title, cleanUrl);
+      } catch {
+        window.location.hash = '';
+      }
+      setAuthChecked(false);
       setAuthStatus('Anmeldung erfolgreich. Lade Instanzen …');
-      const cleanUrl = returnUrl || '/';
-      window.location.replace(cleanUrl);
+      setSessionRevision((prev) => prev + 1);
     } catch {
       // ignore
     }
@@ -199,7 +226,43 @@ const LandingPage = ({ instances }: LandingPageProps) => {
     return () => {
       cancelled = true;
     };
-  }, [router.isReady]);
+  }, [router.isReady, sessionRevision]);
+
+  useEffect(() => {
+    if (!authChecked || !authed) return;
+    let cancelled = false;
+
+    const run = async () => {
+      const token = getAdminSessionToken();
+      if (!token) return;
+      setInstancesLoading(true);
+      try {
+        const resp = await fetch(buildInstanceAwareUrl('/api/instances/landing'), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const payload = await resp.json().catch(() => null);
+        if (!resp.ok) {
+          throw new Error(payload?.error || 'Instanzen konnten nicht geladen werden');
+        }
+        if (!cancelled) {
+          setVisibleInstances(Array.isArray(payload?.instances) ? payload.instances : []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : 'Instanzen konnten nicht geladen werden';
+          setErrorMessage(message);
+        }
+      } finally {
+        if (!cancelled) setInstancesLoading(false);
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authChecked, authed, sessionRevision]);
 
   // Optional auto-start SSO (full page redirect)
   useEffect(() => {
@@ -331,10 +394,10 @@ const LandingPage = ({ instances }: LandingPageProps) => {
                     <button
                       type="button"
                       onClick={() => openInstance(defaultInstance)}
-                      disabled={!instances.length || selectingSlug !== null}
+                      disabled={!visibleInstances.length || selectingSlug !== null}
                       className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {!instances.length
+                      {!visibleInstances.length
                         ? 'Keine Instanzen vorhanden'
                         : selectingSlug
                           ? 'Weiterleitung wird vorbereitet …'
@@ -406,7 +469,7 @@ const LandingPage = ({ instances }: LandingPageProps) => {
                     Aktive Instanzen
                   </h2>
                   <p className="text-sm text-slate-300">
-                    {instances.length
+                    {visibleInstances.length
                       ? 'Wähle eine Instanz, um dich mit der passenden Roadmap zu verbinden.'
                       : 'Noch keine Instanzen angelegt. Lege die erste im Adminbereich an.'}
                   </p>
@@ -426,7 +489,7 @@ const LandingPage = ({ instances }: LandingPageProps) => {
               )}
 
               <div className="grid gap-6 md:grid-cols-2">
-                {instances.map((instance) => (
+                {visibleInstances.map((instance) => (
                   <article
                     key={instance.slug}
                     className="group rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow shadow-slate-950/40 transition hover:border-sky-500/50 hover:shadow-sky-900/40"
@@ -477,13 +540,19 @@ const LandingPage = ({ instances }: LandingPageProps) => {
                 ))}
               </div>
 
-              {!instances.length && (
+              {!visibleInstances.length && !instancesLoading && (
                 <div className="mt-12 rounded-2xl border border-dashed border-slate-700/80 bg-slate-900/70 p-8 text-center text-slate-300">
                   <p className="text-lg font-medium text-white">Noch keine Instanzen vorhanden</p>
                   <p className="mt-2 text-sm">
                     Erstelle im Adminbereich eine neue Roadmap-Instanz und verknüpfe den passenden
                     SharePoint-Endpunkt.
                   </p>
+                </div>
+              )}
+
+              {!visibleInstances.length && instancesLoading && (
+                <div className="mt-12 flex items-center justify-center">
+                  <JSDoITLoader sizeRem={2} message="Instanzen werden geladen …" />
                 </div>
               )}
             </section>
