@@ -3730,8 +3730,8 @@ class ClientDataService {
         const response = await fetch(
           buildInstanceAwareUrl(`/api/sharepoint-user-search?${params}`),
           {
-          credentials: 'same-origin',
-          headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
           }
         );
 
@@ -3789,9 +3789,39 @@ class ClientDataService {
 
       const data = await response.json();
 
-      // Parse the ClientPeoplePickerSearchUser response
-      // It returns a string that needs to be parsed as JSON
-      const clientPeoplePickerData = JSON.parse(data.d.ClientPeoplePickerSearchUser);
+      const pickerPayload =
+        typeof data?.d?.ClientPeoplePickerSearchUser === 'string'
+          ? data.d.ClientPeoplePickerSearchUser
+          : typeof data?.ClientPeoplePickerSearchUser === 'string'
+            ? data.ClientPeoplePickerSearchUser
+            : typeof data === 'string'
+              ? data
+              : null;
+
+      if (!pickerPayload) {
+        console.warn('[clientDataService.searchUsers] unexpected People Picker payload shape', {
+          topLevelKeys:
+            data && typeof data === 'object' ? Object.keys(data as Record<string, unknown>) : [],
+          hasDObject: Boolean(data?.d && typeof data.d === 'object'),
+          nestedKeys:
+            data?.d && typeof data.d === 'object'
+              ? Object.keys(data.d as Record<string, unknown>)
+              : [],
+        });
+        return [];
+      }
+
+      let clientPeoplePickerData: any[] = [];
+      try {
+        const parsed = JSON.parse(pickerPayload);
+        clientPeoplePickerData = Array.isArray(parsed) ? parsed : [];
+      } catch (parseError) {
+        console.warn('[clientDataService.searchUsers] failed to parse People Picker payload', {
+          error: parseError instanceof Error ? parseError.message : String(parseError),
+          preview: pickerPayload.slice(0, 200),
+        });
+        return [];
+      }
 
       // Map user data to TeamMember format
       return clientPeoplePickerData.map((item: any) => {
