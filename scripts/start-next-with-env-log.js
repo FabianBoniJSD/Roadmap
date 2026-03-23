@@ -1,5 +1,22 @@
 /* eslint-disable no-console */
 
+function normalizeSharePointStrategy(raw, fallbackRaw) {
+  const normalize = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
+  const modern = new Set(['kerberos', 'fba', 'basic', 'delegated']);
+  const delegatedAliases = new Set(['delegate', 'kcd', 'userdelegation']);
+  const legacyKerberosAliases = new Set(['onprem', 'ntlm', 'online']);
+  const value = normalize(raw);
+  const fallback = normalize(fallbackRaw);
+
+  if (modern.has(value)) return value;
+  if (delegatedAliases.has(value)) return 'delegated';
+  if (modern.has(fallback)) return fallback;
+  if (delegatedAliases.has(fallback)) return 'delegated';
+  if (legacyKerberosAliases.has(value) || legacyKerberosAliases.has(fallback)) return 'kerberos';
+
+  return 'kerberos';
+}
+
 function maskSecret(value) {
   if (!value) return '<not set>';
   if (value.length <= 4) return '****';
@@ -21,6 +38,7 @@ function logStartupEnvironment() {
   logValue('NODE_ENV', process.env.NODE_ENV);
   logValue('NEXT_PUBLIC_DEPLOYMENT_ENV', process.env.NEXT_PUBLIC_DEPLOYMENT_ENV);
   logValue('SP_STRATEGY', process.env.SP_STRATEGY);
+  logValue('SP_STRATEGY_NORMALIZED', normalizeSharePointStrategy(process.env.SP_STRATEGY));
   logValue('SP_KERBEROS_SERVICE_USER', process.env.SP_KERBEROS_SERVICE_USER);
   logValue('SP_KERBEROS_SERVICE_PASSWORD', process.env.SP_KERBEROS_SERVICE_PASSWORD, {
     mask: true,

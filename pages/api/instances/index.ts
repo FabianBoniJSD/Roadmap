@@ -6,6 +6,7 @@ import {
   mapInstanceRecord,
   toInstanceSummary,
 } from '@/utils/instanceConfig';
+import { normalizeSharePointStrategy } from '@/utils/sharePointStrategy';
 import { buildSettingsPayload, normalizeHosts, sanitizeSlug, serializeSettings } from './helpers';
 import { provisionSharePointForInstance } from '@/utils/sharePointProvisioning';
 import type { RoadmapInstanceHealth } from '@/types/roadmapInstance';
@@ -66,9 +67,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!sharePoint.siteUrlDev || typeof sharePoint.siteUrlDev !== 'string') {
       return res.status(400).json({ error: 'sharePoint.siteUrlDev is required' });
     }
-    const forcedStrategy = String(process.env.SP_STRATEGY || 'kerberos')
-      .trim()
-      .toLowerCase();
+    const forcedStrategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
     const forcedUsername =
       process.env.SP_KERBEROS_SERVICE_USER ||
       process.env.SP_USERNAME ||

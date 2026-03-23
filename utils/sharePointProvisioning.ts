@@ -5,6 +5,7 @@ import type {
   RoadmapInstanceHealthStatus,
 } from '@/types/roadmapInstance';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
+import { normalizeSharePointStrategy } from '@/utils/sharePointStrategy';
 import type { SharePointFieldDefinition, SharePointListDefinition } from '@/utils/sharePointLists';
 import { SHAREPOINT_LIST_DEFINITIONS, encodeSharePointValue } from '@/utils/sharePointLists';
 
@@ -751,7 +752,9 @@ export async function provisionSharePointForInstance(
   };
 
   const siteUrl = resolveSharePointSiteUrl(instance);
-  const strategy = instance?.sharePoint?.strategy || process.env.SP_STRATEGY || 'kerberos';
+  const strategy = normalizeSharePointStrategy(
+    instance?.sharePoint?.strategy || process.env.SP_STRATEGY || 'kerberos'
+  );
 
   await clientDataService.withInstance(instance.slug, async () => {
     try {

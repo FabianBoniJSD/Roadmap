@@ -2,6 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import { getSharePointAuthHeaders, SharePointAuthContext } from '@/utils/spAuth';
+import { normalizeSharePointStrategy } from '@/utils/sharePointStrategy';
 import { getInstanceConfigFromRequest, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 import { sharePointHttpsAgent, sharePointDispatcher } from '@/utils/httpsAgent';
@@ -331,7 +332,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   applyNoCacheHeaders(res);
 
   try {
-    const strategy = String(process.env.SP_STRATEGY || 'kerberos').toLowerCase();
+    const strategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
     const useCurlKerberos = strategy === 'kerberos';
     const delegatedUserCandidates = [
       req.headers['x-remote-user'],

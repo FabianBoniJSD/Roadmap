@@ -6,6 +6,7 @@ import { Buffer } from 'buffer';
 
 import { fbaLogin } from './fbaAuth';
 import { resolveSharePointSiteUrl } from './sharepointEnv';
+import { normalizeSharePointStrategy } from './sharePointStrategy';
 import { getPrimaryCredentials } from './userCredentials';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
@@ -67,8 +68,7 @@ export async function getSharePointAuthHeaders(
   applyTlsSettings();
 
   const siteUrl = resolveSharePointSiteUrl(inst || undefined);
-  const strategyRaw = process.env.SP_STRATEGY || 'kerberos';
-  const strategy = String(strategyRaw).trim().toLowerCase();
+  const strategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
 
   if (strategy === 'kerberos') {
     return { headers: { Accept: 'application/json;odata=nometadata' } };

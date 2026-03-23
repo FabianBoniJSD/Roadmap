@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { requireSuperAdminAccess } from '@/utils/superAdminAccessServer';
+import { normalizeSharePointStrategy } from '@/utils/sharePointStrategy';
 import {
   mapInstanceRecord,
   toInstanceSummary,
@@ -79,9 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const sharePoint = req.body?.sharePoint || {};
     const data: Record<string, unknown> = {};
-    const forcedStrategy = String(process.env.SP_STRATEGY || 'kerberos')
-      .trim()
-      .toLowerCase();
+    const forcedStrategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
     const forcedUsername =
       process.env.SP_KERBEROS_SERVICE_USER ||
       process.env.SP_USERNAME ||
