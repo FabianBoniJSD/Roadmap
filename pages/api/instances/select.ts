@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getInstanceConfigBySlug, setInstanceCookieHeader } from '@/utils/instanceConfig';
-import { requireAdminSession } from '@/utils/apiAuth';
+import { extractAdminSession } from '@/utils/apiAuth';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { sanitizeSlug } from './helpers';
 
@@ -10,11 +10,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  let session;
-  try {
-    session = requireAdminSession(req);
-  } catch {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const session = extractAdminSession(req);
+  if (!session || session.isAdmin !== true) {
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   const slugRaw = req.method === 'GET' ? req.query?.slug : req.body?.slug;

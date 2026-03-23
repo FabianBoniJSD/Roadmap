@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { requireAdminSession } from '@/utils/apiAuth';
+import { extractAdminSession } from '@/utils/apiAuth';
 import { getInstanceSlugsFromPrincipal, isSuperAdminPrincipal } from '@/utils/instanceAccess';
 import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
@@ -142,11 +142,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const details = String(req.query.details || '').toLowerCase() === 'landing';
-    let session;
-    try {
-      session = requireAdminSession(req);
-    } catch {
-      return res.status(401).json({ error: 'Unauthorized' });
+    const session = extractAdminSession(req);
+    if (!session || session.isAdmin !== true) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
     const username =

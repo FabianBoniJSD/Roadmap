@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ isAdmin: false, error: 'No token provided' });
+      return res.status(403).json({ isAdmin: false, error: 'No token provided' });
     }
 
     const token = authHeader.substring(7);
@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } else {
         console.error('[check-admin-session] JWT verification failed:', errorMessage);
       }
-      return res.status(401).json({
+      return res.status(403).json({
         isAdmin: false,
         error: 'Invalid or expired token',
       });
