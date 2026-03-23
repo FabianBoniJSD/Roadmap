@@ -156,6 +156,11 @@ jobs:
             exit 1
           fi
 
+          if [ -f .env ]; then
+            echo "Removing existing .env before regeneration..."
+            rm -f .env
+          fi
+
           echo "Writing .env file to workspace root..."
           printf "%s" "$ENV_FILE_CONTENT" > .env
 
@@ -199,22 +204,55 @@ jobs:
 
           # Keep auth env names compatible after delegated mode removal.
           # Runtime kerberos proxy reads SP_KERBEROS_SERVICE_* directly.
+          serviceUserSource="missing"
+          servicePassSource="missing"
+          legacyUserSource="missing"
+          legacyPassSource="missing"
+
           serviceUser="${SP_KERBEROS_SERVICE_USER:-$(read_env_value SP_KERBEROS_SERVICE_USER || true)}"
           servicePass="${SP_KERBEROS_SERVICE_PASSWORD:-$(read_env_value SP_KERBEROS_SERVICE_PASSWORD || true)}"
           legacyUser="${SP_USERNAME:-$(read_env_value SP_USERNAME || true)}"
           legacyPass="${SP_PASSWORD:-$(read_env_value SP_PASSWORD || true)}"
 
+          if [ -n "${SP_KERBEROS_SERVICE_USER:-}" ]; then
+            serviceUserSource="github-secret:SP_KERBEROS_SERVICE_USER"
+          elif [ -n "$serviceUser" ]; then
+            serviceUserSource="base-env:SP_KERBEROS_SERVICE_USER"
+          fi
+
+          if [ -n "${SP_KERBEROS_SERVICE_PASSWORD:-}" ]; then
+            servicePassSource="github-secret:SP_KERBEROS_SERVICE_PASSWORD"
+          elif [ -n "$servicePass" ]; then
+            servicePassSource="base-env:SP_KERBEROS_SERVICE_PASSWORD"
+          fi
+
+          if [ -n "${SP_USERNAME:-}" ]; then
+            legacyUserSource="github-secret:SP_USERNAME"
+          elif [ -n "$legacyUser" ]; then
+            legacyUserSource="base-env:SP_USERNAME"
+          fi
+
+          if [ -n "${SP_PASSWORD:-}" ]; then
+            legacyPassSource="github-secret:SP_PASSWORD"
+          elif [ -n "$legacyPass" ]; then
+            legacyPassSource="base-env:SP_PASSWORD"
+          fi
+
           if [ -z "$serviceUser" ] && [ -n "$legacyUser" ]; then
             serviceUser="$legacyUser"
+            serviceUserSource="fallback:${legacyUserSource}"
           fi
           if [ -z "$servicePass" ] && [ -n "$legacyPass" ]; then
             servicePass="$legacyPass"
+            servicePassSource="fallback:${legacyPassSource}"
           fi
           if [ -z "$legacyUser" ] && [ -n "$serviceUser" ]; then
             legacyUser="$serviceUser"
+            legacyUserSource="fallback:${serviceUserSource}"
           fi
           if [ -z "$legacyPass" ] && [ -n "$servicePass" ]; then
             legacyPass="$servicePass"
+            legacyPassSource="fallback:${servicePassSource}"
           fi
 
           printf "\n# SharePoint auth compatibility injected from GH Actions\n" >> .env
@@ -234,12 +272,25 @@ jobs:
           # Diagnostic (safe): show the effective redirect URI and auth mode that ended up in the file.
           effectiveRedirect="$(grep -E '^ENTRA_REDIRECT_URI=' .env | tail -n 1 || true)"
           effectiveStrategy="$(grep -E '^SP_STRATEGY=' .env | tail -n 1 || true)"
+          effectiveServiceUser="$(grep -E '^SP_KERBEROS_SERVICE_USER=' .env | tail -n 1 || true)"
+          effectiveLegacyUser="$(grep -E '^SP_USERNAME=' .env | tail -n 1 || true)"
+          envFingerprint="$(sha256sum .env | awk '{print $1}' | cut -c1-16)"
+          envMtime="$(stat -c '%y' .env 2>/dev/null || ls -l --time-style=full-iso .env | awk '{print $6" "$7}')"
+
+          echo "Generated .env fingerprint: ${envFingerprint:-<unavailable>}"
+          echo "Generated .env modified at: ${envMtime:-<unavailable>}"
           echo "Effective ENTRA_REDIRECT_URI in generated .env: ${effectiveRedirect:-<not set>}"
           echo "Effective SP_STRATEGY in generated .env: ${effectiveStrategy:-<not set>}"
+          echo "Effective SP_KERBEROS_SERVICE_USER in generated .env: ${effectiveServiceUser:-<not set>}"
+          echo "Effective SP_USERNAME in generated .env: ${effectiveLegacyUser:-<not set>}"
+          echo "SP_KERBEROS_SERVICE_USER source: ${serviceUserSource}"
+          echo "SP_KERBEROS_SERVICE_PASSWORD source: ${servicePassSource}"
+          echo "SP_USERNAME source: ${legacyUserSource}"
+          echo "SP_PASSWORD source: ${legacyPassSource}"
           if grep -q -E '^SP_KERBEROS_SERVICE_USER=' .env; then
-            echo "Effective SP_KERBEROS_SERVICE_USER in generated .env: <set>"
+            echo "Effective SP_KERBEROS_SERVICE_PASSWORD in generated .env: <set>"
           else
-            echo "Effective SP_KERBEROS_SERVICE_USER in generated .env: <not set>"
+            echo "Effective SP_KERBEROS_SERVICE_PASSWORD in generated .env: <not set>"
           fi
 
       - name: Setup Node.js
