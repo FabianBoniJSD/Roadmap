@@ -19,8 +19,8 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
-      # Optional alternate PM2 owner. Leave empty to use the self-hosted runner user.
-      PM2_RUN_AS_USER: ${{ vars.PM2_RUN_AS_USER }}
+      # Deployment must control the root-owned PM2 daemon so the app does not run under a stale user session.
+      PM2_RUN_AS_USER: root
 
     steps:
       - name: Check runner permissions
@@ -467,14 +467,22 @@ jobs:
           fi
 
           pm2User="$requestedPm2User"
-          if [ -n "$pm2User" ] && [ "$pm2User" != "$currentUser" ] && [ "$(id -u)" -ne 0 ] && [ "$canSudo" -ne 1 ]; then
-            echo "[WARN] PM2_RUN_AS_USER=$pm2User requested, but passwordless sudo is unavailable."
-            echo "[WARN] Falling back to current runner user: $currentUser"
-            pm2User=""
+          if [ -z "$pm2User" ]; then
+            echo "[FAIL] PM2_RUN_AS_USER must be set for deployment." >&2
+            exit 1
           fi
 
-          if [ -z "$pm2User" ] || [ "$pm2User" = "$currentUser" ]; then
-            pm2User=""
+          if [ "$pm2User" = "root" ] && [ "$(id -u)" -ne 0 ] && [ "$canSudo" -ne 1 ]; then
+            echo "[FAIL] Root PM2 management requires either a root runner or passwordless sudo." >&2
+            exit 1
+          fi
+
+          if [ -n "$pm2User" ] && [ "$pm2User" != "$currentUser" ] && [ "$(id -u)" -ne 0 ] && [ "$canSudo" -ne 1 ]; then
+            echo "[FAIL] PM2_RUN_AS_USER=$pm2User requires passwordless sudo on this runner." >&2
+            exit 1
+          fi
+
+          if [ "$pm2User" = "$currentUser" ]; then
             pm2Home="${HOME:-${GITHUB_WORKSPACE:-$(pwd)}}/.pm2"
           elif [ "$pm2User" = "root" ]; then
             pm2Home="/root/.pm2"
@@ -532,6 +540,13 @@ jobs:
 
           appName="roadmap-app"
 
+          describe_port_3000() {
+            echo "Port 3000 listeners (lsof):"
+            lsof -nP -iTCP:3000 -sTCP:LISTEN || true
+            echo "Port 3000 listeners (ss):"
+            ss -ltnp 2>/dev/null | grep ':3000' || true
+          }
+
           echo "=== STOPPING ONLY: $appName ==="
           if pm2cmd describe "$appName" >/dev/null 2>&1; then
             pm2cmd stop "$appName" || true
@@ -544,12 +559,11 @@ jobs:
           # If something else is listening on 3000, fail fast rather than killing unrelated services.
           if ss -ltnp 2>/dev/null | grep -q ':3000'; then
             echo "[FAIL] Port 3000 is still in use after stopping '$appName'." >&2
-            ss -ltnp 2>/dev/null | grep ':3000' || true
+            describe_port_3000
             exit 1
           fi
 
           echo "=== APP STOP COMPLETE ==="
-        continue-on-error: true
 
       - name: Verify PM2 environment
         run: |
@@ -691,6 +705,21 @@ jobs:
             pm2cmd jlist 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const arr=JSON.parse(s);const app=arr.find(x=>x && x.name==='roadmap-app');process.stdout.write((app && app.pm2_env && app.pm2_env.status) ? String(app.pm2_env.status) : '');}catch(_){process.stdout.write('');}})"
           }
 
+          get_pm2_pid() {
+            pm2cmd jlist 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const arr=JSON.parse(s);const app=arr.find(x=>x && x.name==='roadmap-app');const pid=(app && typeof app.pid !== 'undefined') ? app.pid : '';process.stdout.write(String(pid || ''));}catch(_){process.stdout.write('');}})"
+          }
+
+          get_listener_pid() {
+            lsof -tiTCP:3000 -sTCP:LISTEN 2>/dev/null | head -n 1 || true
+          }
+
+          describe_port_3000() {
+            echo "Port 3000 listeners (lsof):"
+            lsof -nP -iTCP:3000 -sTCP:LISTEN || true
+            echo "Port 3000 listeners (ss):"
+            ss -ltnp 2>/dev/null | grep ':3000' || true
+          }
+
           check_http_ready() {
             local path
             for path in "$@"; do
@@ -739,19 +768,26 @@ jobs:
           while [ "$attempt" -lt "$maxAttempts" ] && [ "$isOnline" != "true" ]; do
             attempt=$((attempt + 1))
             status="$(get_pm2_status)"
-            echo "Health check attempt $attempt/$maxAttempts (pm2 status: ${status:-unknown})"
-
-            if [ "$status" = "online" ]; then
-              isOnline=true
-              echo "[OK] App is online under PM2."
-              break
-            fi
+            pm2Pid="$(get_pm2_pid)"
+            listenerPid="$(get_listener_pid)"
+            echo "Health check attempt $attempt/$maxAttempts (pm2 status: ${status:-unknown}, pm2 pid: ${pm2Pid:-<none>}, listener pid: ${listenerPid:-<none>})"
 
             if ss -ltn 2>/dev/null | grep -q ':3000'; then
               if check_http_ready "${candidatePaths[@]}"; then
-                isOnline=true
-                echo "[OK] App is reachable on port 3000 even if PM2 status is delayed."
-                break
+                if [ "$status" = "online" ]; then
+                  isOnline=true
+                  echo "[OK] App is online under PM2 and reachable on port 3000."
+                  break
+                fi
+
+                if [ -n "$pm2Pid" ] && [ "$pm2Pid" != "0" ] && [ -n "$listenerPid" ] && [ "$listenerPid" = "$pm2Pid" ]; then
+                  isOnline=true
+                  echo "[OK] App is reachable on port 3000 and the listener matches the PM2 process PID."
+                  break
+                fi
+
+                echo "[WARN] HTTP on port 3000 is reachable, but it does not belong to the newly started PM2 process yet."
+                describe_port_3000
               fi
             fi
 
@@ -775,7 +811,7 @@ jobs:
             echo -e "\nRecent logs:"
             pm2cmd logs roadmap-app --lines 200 --nostream || true
             echo -e "\nPort check:"
-            ss -ltnp 2>/dev/null | grep ':3000' || true
+            describe_port_3000
             exit 1
           fi
 
