@@ -1,5 +1,19 @@
 /* eslint-disable no-console */
 
+async function loadNextEnvironment() {
+  try {
+    const [{ resolve }, { loadEnvConfig }] = await Promise.all([
+      import('node:path'),
+      import('@next/env'),
+    ]);
+    const projectDir = resolve(__dirname, '..');
+    loadEnvConfig(projectDir, process.env.NODE_ENV !== 'production');
+    console.log(`[startup env] Loaded Next env files from ${projectDir}`);
+  } catch (error) {
+    console.warn('[startup env] Failed to preload Next env files', error);
+  }
+}
+
 function normalizeSharePointStrategy(raw, fallbackRaw) {
   const normalize = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
   const modern = new Set(['kerberos', 'fba', 'basic', 'delegated']);
@@ -48,9 +62,16 @@ function logStartupEnvironment() {
   console.log('[startup env] ===============================================');
 }
 
-logStartupEnvironment();
+async function main() {
+  await loadNextEnvironment();
+  logStartupEnvironment();
 
-void import('next/dist/bin/next').catch((error) => {
-  console.error('[startup env] Failed to start Next.js', error);
-  process.exit(1);
-});
+  try {
+    await import('next/dist/bin/next');
+  } catch (error) {
+    console.error('[startup env] Failed to start Next.js', error);
+    process.exit(1);
+  }
+}
+
+void main();
