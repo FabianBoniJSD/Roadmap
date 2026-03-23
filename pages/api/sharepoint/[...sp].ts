@@ -445,48 +445,146 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
         // Prepare common args
-        const curlArgs: string[] = [
-          '-sS',
-          '--negotiate',
-          '--user',
-          cred,
-          '--noproxy',
-          '*',
-          '-X',
-          method,
-          '-H',
-          `Accept: ${clientAccept}`,
-        ];
-        if (allowSelfSigned) curlArgs.unshift('-k');
-        if (process.env.SP_CURL_VERBOSE === 'true') curlArgs.unshift('-v');
+        const ntlmFallbackEnabled = process.env.SP_CURL_NTLM_FALLBACK !== 'false';
+        const canUseNtlmFallback =
+          ntlmFallbackEnabled && serviceUser && servicePass && !allowCurlFallbackToFetch;
+        const makeCurlArgs = (authScheme: CurlAuthScheme, targetMethod: string) => {
+          const args: string[] = [
+            '-sS',
+            authScheme === 'ntlm' ? '--ntlm' : '--negotiate',
+            '--user',
+            cred,
+            '--noproxy',
+            '*',
+            '-X',
+            targetMethod,
+            '-w',
+            '\n__SP_HTTP_STATUS__:%{http_code}',
+            '-H',
+            `Accept: ${clientAccept}`,
+          ];
+          if (allowSelfSigned) args.unshift('-k');
+          else if (caPath) args.unshift('--cacert', caPath);
+          if (process.env.SP_CURL_VERBOSE === 'true') args.unshift('-v');
+          return args;
+        };
+        const extractCurlStatusAndBody = (
+          rawOutput: string
+        ): { statusCode: number; payloadText: string } => {
+          const marker = '\n__SP_HTTP_STATUS__:';
+          const idx = rawOutput.lastIndexOf(marker);
+          if (idx < 0) return { statusCode: 0, payloadText: rawOutput };
+          const payloadText = rawOutput.slice(0, idx);
+          const codeRaw = rawOutput.slice(idx + marker.length).trim();
+          const parsedCode = Number.parseInt(codeRaw, 10);
+          return {
+            statusCode: Number.isFinite(parsedCode) ? parsedCode : 0,
+            payloadText,
+          };
+        };
+        const parseWritePayload = (rawOutput: string): any => {
+          const trimmed = String(rawOutput || '')
+            .replace(/^\uFEFF/, '')
+            .trimStart();
+          try {
+            return JSON.parse(trimmed);
+          } catch {
+            return rawOutput;
+          }
+        };
+        const summarizePayload = (payload: any): string => {
+          if (typeof payload === 'string') return payload.trim().substring(0, 160);
+          try {
+            return JSON.stringify(payload).substring(0, 160);
+          } catch {
+            return '<no-body>';
+          }
+        };
+        const detectWriteAuthFailure = (
+          payload: any,
+          statusCode: number
+        ): { status: number; snippet: string } | null => {
+          if (statusCode >= 400) {
+            return {
+              status: statusCode,
+              snippet: summarizePayload(payload) || `http ${statusCode}`,
+            };
+          }
+          if (typeof payload === 'string') {
+            const trimmed = payload.trim();
+            if (/<html/i.test(trimmed) && /401/i.test(trimmed)) {
+              return { status: 401, snippet: trimmed.substring(0, 160) };
+            }
+            if (/^401\s+unauthorized$/i.test(trimmed)) {
+              return { status: 401, snippet: trimmed.substring(0, 160) };
+            }
+            if (/^403\s+forbidden$/i.test(trimmed)) {
+              return { status: 403, snippet: trimmed.substring(0, 160) };
+            }
+          }
+          if (payload && typeof payload === 'object') {
+            const msg =
+              payload?.error?.message?.value ||
+              payload?.['odata.error']?.message?.value ||
+              payload?.error_description ||
+              payload?.error?.message ||
+              payload?.error;
+            const msgText = typeof msg === 'string' ? msg : '';
+            if (/access denied|forbidden/i.test(msgText)) {
+              return { status: 403, snippet: summarizePayload(payload) };
+            }
+            if (/unauthori|not authorized|authentication/i.test(msgText)) {
+              return { status: 401, snippet: summarizePayload(payload) };
+            }
+          }
+          return null;
+        };
+        const runWriteCurl = async (
+          authScheme: CurlAuthScheme,
+          args: string[],
+          input?: Buffer | string
+        ) => {
+          const output = await runCurl(args, {
+            timeout: 20000,
+            input,
+          });
+          const status = extractCurlStatusAndBody(output.stdout);
+          const payload = parseWritePayload(status.payloadText);
+          return {
+            authScheme,
+            output,
+            status,
+            payload,
+            authFailure: detectWriteAuthFailure(payload, status.statusCode),
+          };
+        };
 
         // If not contextinfo, fetch a FormDigest via curl first
         let formDigest: string | null = null;
         if (!isContextInfo) {
-          const ciArgs = ['-sS', '--negotiate', '--user', cred, '--noproxy', '*', '-X', 'POST'];
-          if (allowSelfSigned) ciArgs.unshift('-k');
-          else if (caPath) ciArgs.unshift('--cacert', caPath);
-          if (process.env.SP_CURL_VERBOSE === 'true') ciArgs.unshift('-v');
-          ciArgs.push('-H', 'Accept: application/json;odata=nometadata');
-          ciArgs.push(targetUrl.replace(fullPath, '') + '/_api/contextinfo');
-          // contextinfo accepts empty body
-          ciArgs.push('-H', 'Content-Length: 0');
+          const buildContextInfoArgs = (authScheme: CurlAuthScheme) => {
+            const ciArgs = makeCurlArgs(authScheme, 'POST');
+            ciArgs.push('-H', 'Accept: application/json;odata=nometadata');
+            ciArgs.push(targetUrl.replace(fullPath, '') + '/_api/contextinfo');
+            ciArgs.push('-H', 'Content-Length: 0');
+            return ciArgs;
+          };
           try {
-            const ciOut: { stdout: string; stderr: string } = await new Promise(
-              (resolveExec, rejectExec) => {
-                execFile(
-                  'curl',
-                  ciArgs,
-                  { timeout: 15000 },
-                  (err: any, stdout: string, stderr: string) => {
-                    if (err) return rejectExec(Object.assign(err, { stderr }));
-                    resolveExec({ stdout, stderr });
-                  }
-                );
+            let ciAttempt = await runWriteCurl('negotiate', buildContextInfoArgs('negotiate'));
+            if (ciAttempt.authFailure?.status === 401 && canUseNtlmFallback) {
+              if (process.env.SP_PROXY_DEBUG === 'true') {
+                console.warn('[sharepoint proxy] contextinfo negotiate 401; trying NTLM fallback', {
+                  instance: instance.slug,
+                  targetUrl,
+                });
               }
-            );
+              ciAttempt = await runWriteCurl('ntlm', buildContextInfoArgs('ntlm'));
+              if (!ciAttempt.authFailure) {
+                res.setHeader('x-sp-curl-auth', 'ntlm-fallback');
+              }
+            }
             try {
-              const j = JSON.parse(ciOut.stdout);
+              const j = JSON.parse(ciAttempt.status.payloadText);
               formDigest = j.FormDigestValue || null;
             } catch {
               formDigest = null;
@@ -550,23 +648,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        if (process.env.SP_ALLOW_SELF_SIGNED === 'true') curlArgs.unshift('-k');
-        else if (caPath) curlArgs.unshift('--cacert', caPath);
-        const writeArgs = [...curlArgs, ...hdrs, ...dataArgs, targetUrl];
+        const buildWriteArgs = (authScheme: CurlAuthScheme) => [
+          ...makeCurlArgs(authScheme, method),
+          ...hdrs,
+          ...dataArgs,
+          targetUrl,
+        ];
         try {
-          const output = await runCurl(writeArgs, {
-            timeout: 20000,
-            input: bodyBuffer ?? undefined,
-          });
-          let parsed: any = output.stdout;
-          try {
-            const trimmed = String(output.stdout || '')
-              .replace(/^\uFEFF/, '')
-              .trimStart();
-            parsed = JSON.parse(trimmed);
-          } catch {
-            /* ignore */
+          let writeAttempt = await runWriteCurl(
+            'negotiate',
+            buildWriteArgs('negotiate'),
+            bodyBuffer ?? bodyString ?? undefined
+          );
+          if (writeAttempt.authFailure?.status === 401 && canUseNtlmFallback) {
+            if (process.env.SP_PROXY_DEBUG === 'true') {
+              console.warn('[sharepoint proxy] write negotiate 401; trying NTLM fallback', {
+                instance: instance.slug,
+                targetUrl,
+                method,
+              });
+            }
+            writeAttempt = await runWriteCurl(
+              'ntlm',
+              buildWriteArgs('ntlm'),
+              bodyBuffer ?? bodyString ?? undefined
+            );
+            if (!writeAttempt.authFailure) {
+              res.setHeader('x-sp-curl-auth', 'ntlm-fallback');
+              if (process.env.SP_PROXY_DEBUG === 'true') {
+                console.warn('[sharepoint proxy] write NTLM fallback succeeded', {
+                  instance: instance.slug,
+                  targetUrl,
+                  method,
+                });
+              }
+            }
           }
+
+          if (writeAttempt.authFailure) {
+            return res.status(writeAttempt.authFailure.status).json({
+              error:
+                writeAttempt.authFailure.status === 403
+                  ? 'Forbidden (curl)'
+                  : 'Unauthorized (curl)',
+              snippet: writeAttempt.authFailure.snippet,
+              instance: instance.slug,
+              targetUrl,
+              method,
+              ntlmEligible: Boolean(canUseNtlmFallback),
+              ntlmEnabled: ntlmFallbackEnabled,
+            });
+          }
+
+          const parsed = writeAttempt.payload;
           res.setHeader('x-sp-proxy-mode', 'curl');
           invalidateCurlCache();
           return res.status(200).json(parsed);
