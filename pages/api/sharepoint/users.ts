@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { requireAdminSession } from '@/utils/apiAuth';
+import { extractAdminSession } from '@/utils/apiAuth';
 import { clientDataService } from '@/utils/clientDataService';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
@@ -65,11 +65,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ users: [] });
   }
 
-  let session;
-  try {
-    session = requireAdminSession(req);
-  } catch {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const session = extractAdminSession(req);
+  if (!session || session.isAdmin !== true) {
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   let instance: RoadmapInstanceConfig | null = null;

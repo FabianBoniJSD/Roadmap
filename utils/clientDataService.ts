@@ -2,6 +2,7 @@
 import type { AsyncLocalStorage } from 'async_hooks';
 import { AppSettings, Category, Project, ProjectLink, TeamMember } from '@/types';
 import { SHAREPOINT_LIST_DEFINITIONS } from '@/utils/sharePointLists';
+import { buildInstanceAwareUrl, getAdminSessionToken } from '@/utils/auth';
 import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { prefixBasePath } from '@/utils/nextBasePath';
 
@@ -3715,8 +3716,36 @@ class ClientDataService {
 
   async searchUsers(query: string): Promise<TeamMember[]> {
     try {
-      if (!query || query.trim().length < 2) {
+      const trimmedQuery = query.trim();
+      if (!trimmedQuery || trimmedQuery.length < 2) {
         return [];
+      }
+
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams({ query: trimmedQuery });
+        const token = getAdminSessionToken();
+        if (!token) {
+          return [];
+        }
+        const response = await fetch(buildInstanceAwareUrl(`/api/sharepoint/users?${params}`), {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+        });
+
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(payload?.error || `Failed to search users: ${response.statusText}`);
+        }
+
+        const users = Array.isArray(payload?.users) ? payload.users : [];
+        return users.map((item: any) => ({
+          id: item.loginName || item.email || item.value || `user-${Date.now()}`,
+          name: item.displayName || item.label || '',
+          role: 'Teammitglied',
+          email: item.email || '',
+          userIdentifier: item.loginName || item.value || '',
+          imageUrl: null,
+        }));
       }
 
       const webUrl = this.getWebUrl();
@@ -3736,7 +3765,7 @@ class ClientDataService {
           MaximumEntitySuggestions: 20,
           PrincipalSource: 15, // All sources (15)
           PrincipalType: 1, // User (1)
-          QueryString: query,
+          QueryString: trimmedQuery,
         },
       };
 
