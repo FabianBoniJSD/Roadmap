@@ -101,8 +101,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const users = await clientDataService.withRequestHeaders(requestHeaders, () =>
-      clientDataService.withInstance(instance.slug, () => clientDataService.searchUsers(query))
+    const users = await clientDataService.withInstance(instance.slug, () =>
+      clientDataService.searchUsers(query)
     );
 
     return res.status(200).json({
