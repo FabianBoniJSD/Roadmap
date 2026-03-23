@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JSDoITLoader from '@/components/JSDoITLoader';
+import { getAdminSessionToken } from '@/utils/auth';
 
 export type SharePointUserOption = {
   key: string;
@@ -60,9 +61,12 @@ const SharePointUserPicker: React.FC<SharePointUserPickerProps> = ({
         setError(null);
         const params = new URLSearchParams({ query: query.trim() });
         if (instanceSlug) params.set('roadmapInstance', instanceSlug);
+        const token = getAdminSessionToken();
         const resp = await fetch(`/api/sharepoint/users?${params.toString()}`, {
           credentials: 'same-origin',
-          headers: { Accept: 'application/json' },
+          headers: token
+            ? { Accept: 'application/json', Authorization: `Bearer ${token}` }
+            : { Accept: 'application/json' },
         });
         const payload = await resp.json().catch(() => null);
         if (!resp.ok) {
