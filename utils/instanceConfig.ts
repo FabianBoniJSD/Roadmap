@@ -411,11 +411,7 @@ const applyHealthIgnores = (
 };
 
 export function maskSharePointSecrets(settings: RoadmapInstanceSharePointSettings) {
-  return {
-    ...settings,
-    username: settings.username ? '***' : undefined,
-    password: settings.password ? '***' : undefined,
-  };
+  return { ...settings };
 }
 
 export function setInstanceCookieHeader(slug: string): string {
