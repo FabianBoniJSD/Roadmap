@@ -275,14 +275,8 @@ const AdminLogin: React.FC = () => {
               </p>
               {entraStatus.enabled && (
                 <p>
-                  Alternativ ist Microsoft SSO verfügbar. Admin-Zugriff wird über ENTRA_ADMIN_UPNS
-                  (oder ENTRA_ALLOW_ALL) gesteuert.
-                </p>
-              )}
-              {entraStatus.enabled && !entraStatus.allowlistConfigured && (
-                <p className="text-amber-200">
-                  Hinweis: Microsoft SSO ist aktiviert, aber es ist keine Allowlist gesetzt. Setze
-                  ENTRA_ADMIN_UPNS (oder ENTRA_ALLOW_ALL=true) in der Umgebung.
+                  Alternativ ist Microsoft SSO verfügbar. Standardmäßig können sich alle erfolgreich
+                  per Entra authentifizierten Benutzer anmelden.
                 </p>
               )}
             </div>

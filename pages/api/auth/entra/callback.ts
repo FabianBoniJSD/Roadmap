@@ -4,7 +4,6 @@ import {
   exchangeCodeForTokens,
   fetchGraphMe,
   fetchGraphMyGroupDisplayNames,
-  isUserAllowedByUpnAllowlist,
 } from '@roadmap/entra-sso/core';
 import {
   buildSetCookie,
@@ -13,6 +12,7 @@ import {
   shouldUseSecureCookies,
   type EntraRedirectEnv,
 } from '@roadmap/entra-sso/next';
+import { isEntraUserAllowed } from '@/utils/entraSso';
 
 function entraSsoEnabled(): boolean {
   return Boolean(
@@ -214,16 +214,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    const allowAll = String(process.env.ENTRA_ALLOW_ALL || '').toLowerCase() === 'true';
-    const allowed = isUserAllowedByUpnAllowlist({
-      profile: me,
-      allowAll,
-      allowedUpnsCsv: process.env.ENTRA_ADMIN_UPNS,
-    });
+    const allowed = isEntraUserAllowed(me);
 
     if (!allowed) {
       throw new Error(
-        'Nicht berechtigt. Setze ENTRA_ADMIN_UPNS (oder ENTRA_ALLOW_ALL=true) für Admin-Zugriff.'
+        'Nicht berechtigt. Der Entra-Benutzer konnte nicht eindeutig bestimmt werden.'
       );
     }
 

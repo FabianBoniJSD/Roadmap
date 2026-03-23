@@ -25,9 +25,6 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     redirectUriOverride: override || null,
     redirectUriOverrideValid: overrideValid,
     computedRedirectUri: getEntraRedirectUri({ req, env: process.env as EntraRedirectEnv }),
-    allowlistConfigured: Boolean(
-      (process.env.ENTRA_ADMIN_UPNS && process.env.ENTRA_ADMIN_UPNS.trim()) ||
-      String(process.env.ENTRA_ALLOW_ALL || '').toLowerCase() === 'true'
-    ),
+    allowlistConfigured: true,
   });
 }

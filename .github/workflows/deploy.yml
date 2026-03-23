@@ -143,8 +143,6 @@ jobs:
           ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID }}
           ENTRA_CLIENT_SECRET: ${{ secrets.ENTRA_CLIENT_SECRET }}
           ENTRA_REDIRECT_URI: ${{ secrets.ENTRA_REDIRECT_URI }}
-          ENTRA_ADMIN_UPNS: ${{ secrets.ENTRA_ADMIN_UPNS }}
-          ENTRA_ALLOW_ALL: ${{ secrets.ENTRA_ALLOW_ALL }}
           PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
           SP_KERBEROS_SERVICE_USER: ${{ secrets.SP_KERBEROS_SERVICE_USER }}
           SP_KERBEROS_SERVICE_PASSWORD: ${{ secrets.SP_KERBEROS_SERVICE_PASSWORD }}
@@ -165,7 +163,7 @@ jobs:
           # Next.js/dotenv will take the last assignment, so duplicates can silently flip values.
           # We treat the explicitly injected secrets below as the source of truth.
           tmpEnvFile="$(mktemp)"
-          grep -v -E '^(ENTRA_[A-Z0-9_]+=|PUBLIC_PROJECTS_API_KEYS=|SP_STRATEGY=|# Microsoft Entra ID SSO injected from GitHub Actions secrets|# Public projects API keys injected from GH Actions)' .env > "$tmpEnvFile" || true
+          grep -v -E '^(ENTRA_[A-Z0-9_]+=|PUBLIC_PROJECTS_API_KEYS=|# Microsoft Entra ID SSO injected from GitHub Actions secrets|# Public projects API keys injected from GH Actions)' .env > "$tmpEnvFile" || true
           mv "$tmpEnvFile" .env
 
           entraLines="$(env | grep -E '^ENTRA_[A-Z0-9_]+=' || true)"
@@ -233,9 +231,11 @@ jobs:
             write_quoted_env_value "SP_PASSWORD" "$legacyPass"
           fi
 
-          # Diagnostic (safe): show the effective redirect URI that ended up in the file.
+          # Diagnostic (safe): show the effective redirect URI and auth mode that ended up in the file.
           effectiveRedirect="$(grep -E '^ENTRA_REDIRECT_URI=' .env | tail -n 1 || true)"
+          effectiveStrategy="$(grep -E '^SP_STRATEGY=' .env | tail -n 1 || true)"
           echo "Effective ENTRA_REDIRECT_URI in generated .env: ${effectiveRedirect:-<not set>}"
+          echo "Effective SP_STRATEGY in generated .env: ${effectiveStrategy:-<not set>}"
           if grep -q -E '^SP_KERBEROS_SERVICE_USER=' .env; then
             echo "Effective SP_KERBEROS_SERVICE_USER in generated .env: <set>"
           else

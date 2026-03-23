@@ -57,10 +57,5 @@ export function buildEntraAuthorizeUrl(args: {
 }
 
 export function isEntraUserAllowed(profile: EntraUserProfile): boolean {
-  const allowAll = String(process.env.ENTRA_ALLOW_ALL || '').toLowerCase() === 'true';
-  return isUserAllowedByUpnAllowlist({
-    profile,
-    allowAll,
-    allowedUpnsCsv: process.env.ENTRA_ADMIN_UPNS,
-  });
+  return Boolean(profile.id || profile.userPrincipalName || profile.mail);
 }
