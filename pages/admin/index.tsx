@@ -3,11 +3,18 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import JSDoITLoader from '@/components/JSDoITLoader';
+import SharePointUserPicker from '@/components/SharePointUserPicker';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import withAdminAuth from '@/components/withAdminAuth';
 import { AppSettings, Category, Project } from '@/types';
-import { getAdminSessionToken, getAdminUsername, hasValidAdminSession, logout } from '@/utils/auth';
+import {
+  getAdminSessionToken,
+  getAdminUsername,
+  getCurrentBrowserInstanceSlug,
+  hasValidAdminSession,
+  logout,
+} from '@/utils/auth';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { normalizeCategoryId, resolveCategoryName, UNCATEGORIZED_ID } from '@/utils/categoryUtils';
 
@@ -58,7 +65,12 @@ const AdminPage: React.FC = () => {
   const [editingSetting, setEditingSetting] = useState<AppSettings | null>(null);
   const [newSettingValue, setNewSettingValue] = useState('');
   const [adminUsername, setAdminUsername] = useState<string | null>(null);
+  const [instanceAdminUsers, setInstanceAdminUsers] = useState<string[]>([]);
+  const [instanceAdminLoading, setInstanceAdminLoading] = useState(false);
+  const [instanceAdminSaving, setInstanceAdminSaving] = useState(false);
+  const [instanceAdminError, setInstanceAdminError] = useState<string | null>(null);
   const fetchRequestIdRef = useRef(0);
+  const effectiveInstanceSlug = instanceSlug || getCurrentBrowserInstanceSlug() || '';
 
   const buildApiUrl = useCallback(
     (path: string) => {
@@ -165,6 +177,40 @@ const AdminPage: React.FC = () => {
   useEffect(() => {
     setAdminUsername(getAdminUsername());
   }, []);
+
+  const fetchInstanceAdmins = useCallback(async () => {
+    if (!effectiveInstanceSlug) {
+      setInstanceAdminUsers([]);
+      setInstanceAdminError(null);
+      return;
+    }
+    setInstanceAdminLoading(true);
+    setInstanceAdminError(null);
+    try {
+      const resp = await fetch(buildApiUrl('/api/instance-admin-users'), {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', ...getAuthHeaders() },
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(payload?.error || 'Instanz-Admins konnten nicht geladen werden.');
+      }
+      setInstanceAdminUsers(Array.isArray(payload?.users) ? payload.users : []);
+    } catch (fetchError) {
+      const message =
+        fetchError instanceof Error
+          ? fetchError.message
+          : 'Instanz-Admins konnten nicht geladen werden.';
+      setInstanceAdminError(message);
+      setInstanceAdminUsers([]);
+    } finally {
+      setInstanceAdminLoading(false);
+    }
+  }, [buildApiUrl, effectiveInstanceSlug]);
+
+  useEffect(() => {
+    void fetchInstanceAdmins();
+  }, [fetchInstanceAdmins]);
 
   useEffect(() => {
     if (!categories.length) return;
@@ -299,6 +345,65 @@ const AdminPage: React.FC = () => {
     logout();
   };
 
+  const addInstanceAdmin = async (username: string) => {
+    if (!username.trim()) return;
+    setInstanceAdminSaving(true);
+    setInstanceAdminError(null);
+    try {
+      const resp = await fetch(buildApiUrl('/api/instance-admin-users'), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ username }),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(payload?.error || 'Instanz-Admin konnte nicht gespeichert werden.');
+      }
+      setInstanceAdminUsers(Array.isArray(payload?.users) ? payload.users : []);
+    } catch (saveError) {
+      const message =
+        saveError instanceof Error
+          ? saveError.message
+          : 'Instanz-Admin konnte nicht gespeichert werden.';
+      setInstanceAdminError(message);
+    } finally {
+      setInstanceAdminSaving(false);
+    }
+  };
+
+  const removeInstanceAdmin = async (username: string) => {
+    if (!window.confirm(`Instanz-Admin "${username}" wirklich entfernen?`)) return;
+    setInstanceAdminSaving(true);
+    setInstanceAdminError(null);
+    try {
+      const resp = await fetch(
+        `${buildApiUrl('/api/instance-admin-users')}${buildApiUrl('/api/instance-admin-users').includes('?') ? '&' : '?'}username=${encodeURIComponent(username)}`,
+        {
+          method: 'DELETE',
+          credentials: 'same-origin',
+          headers: getAuthHeaders(),
+        }
+      );
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(payload?.error || 'Instanz-Admin konnte nicht entfernt werden.');
+      }
+      setInstanceAdminUsers(Array.isArray(payload?.users) ? payload.users : []);
+    } catch (deleteError) {
+      const message =
+        deleteError instanceof Error
+          ? deleteError.message
+          : 'Instanz-Admin konnte nicht entfernt werden.';
+      setInstanceAdminError(message);
+    } finally {
+      setInstanceAdminSaving(false);
+    }
+  };
+
   const stats = [
     {
       label: 'Projekte',
@@ -400,6 +505,77 @@ const AdminPage: React.FC = () => {
                 <p className="mt-2 text-3xl font-semibold text-white">{stat.value}</p>
               </div>
             ))}
+          </section>
+
+          <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-8 py-7 shadow-lg shadow-slate-950/30">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300/80">
+                  Instanz-Admins
+                </p>
+                <h2 className="text-xl font-semibold text-white">
+                  Adminrechte für diese Instanz vergeben
+                </h2>
+                <p className="max-w-2xl text-sm text-slate-300">
+                  Benutzer mit Abteilungszugriff sehen die Roadmap nur lesend. Adminrechte entstehen
+                  ausschließlich über diese Liste, konfigurierte Admin-Gruppen oder
+                  Superadminrechte.
+                </p>
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
+                  Aktive Instanz: {effectiveInstanceSlug || 'nicht ausgewählt'}
+                </p>
+              </div>
+
+              <div className="w-full max-w-xl space-y-3">
+                <SharePointUserPicker
+                  instanceSlug={effectiveInstanceSlug || null}
+                  disabled={instanceAdminSaving || !effectiveInstanceSlug}
+                  placeholder="Benutzer als Instanz-Admin suchen …"
+                  onSelect={(user) => void addInstanceAdmin(user.value)}
+                  emptyMessage="Keine passenden SharePoint-Benutzer gefunden."
+                />
+                {instanceAdminError ? (
+                  <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                    {instanceAdminError}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-2">
+              {instanceAdminLoading ? (
+                <p className="text-sm text-slate-400">Lade Instanz-Admins …</p>
+              ) : instanceAdminUsers.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  Noch keine zusätzlichen Instanz-Admins gepflegt.
+                </p>
+              ) : (
+                instanceAdminUsers.map((username) => (
+                  <div
+                    key={username}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3"
+                  >
+                    <div>
+                      <div className="text-sm font-semibold text-white">{username}</div>
+                      <div className="text-xs text-slate-400">
+                        Darf diese Instanz administrieren, auch ohne Superadminrolle.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void removeInstanceAdmin(username)}
+                      disabled={instanceAdminSaving}
+                      className={clsx(
+                        'rounded-full border border-rose-500/50 px-4 py-2 text-xs font-semibold text-rose-200 transition hover:border-rose-400 hover:text-white',
+                        instanceAdminSaving && 'cursor-not-allowed opacity-60'
+                      )}
+                    >
+                      Entfernen
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </section>
 
           <section className="space-y-6">

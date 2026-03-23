@@ -6,7 +6,7 @@ import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
-import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { INSTANCE_QUERY_PARAM, setInstanceCookieHeader } from '@/utils/instanceConfig';
 import {
   resolveFirstAllowedInstanceForAdminSession,
@@ -237,7 +237,7 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
     }
 
     if (
-      !(await isAdminSessionAllowedForInstance({
+      !(await isReadSessionAllowedForInstance({
         session,
         instance,
         requestHeaders: forwardedHeaders,

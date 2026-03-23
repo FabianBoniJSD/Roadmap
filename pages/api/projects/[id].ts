@@ -1,7 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSession, requireAdminSession } from '@/utils/apiAuth';
-import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import {
+  isAdminSessionAllowedForInstance,
+  isReadSessionAllowedForInstance,
+} from '@/utils/instanceAccessServer';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
@@ -33,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const session = requireAdminSession(req);
       if (
-        !(await isAdminSessionAllowedForInstance({
+        !(await isReadSessionAllowedForInstance({
           session,
           instance,
           requestHeaders: forwardedHeaders,

@@ -3,7 +3,7 @@ import type { NextApiRequest } from 'next';
 import prisma from '@/lib/prisma';
 import type { AdminSessionPayload } from '@/utils/apiAuth';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
-import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import {
   getInstanceConfigFromRequest,
   mapInstanceRecord,
@@ -60,7 +60,7 @@ export async function resolveInstanceForAdminSession(
   // 3) For scoped admins, pick the first allowed instance.
   for (const record of records) {
     const instance = mapInstanceRecord(record);
-    const allowed = await isAdminSessionAllowedForInstance({
+    const allowed = await isReadSessionAllowedForInstance({
       session,
       instance,
       requestHeaders: forwardedHeaders,
@@ -96,7 +96,7 @@ export async function resolveFirstAllowedInstanceForAdminSession(
 
   for (const record of records) {
     const instance = mapInstanceRecord(record);
-    const allowed = await isAdminSessionAllowedForInstance({
+    const allowed = await isReadSessionAllowedForInstance({
       session,
       instance,
       requestHeaders: forwardedHeaders,

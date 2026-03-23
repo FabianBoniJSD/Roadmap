@@ -8,11 +8,11 @@ import JSDoITLoader from '@/components/JSDoITLoader';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import { Project, TeamMember } from '@/types';
-import { hasValidAdminSession } from '@/utils/auth';
+import { hasAdminAccessToCurrentInstance, hasValidAdminSession } from '@/utils/auth';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { setInstanceCookieHeader } from '@/utils/instanceConfig';
-import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import {
   resolveFirstAllowedInstanceForAdminSession,
   resolveInstanceForAdminSession,
@@ -191,8 +191,11 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
   useEffect(() => {
     const checkAdmin = async () => {
       try {
-        const allowed = await hasValidAdminSession();
-        setIsAdmin(Boolean(allowed));
+        const [hasSession, hasInstanceAdminAccess] = await Promise.all([
+          hasValidAdminSession(),
+          hasAdminAccessToCurrentInstance(),
+        ]);
+        setIsAdmin(Boolean(hasSession && hasInstanceAdminAccess));
       } catch {
         setIsAdmin(false);
       }
@@ -524,7 +527,7 @@ export const getServerSideProps: GetServerSideProps<{ accessDenied?: boolean }> 
   }
 
   if (
-    !(await isAdminSessionAllowedForInstance({
+    !(await isReadSessionAllowedForInstance({
       session,
       instance,
       requestHeaders: forwardedHeaders,

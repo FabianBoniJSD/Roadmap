@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useMemo, useEffect, useState } from 'react';
+import { hasAdminAccessToCurrentInstance, hasValidAdminSession } from '@/utils/auth';
 import { INSTANCE_QUERY_PARAM, INSTANCE_COOKIE_NAME } from '@/utils/instanceConfig';
 
 type RouteKey = 'home' | 'roadmap' | 'help' | 'docs' | 'admin';
@@ -38,6 +39,7 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
   }, [router.query]);
 
   const [cookieSlug, setCookieSlug] = useState<string>('');
+  const [showAdminLink, setShowAdminLink] = useState(false);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -53,9 +55,38 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
   const instanceSlug = querySlug || cookieSlug || '';
   const maybeQuery = instanceSlug ? { [INSTANCE_QUERY_PARAM]: instanceSlug } : undefined;
   const adminLinkSlug = querySlug || (currentRoute === 'admin' ? cookieSlug : '');
-  const adminHref = adminLinkSlug
-    ? { pathname: '/admin', query: { [INSTANCE_QUERY_PARAM]: adminLinkSlug } }
-    : null;
+  const hasAdminHref = Boolean(adminLinkSlug);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (currentRoute === 'admin') {
+        if (!cancelled) setShowAdminLink(hasAdminHref);
+        return;
+      }
+
+      if (!hasAdminHref) {
+        if (!cancelled) setShowAdminLink(false);
+        return;
+      }
+
+      try {
+        const [hasSession, hasInstanceAdminAccess] = await Promise.all([
+          hasValidAdminSession(),
+          hasAdminAccessToCurrentInstance(),
+        ]);
+        if (!cancelled) setShowAdminLink(Boolean(hasSession && hasInstanceAdminAccess));
+      } catch {
+        if (!cancelled) setShowAdminLink(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentRoute, hasAdminHref]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/85 backdrop-blur supports-[backdrop-filter]:bg-slate-950/70">
@@ -91,9 +122,9 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
         </nav>
 
         <div className="flex items-center gap-3">
-          {adminHref ? (
+          {hasAdminHref && showAdminLink ? (
             <Link
-              href={adminHref}
+              href={{ pathname: '/admin', query: { [INSTANCE_QUERY_PARAM]: adminLinkSlug } }}
               className={clsx(
                 'rounded-full border px-4 py-2 text-sm font-semibold transition',
                 currentRoute === 'admin'

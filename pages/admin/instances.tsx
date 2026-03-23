@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { useRouter } from 'next/router';
 import AdminSubpageLayout from '@/components/AdminSubpageLayout';
 import JSDoITLoader from '@/components/JSDoITLoader';
+import SharePointUserPicker, { type SharePointUserOption } from '@/components/SharePointUserPicker';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import {
@@ -136,6 +137,14 @@ const parseAccessEntries = (value: string): string[] =>
   );
 
 const formatAccessEntries = (value: string[]) => value.join('\n');
+
+const appendAccessEntry = (input: string, value: string): string => {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return input;
+  const entries = parseAccessEntries(input);
+  if (entries.includes(normalized)) return formatAccessEntries(entries);
+  return formatAccessEntries([...entries, normalized]);
+};
 
 const extractDetailMessages = (details: unknown): string[] => {
   const lines: string[] = [];
@@ -315,7 +324,11 @@ const AdminInstancesPage = () => {
   const [superAdminError, setSuperAdminError] = useState<string | null>(null);
   const [superAdminUsername, setSuperAdminUsername] = useState('');
   const [superAdminNote, setSuperAdminNote] = useState('');
+  const [selectedSuperAdminUser, setSelectedSuperAdminUser] = useState<SharePointUserOption | null>(
+    null
+  );
   const [sessionRevision, setSessionRevision] = useState(0);
+  const effectivePickerInstanceSlug = selectedSlug || instances[0]?.slug || null;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -592,7 +605,7 @@ const AdminInstancesPage = () => {
   };
 
   const addSuperAdmin = async () => {
-    const username = superAdminUsername.trim();
+    const username = (selectedSuperAdminUser?.value || superAdminUsername).trim();
     if (!username) return;
     setSuperAdminSaving(true);
     setSuperAdminError(null);
@@ -606,6 +619,7 @@ const AdminInstancesPage = () => {
       if (!resp.ok) {
         throw new Error(payload?.error || 'Superadmin konnte nicht gespeichert werden');
       }
+      setSelectedSuperAdminUser(null);
       setSuperAdminUsername('');
       setSuperAdminNote('');
       await fetchSuperAdmins();
@@ -1193,6 +1207,25 @@ const AdminInstancesPage = () => {
                   </div>
                 )}
 
+                <div className="mt-4 space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+                    Instanz-Admin per SharePoint auswählen
+                  </span>
+                  <SharePointUserPicker
+                    instanceSlug={selectedSlug}
+                    disabled={accessLoading || accessSaving}
+                    placeholder="Benutzer als Instanz-Admin suchen …"
+                    onSelect={(user) => {
+                      setAccessUsersInput((prev) => appendAccessEntry(prev, user.value));
+                    }}
+                    emptyMessage="Keine passenden Benutzer für diese Instanz gefunden."
+                  />
+                  <p className="text-xs text-slate-500">
+                    Die Auswahl ergänzt die Liste der direkt erlaubten Benutzer. Wirksam wird sie
+                    nach „Rollen speichern“.
+                  </p>
+                </div>
+
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <label className="space-y-1">
                     <span className="text-slate-300">Direkt erlaubte Benutzer</span>
@@ -1283,14 +1316,25 @@ const AdminInstancesPage = () => {
             )}
 
             <div className="mt-4 grid gap-3 sm:grid-cols-[1.2fr,1fr,auto]">
-              <input
-                type="text"
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
-                placeholder="Benutzername oder Mail"
-                value={superAdminUsername}
-                onChange={(e) => setSuperAdminUsername(e.target.value)}
-                disabled={superAdminSaving}
-              />
+              <div className="sm:col-span-1">
+                <SharePointUserPicker
+                  instanceSlug={effectivePickerInstanceSlug}
+                  disabled={superAdminSaving || !effectivePickerInstanceSlug}
+                  placeholder="Superadmin über SharePoint suchen …"
+                  onSelect={(user) => {
+                    setSelectedSuperAdminUser(user);
+                    setSuperAdminUsername(user.value);
+                  }}
+                  emptyMessage="Keine passenden Benutzer gefunden."
+                />
+                {selectedSuperAdminUser ? (
+                  <p className="mt-2 text-xs text-slate-400">
+                    Ausgewählt:{' '}
+                    <span className="text-slate-200">{selectedSuperAdminUser.label}</span> (
+                    {selectedSuperAdminUser.value})
+                  </p>
+                ) : null}
+              </div>
               <input
                 type="text"
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"

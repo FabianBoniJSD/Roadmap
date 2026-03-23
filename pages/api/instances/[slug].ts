@@ -80,21 +80,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const sharePoint = req.body?.sharePoint || {};
     const data: Record<string, unknown> = {};
-    const forcedStrategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
-    const forcedUsername =
+    const defaultStrategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
+    const defaultUsername =
       process.env.SP_KERBEROS_SERVICE_USER ||
       process.env.SP_USERNAME ||
       process.env.USER_NAME ||
       '';
-    const forcedPassword =
+    const defaultPassword =
       process.env.SP_KERBEROS_SERVICE_PASSWORD ||
       process.env.SP_PASSWORD ||
       process.env.USER_PASSWORD ||
       '';
-    const forcedAllowSelfSigned =
+    const defaultAllowSelfSigned =
       process.env.SP_ALLOW_SELF_SIGNED === 'true' ||
       process.env.SP_TLS_FALLBACK_INSECURE === 'true';
-    const forcedTrustedCaPath = process.env.SP_TRUSTED_CA_PATH?.trim() || null;
+    const defaultTrustedCaPath = process.env.SP_TRUSTED_CA_PATH?.trim() || null;
 
     if (req.body.displayName && typeof req.body.displayName === 'string') {
       data.displayName = req.body.displayName.trim();
@@ -142,11 +142,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (sharePoint.siteUrlProd && typeof sharePoint.siteUrlProd === 'string') {
       data.sharePointSiteUrlProd = sharePoint.siteUrlProd.trim();
     }
-    data.sharePointStrategy = forcedStrategy;
-    data.spUsername = forcedUsername;
-    data.spPassword = forcedPassword;
-    data.allowSelfSigned = forcedAllowSelfSigned;
-    data.trustedCaPath = forcedTrustedCaPath;
+    if (sharePoint.strategy !== undefined) {
+      data.sharePointStrategy = normalizeSharePointStrategy(sharePoint.strategy, defaultStrategy);
+    }
+    if (sharePoint.username !== undefined) {
+      data.spUsername =
+        typeof sharePoint.username === 'string' && sharePoint.username.trim()
+          ? sharePoint.username.trim()
+          : defaultUsername;
+    }
+    if (sharePoint.password !== undefined) {
+      data.spPassword =
+        typeof sharePoint.password === 'string' && sharePoint.password.length > 0
+          ? sharePoint.password
+          : defaultPassword;
+    }
+    if (sharePoint.allowSelfSigned !== undefined) {
+      data.allowSelfSigned =
+        typeof sharePoint.allowSelfSigned === 'boolean'
+          ? sharePoint.allowSelfSigned
+          : defaultAllowSelfSigned;
+    }
+    if (sharePoint.trustedCaPath !== undefined) {
+      data.trustedCaPath =
+        typeof sharePoint.trustedCaPath === 'string' && sharePoint.trustedCaPath.trim()
+          ? sharePoint.trustedCaPath.trim()
+          : defaultTrustedCaPath;
+    }
 
     const settings = buildSettingsPayload(req.body);
     if (settings) {

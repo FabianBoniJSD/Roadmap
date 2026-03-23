@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
 import { requireAdminSession } from '@/utils/apiAuth';
-import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import {
   getInstanceConfigFromRequest,
   INSTANCE_COOKIE_NAME,
@@ -133,7 +133,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     if (
-      !(await isAdminSessionAllowedForInstance({
+      !(await isReadSessionAllowedForInstance({
         session,
         instance,
         requestHeaders: forwardedHeaders,

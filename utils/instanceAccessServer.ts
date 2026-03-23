@@ -15,6 +15,8 @@ import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAcc
 type Principal = { username: string | null; groups?: unknown };
 type ForwardedRequestHeaders = { authorization?: string; cookie?: string };
 
+type InstanceAccessMode = 'read' | 'admin';
+
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -38,10 +40,11 @@ const extractIdentifiers = (session: AdminSessionPayload | null | undefined) => 
   return { username, upn, mail, displayName, department, groups };
 };
 
-export async function isAdminSessionAllowedForInstance(opts: {
+async function isSessionAllowedForInstance(opts: {
   session: AdminSessionPayload;
   instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
   requestHeaders?: ForwardedRequestHeaders;
+  mode: InstanceAccessMode;
 }): Promise<boolean> {
   const { session, instance } = opts;
 
@@ -79,37 +82,38 @@ export async function isAdminSessionAllowedForInstance(opts: {
   // Fast path: token already contains the needed groups.
   if (isAdminPrincipalAllowedForInstance(principal, effectiveInstance)) return true;
 
-  // DB-based department access: allow instance access when the user's department
-  // is explicitly linked to the instance.
-  if (!ids.department) {
-    const resolvedOnPremDepartment = await clientDataService.withRequestHeaders(
-      opts.requestHeaders,
-      () =>
-        clientDataService.withInstance(String(effectiveInstance.slug || ''), () =>
-          clientDataService.resolveUserDepartmentFromSharePoint({
-            username: ids.username,
-            upn: ids.upn,
-            mail: ids.mail,
-            displayName: ids.displayName,
-          })
-        )
-    );
-    if (resolvedOnPremDepartment) {
-      ids.department = resolvedOnPremDepartment;
+  if (opts.mode === 'read') {
+    // Department-linked users may view an instance but never gain admin rights from that alone.
+    if (!ids.department) {
+      const resolvedOnPremDepartment = await clientDataService.withRequestHeaders(
+        opts.requestHeaders,
+        () =>
+          clientDataService.withInstance(String(effectiveInstance.slug || ''), () =>
+            clientDataService.resolveUserDepartmentFromSharePoint({
+              username: ids.username,
+              upn: ids.upn,
+              mail: ids.mail,
+              displayName: ids.displayName,
+            })
+          )
+      );
+      if (resolvedOnPremDepartment) {
+        ids.department = resolvedOnPremDepartment;
+      }
     }
-  }
 
-  const departmentCandidates = Array.from(
-    new Set(
-      [ids.department, ...ids.groups].map((value) => normalizeDepartment(value)).filter(Boolean)
-    )
-  );
-  if (departmentCandidates.length > 0) {
-    const allowedByDepartment = await isAnyDepartmentCandidateAllowedForInstance({
-      instanceSlug: String(effectiveInstance.slug || ''),
-      candidates: departmentCandidates,
-    });
-    if (allowedByDepartment) return true;
+    const departmentCandidates = Array.from(
+      new Set(
+        [ids.department, ...ids.groups].map((value) => normalizeDepartment(value)).filter(Boolean)
+      )
+    );
+    if (departmentCandidates.length > 0) {
+      const allowedByDepartment = await isAnyDepartmentCandidateAllowedForInstance({
+        instanceSlug: String(effectiveInstance.slug || ''),
+        candidates: departmentCandidates,
+      });
+      if (allowedByDepartment) return true;
+    }
   }
 
   // Fallback: for Entra sessions (or missing token group claims), verify membership
@@ -133,4 +137,20 @@ export async function isAdminSessionAllowedForInstance(opts: {
     });
     return false;
   }
+}
+
+export async function isAdminSessionAllowedForInstance(opts: {
+  session: AdminSessionPayload;
+  instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
+  requestHeaders?: ForwardedRequestHeaders;
+}): Promise<boolean> {
+  return isSessionAllowedForInstance({ ...opts, mode: 'admin' });
+}
+
+export async function isReadSessionAllowedForInstance(opts: {
+  session: AdminSessionPayload;
+  instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
+  requestHeaders?: ForwardedRequestHeaders;
+}): Promise<boolean> {
+  return isSessionAllowedForInstance({ ...opts, mode: 'read' });
 }

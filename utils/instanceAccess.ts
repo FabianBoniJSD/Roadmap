@@ -10,6 +10,8 @@ export type InstanceAdminAccessConfig = {
   allowedGroups?: string[];
 };
 
+type MutableSettingsRecord = Record<string, unknown>;
+
 export const getInstanceAdminAccessConfig = (
   metadata?: Record<string, unknown>
 ): InstanceAdminAccessConfig | null => {
@@ -127,4 +129,60 @@ export const coerceAllowedGroupsPayload = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   const normalized = value.map((entry) => normalize(entry)).filter(Boolean);
   return Array.from(new Set(normalized));
+};
+
+const ensureRecordObject = (value: unknown): MutableSettingsRecord => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as MutableSettingsRecord;
+  }
+  return {};
+};
+
+export const normalizeAccessEntry = (value: unknown): string => normalize(value);
+
+export const appendAllowedUser = (
+  existingUsers: string[] | undefined,
+  candidate: string | null | undefined
+): string[] => {
+  const normalizedCandidate = normalize(candidate);
+  if (!normalizedCandidate) return Array.isArray(existingUsers) ? [...existingUsers] : [];
+  return Array.from(new Set([...(existingUsers ?? []), normalizedCandidate]));
+};
+
+export const removeAllowedUser = (
+  existingUsers: string[] | undefined,
+  candidate: string | null | undefined
+): string[] => {
+  const normalizedCandidate = normalize(candidate);
+  if (!normalizedCandidate) return Array.isArray(existingUsers) ? [...existingUsers] : [];
+  return (existingUsers ?? []).filter((entry) => normalize(entry) !== normalizedCandidate);
+};
+
+export const updateInstanceAdminAccessMetadata = (opts: {
+  settings: Record<string, unknown>;
+  users?: string[];
+  groups?: string[];
+}): Record<string, unknown> => {
+  const settings = ensureRecordObject(opts.settings);
+  const metadata = ensureRecordObject(settings.metadata);
+  const adminAccess = ensureRecordObject(metadata.adminAccess);
+
+  const users = Array.isArray(opts.users) ? coerceAllowedUsersPayload(opts.users) : undefined;
+  const groups = Array.isArray(opts.groups) ? coerceAllowedGroupsPayload(opts.groups) : undefined;
+
+  if (users !== undefined) {
+    if (users.length === 0) delete adminAccess.allowedUsers;
+    else adminAccess.allowedUsers = users;
+  }
+
+  if (groups !== undefined) {
+    if (groups.length === 0) delete adminAccess.allowedGroups;
+    else adminAccess.allowedGroups = groups;
+  }
+
+  if (Object.keys(adminAccess).length === 0) delete metadata.adminAccess;
+  else metadata.adminAccess = adminAccess;
+
+  settings.metadata = metadata;
+  return settings;
 };

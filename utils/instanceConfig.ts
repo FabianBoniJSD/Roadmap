@@ -182,14 +182,16 @@ export const mapInstanceRecord = (record: PrismaInstanceWithHosts): RoadmapInsta
   const envAllowSelfSigned =
     process.env.SP_ALLOW_SELF_SIGNED === 'true' || process.env.SP_TLS_FALLBACK_INSECURE === 'true';
   const envTrustedCaPath = process.env.SP_TRUSTED_CA_PATH || undefined;
+  const recordUsername = typeof record.spUsername === 'string' ? record.spUsername.trim() : '';
+  const recordPassword = typeof record.spPassword === 'string' ? record.spPassword : '';
   const sharePoint: RoadmapInstanceSharePointSettings = {
     siteUrlDev: record.sharePointSiteUrlDev,
     siteUrlProd: record.sharePointSiteUrlProd || record.sharePointSiteUrlDev,
-    strategy: normalizeSharePointStrategy(envStrategy),
-    username: envUsername || undefined,
-    password: envPassword || undefined,
-    allowSelfSigned: envAllowSelfSigned,
-    trustedCaPath: envTrustedCaPath,
+    strategy: normalizeSharePointStrategy(record.sharePointStrategy, envStrategy),
+    username: recordUsername || envUsername || undefined,
+    password: recordPassword || envPassword || undefined,
+    allowSelfSigned: record.allowSelfSigned ?? envAllowSelfSigned,
+    trustedCaPath: record.trustedCaPath || envTrustedCaPath,
   };
 
   const theme =

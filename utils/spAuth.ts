@@ -33,22 +33,24 @@ const buildCacheKey = (params: { siteUrl: string; strategy: string; username?: s
     .digest('hex');
 };
 
-const getTrustedCaPath = (): string | undefined => {
-  const candidate = process.env.SP_TRUSTED_CA_PATH;
+const getTrustedCaPath = (instance?: RoadmapInstanceConfig | null): string | undefined => {
+  const candidate = instance?.sharePoint?.trustedCaPath || process.env.SP_TRUSTED_CA_PATH;
   if (!candidate) return undefined;
   return candidate.trim() || undefined;
 };
 
-const applyTlsSettings = () => {
+const applyTlsSettings = (instance?: RoadmapInstanceConfig | null) => {
   const allowSelfSigned =
-    process.env.SP_ALLOW_SELF_SIGNED === 'true' || process.env.SP_TLS_FALLBACK_INSECURE === 'true';
+    instance?.sharePoint?.allowSelfSigned === true ||
+    process.env.SP_ALLOW_SELF_SIGNED === 'true' ||
+    process.env.SP_TLS_FALLBACK_INSECURE === 'true';
 
   if (allowSelfSigned) {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     return;
   }
 
-  const trustedCa = getTrustedCaPath();
+  const trustedCa = getTrustedCaPath(instance);
   if (!trustedCa) {
     delete process.env.NODE_EXTRA_CA_CERTS;
     return;
@@ -65,10 +67,10 @@ export async function getSharePointAuthHeaders(
   instance?: RoadmapInstanceConfig | null
 ): Promise<SharePointAuthContext> {
   const inst = instance || null;
-  applyTlsSettings();
+  applyTlsSettings(inst);
 
   const siteUrl = resolveSharePointSiteUrl(inst || undefined);
-  const strategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
+  const strategy = normalizeSharePointStrategy(inst?.sharePoint?.strategy, process.env.SP_STRATEGY);
 
   if (strategy === 'kerberos') {
     return { headers: { Accept: 'application/json;odata=nometadata' } };
@@ -78,9 +80,14 @@ export async function getSharePointAuthHeaders(
     return { headers: { Accept: 'application/json;odata=nometadata' } };
   }
 
-  const credentials = getPrimaryCredentials();
+  const credentials = getPrimaryCredentials({
+    username: inst?.sharePoint?.username ?? null,
+    password: inst?.sharePoint?.password ?? null,
+  });
   if (!credentials) {
-    throw new Error('No credentials found. Set SP_USERNAME/SP_PASSWORD.');
+    throw new Error(
+      'No credentials found. Set instance SharePoint credentials or SP_KERBEROS_SERVICE_* env vars.'
+    );
   }
 
   const username = credentials.username;

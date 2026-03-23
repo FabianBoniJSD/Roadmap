@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { requireAdminSession } from '@/utils/apiAuth';
 import { getInstanceSlugsFromPrincipal, isSuperAdminPrincipal } from '@/utils/instanceAccess';
-import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 const HTTP_URL_REGEX = /^https?:\/\//i;
@@ -195,7 +195,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const checks = await Promise.all(
       allRecords.map(async (r) => ({
         record: r,
-        allowed: await isAdminSessionAllowedForInstance({
+        allowed: await isReadSessionAllowedForInstance({
           session,
           instance: { slug: r.slug },
           requestHeaders: forwardedHeaders,

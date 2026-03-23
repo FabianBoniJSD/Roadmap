@@ -67,21 +67,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!sharePoint.siteUrlDev || typeof sharePoint.siteUrlDev !== 'string') {
       return res.status(400).json({ error: 'sharePoint.siteUrlDev is required' });
     }
-    const forcedStrategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
-    const forcedUsername =
+    const defaultStrategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
+    const defaultUsername =
       process.env.SP_KERBEROS_SERVICE_USER ||
       process.env.SP_USERNAME ||
       process.env.USER_NAME ||
       '';
-    const forcedPassword =
+    const defaultPassword =
       process.env.SP_KERBEROS_SERVICE_PASSWORD ||
       process.env.SP_PASSWORD ||
       process.env.USER_PASSWORD ||
       '';
-    const forcedAllowSelfSigned =
+    const defaultAllowSelfSigned =
       process.env.SP_ALLOW_SELF_SIGNED === 'true' ||
       process.env.SP_TLS_FALLBACK_INSECURE === 'true';
-    const forcedTrustedCaPath = process.env.SP_TRUSTED_CA_PATH?.trim() || null;
+    const defaultTrustedCaPath = process.env.SP_TRUSTED_CA_PATH?.trim() || null;
+    const resolvedStrategy = normalizeSharePointStrategy(sharePoint.strategy, defaultStrategy);
+    const resolvedUsername =
+      typeof sharePoint.username === 'string' && sharePoint.username.trim()
+        ? sharePoint.username.trim()
+        : defaultUsername;
+    const resolvedPassword =
+      typeof sharePoint.password === 'string' && sharePoint.password.length > 0
+        ? sharePoint.password
+        : defaultPassword;
+    const resolvedAllowSelfSigned =
+      typeof sharePoint.allowSelfSigned === 'boolean'
+        ? sharePoint.allowSelfSigned
+        : defaultAllowSelfSigned;
+    const resolvedTrustedCaPath =
+      typeof sharePoint.trustedCaPath === 'string' && sharePoint.trustedCaPath.trim()
+        ? sharePoint.trustedCaPath.trim()
+        : defaultTrustedCaPath;
 
     const normalizedSlug = sanitizeSlug(slug);
     const existing = await getInstanceConfigBySlug(normalizedSlug);
@@ -102,11 +119,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         description: description?.trim() || null,
         sharePointSiteUrlDev: sharePoint.siteUrlDev.trim(),
         sharePointSiteUrlProd: (sharePoint.siteUrlProd || sharePoint.siteUrlDev).trim(),
-        sharePointStrategy: forcedStrategy,
-        spUsername: forcedUsername,
-        spPassword: forcedPassword,
-        allowSelfSigned: forcedAllowSelfSigned,
-        trustedCaPath: forcedTrustedCaPath,
+        sharePointStrategy: resolvedStrategy,
+        spUsername: resolvedUsername,
+        spPassword: resolvedPassword,
+        allowSelfSigned: resolvedAllowSelfSigned,
+        trustedCaPath: resolvedTrustedCaPath,
         deploymentEnv: deploymentEnv?.trim() || null,
         defaultLocale: defaultLocale?.trim() || null,
         defaultTimeZone: defaultTimeZone?.trim() || null,

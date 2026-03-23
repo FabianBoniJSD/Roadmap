@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import { getSharePointAuthHeaders, SharePointAuthContext } from '@/utils/spAuth';
 import { normalizeSharePointStrategy } from '@/utils/sharePointStrategy';
+import { getPrimaryCredentials } from '@/utils/userCredentials';
 import { getInstanceConfigFromRequest, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 import { sharePointHttpsAgent, sharePointDispatcher } from '@/utils/httpsAgent';
@@ -332,8 +333,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   applyNoCacheHeaders(res);
 
   try {
-    const strategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
+    const strategy = normalizeSharePointStrategy(
+      instance?.sharePoint?.strategy,
+      process.env.SP_STRATEGY
+    );
     const useCurlKerberos = strategy === 'kerberos';
+    const effectiveCredentials = getPrimaryCredentials({
+      username: instance?.sharePoint?.username ?? null,
+      password: instance?.sharePoint?.password ?? null,
+    });
+    const allowSelfSigned =
+      instance?.sharePoint?.allowSelfSigned === true ||
+      process.env.SP_ALLOW_SELF_SIGNED === 'true' ||
+      process.env.SP_TLS_FALLBACK_INSECURE === 'true';
+    const caPath = (
+      instance?.sharePoint?.trustedCaPath ||
+      process.env.SP_TRUSTED_CA_PATH ||
+      ''
+    ).trim();
     const delegatedUserCandidates = [
       req.headers['x-remote-user'],
       req.headers['remote-user'],
@@ -362,9 +379,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (useCurlKerberos) {
       // In negotiate mode curl uses configured service credentials when provided,
       // otherwise the process Kerberos identity.
-      const serviceUserRaw = (process.env.SP_KERBEROS_SERVICE_USER || '').trim();
+      const serviceUserRaw = (effectiveCredentials?.username || '').trim();
       const serviceUser = serviceUserRaw.replace(/\\+/g, '\\');
-      const servicePass = process.env.SP_KERBEROS_SERVICE_PASSWORD || '';
+      const servicePass = effectiveCredentials?.password || '';
       const kerberosIdentity = serviceUser || '<process-default-kerberos-identity>';
       if (process.env.SP_PROXY_DEBUG === 'true') {
         // eslint-disable-next-line no-console
@@ -383,7 +400,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? req.headers['accept']
           : 'application/json;odata=nometadata';
       const cacheSeconds = parseInt(process.env.SP_CURL_CACHE_SECONDS || '60', 10);
-      const caPath = process.env.SP_TRUSTED_CA_PATH || '';
       const cacheKey = 'GET:' + targetUrl + '|' + clientAccept;
       if (req.method === 'GET' && cacheSeconds > 0) {
         const ent = curlCache[cacheKey];
@@ -408,7 +424,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             `Accept: ${clientAccept}`,
             targetUrl,
           ];
-          if (process.env.SP_ALLOW_SELF_SIGNED === 'true') headArgs.unshift('-k');
+          if (allowSelfSigned) headArgs.unshift('-k');
           else if (caPath) headArgs.unshift('--cacert', caPath);
           if (process.env.SP_CURL_VERBOSE === 'true') headArgs.unshift('-v');
           try {
@@ -444,14 +460,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           '-H',
           `Accept: ${clientAccept}`,
         ];
-        if (process.env.SP_ALLOW_SELF_SIGNED === 'true') curlArgs.unshift('-k');
+        if (allowSelfSigned) curlArgs.unshift('-k');
         if (process.env.SP_CURL_VERBOSE === 'true') curlArgs.unshift('-v');
 
         // If not contextinfo, fetch a FormDigest via curl first
         let formDigest: string | null = null;
         if (!isContextInfo) {
           const ciArgs = ['-sS', '--negotiate', '--user', cred, '--noproxy', '*', '-X', 'POST'];
-          if (process.env.SP_ALLOW_SELF_SIGNED === 'true') ciArgs.unshift('-k');
+          if (allowSelfSigned) ciArgs.unshift('-k');
           else if (caPath) ciArgs.unshift('--cacert', caPath);
           if (process.env.SP_CURL_VERBOSE === 'true') ciArgs.unshift('-v');
           ciArgs.push('-H', 'Accept: application/json;odata=nometadata');
@@ -581,7 +597,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           `Accept: ${clientAccept}`,
           targetUrl,
         ];
-        if (process.env.SP_ALLOW_SELF_SIGNED === 'true') args.unshift('-k');
+        if (allowSelfSigned) args.unshift('-k');
         else if (caPath) args.unshift('--cacert', caPath);
         if (process.env.SP_CURL_VERBOSE === 'true') args.unshift('-v');
         return args;

@@ -16,7 +16,7 @@ import {
 } from '@/utils/auth';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { getInstanceSlugsFromPrincipal, isSuperAdminPrincipal } from '@/utils/instanceAccess';
-import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 const HTTP_URL_REGEX = /^https?:\/\//i;
@@ -250,7 +250,8 @@ const LandingPage = ({ instances }: LandingPageProps) => {
         }
       } catch (error) {
         if (!cancelled) {
-          const message = error instanceof Error ? error.message : 'Instanzen konnten nicht geladen werden';
+          const message =
+            error instanceof Error ? error.message : 'Instanzen konnten nicht geladen werden';
           setErrorMessage(message);
         }
       } finally {
@@ -665,7 +666,7 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
     const checks = await Promise.all(
       records.map(async (r) => {
         try {
-          const allowed = await isAdminSessionAllowedForInstance({
+          const allowed = await isReadSessionAllowedForInstance({
             session,
             instance: { slug: r.slug },
             requestHeaders: forwardedHeaders,

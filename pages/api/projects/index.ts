@@ -1,7 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSession } from '@/utils/apiAuth';
-import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import {
+  isAdminSessionAllowedForInstance,
+  isReadSessionAllowedForInstance,
+} from '@/utils/instanceAccessServer';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { Project } from '@/types';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
@@ -233,7 +236,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(401).json({ error: 'Unauthorized' });
       }
       if (
-        !(await isAdminSessionAllowedForInstance({
+        !(await isReadSessionAllowedForInstance({
           session,
           instance,
           requestHeaders: forwardedHeaders,
