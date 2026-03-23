@@ -3727,10 +3727,13 @@ class ClientDataService {
         if (!token) {
           return [];
         }
-        const response = await fetch(buildInstanceAwareUrl(`/api/sharepoint/users?${params}`), {
+        const response = await fetch(
+          buildInstanceAwareUrl(`/api/sharepoint-user-search?${params}`),
+          {
           credentials: 'same-origin',
           headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
-        });
+          }
+        );
 
         const payload = await response.json().catch(() => null);
         if (!response.ok) {

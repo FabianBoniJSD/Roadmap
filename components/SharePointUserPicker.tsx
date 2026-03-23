@@ -65,7 +65,7 @@ const SharePointUserPicker: React.FC<SharePointUserPickerProps> = ({
         if (!token) {
           throw new Error('Admin-Session fehlt');
         }
-        const resp = await fetch(buildInstanceAwareUrl(`/api/sharepoint/users?${params}`), {
+        const resp = await fetch(buildInstanceAwareUrl(`/api/sharepoint-user-search?${params}`), {
           credentials: 'same-origin',
           headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
         });
