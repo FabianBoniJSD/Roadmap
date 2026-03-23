@@ -80,14 +80,9 @@ export async function getSharePointAuthHeaders(
     return { headers: { Accept: 'application/json;odata=nometadata' } };
   }
 
-  const credentials = getPrimaryCredentials({
-    username: inst?.sharePoint?.username ?? null,
-    password: inst?.sharePoint?.password ?? null,
-  });
+  const credentials = getPrimaryCredentials();
   if (!credentials) {
-    throw new Error(
-      'No credentials found. Set instance SharePoint credentials or SP_KERBEROS_SERVICE_* env vars.'
-    );
+    throw new Error('No credentials found. Set SP_KERBEROS_SERVICE_* or SP_USERNAME/SP_PASSWORD.');
   }
 
   const username = credentials.username;

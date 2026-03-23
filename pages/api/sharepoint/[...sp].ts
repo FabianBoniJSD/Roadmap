@@ -338,10 +338,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       process.env.SP_STRATEGY
     );
     const useCurlKerberos = strategy === 'kerberos';
-    const effectiveCredentials = getPrimaryCredentials({
-      username: instance?.sharePoint?.username ?? null,
-      password: instance?.sharePoint?.password ?? null,
-    });
+    const effectiveCredentials = getPrimaryCredentials();
     const allowSelfSigned =
       instance?.sharePoint?.allowSelfSigned === true ||
       process.env.SP_ALLOW_SELF_SIGNED === 'true' ||
@@ -389,7 +386,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           instance: instance.slug,
           kerberosIdentity,
           userNormalized: serviceUser !== serviceUserRaw,
-          credentialMode: serviceUser ? 'explicit-service-user' : 'process-identity',
+          credentialMode: serviceUser ? 'env-service-user' : 'process-identity',
           passwordConfigured: Boolean(servicePass),
         });
       }

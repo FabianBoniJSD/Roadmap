@@ -68,29 +68,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'sharePoint.siteUrlDev is required' });
     }
     const defaultStrategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
-    const defaultUsername =
-      process.env.SP_KERBEROS_SERVICE_USER ||
-      process.env.SP_USERNAME ||
-      process.env.USER_NAME ||
-      '';
-    const defaultPassword =
-      process.env.SP_KERBEROS_SERVICE_PASSWORD ||
-      process.env.SP_PASSWORD ||
-      process.env.USER_PASSWORD ||
-      '';
     const defaultAllowSelfSigned =
       process.env.SP_ALLOW_SELF_SIGNED === 'true' ||
       process.env.SP_TLS_FALLBACK_INSECURE === 'true';
     const defaultTrustedCaPath = process.env.SP_TRUSTED_CA_PATH?.trim() || null;
     const resolvedStrategy = normalizeSharePointStrategy(sharePoint.strategy, defaultStrategy);
-    const resolvedUsername =
-      typeof sharePoint.username === 'string' && sharePoint.username.trim()
-        ? sharePoint.username.trim()
-        : defaultUsername;
-    const resolvedPassword =
-      typeof sharePoint.password === 'string' && sharePoint.password.length > 0
-        ? sharePoint.password
-        : defaultPassword;
     const resolvedAllowSelfSigned =
       typeof sharePoint.allowSelfSigned === 'boolean'
         ? sharePoint.allowSelfSigned
@@ -120,8 +102,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         sharePointSiteUrlDev: sharePoint.siteUrlDev.trim(),
         sharePointSiteUrlProd: (sharePoint.siteUrlProd || sharePoint.siteUrlDev).trim(),
         sharePointStrategy: resolvedStrategy,
-        spUsername: resolvedUsername,
-        spPassword: resolvedPassword,
+        spUsername: '',
+        spPassword: '',
         allowSelfSigned: resolvedAllowSelfSigned,
         trustedCaPath: resolvedTrustedCaPath,
         deploymentEnv: deploymentEnv?.trim() || null,

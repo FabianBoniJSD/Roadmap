@@ -57,8 +57,6 @@ export interface RoadmapInstanceSharePointSettings {
   siteUrlDev: string;
   siteUrlProd: string;
   strategy: string;
-  username?: string;
-  password?: string;
   allowSelfSigned?: boolean;
   trustedCaPath?: string | null;
 }
@@ -90,8 +88,5 @@ export interface RoadmapInstanceConfig {
 }
 
 export interface RoadmapInstanceSummary extends Omit<RoadmapInstanceConfig, 'sharePoint'> {
-  sharePoint: Omit<RoadmapInstanceSharePointSettings, 'username' | 'password'> & {
-    usernameSet: boolean;
-    passwordSet: boolean;
-  };
+  sharePoint: RoadmapInstanceSharePointSettings;
 }

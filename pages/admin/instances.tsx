@@ -49,8 +49,6 @@ type AdminFormState = {
   sharePointSiteUrlDev: string;
   sharePointSiteUrlProd: string;
   sharePointStrategy: string;
-  spUsername: string;
-  spPassword: string;
   allowSelfSigned: boolean;
   trustedCaPath: string;
   hostsInput: string;
@@ -69,8 +67,6 @@ const defaultForm: AdminFormState = {
   sharePointSiteUrlDev: '',
   sharePointSiteUrlProd: '',
   sharePointStrategy: 'kerberos',
-  spUsername: '',
-  spPassword: '',
   allowSelfSigned: false,
   trustedCaPath: '',
   hostsInput: '',
@@ -519,8 +515,6 @@ const AdminInstancesPage = () => {
       sharePointSiteUrlDev: instance.sharePoint.siteUrlDev,
       sharePointSiteUrlProd: instance.sharePoint.siteUrlProd,
       sharePointStrategy: instance.sharePoint.strategy || 'kerberos',
-      spUsername: '',
-      spPassword: '',
       allowSelfSigned: Boolean(instance.sharePoint.allowSelfSigned),
       trustedCaPath: instance.sharePoint.trustedCaPath || '',
       hostsInput: instance.hosts.join(', '),
@@ -1514,13 +1508,6 @@ const AdminInstancesPage = () => {
                           {instance.allowedDepartments && instance.allowedDepartments.length > 0
                             ? instance.allowedDepartments.join(', ')
                             : 'keine Einschränkung'}
-                        </dd>
-                      </div>
-                      <div className="flex gap-2">
-                        <dt className="text-slate-500">Credentials:</dt>
-                        <dd className="text-slate-300">
-                          Benutzer {instance.sharePoint.usernameSet ? 'gesetzt' : 'fehlt'} /
-                          Passwort {instance.sharePoint.passwordSet ? 'gesetzt' : 'fehlt'}
                         </dd>
                       </div>
                       <div>

@@ -81,16 +81,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const sharePoint = req.body?.sharePoint || {};
     const data: Record<string, unknown> = {};
     const defaultStrategy = normalizeSharePointStrategy(process.env.SP_STRATEGY);
-    const defaultUsername =
-      process.env.SP_KERBEROS_SERVICE_USER ||
-      process.env.SP_USERNAME ||
-      process.env.USER_NAME ||
-      '';
-    const defaultPassword =
-      process.env.SP_KERBEROS_SERVICE_PASSWORD ||
-      process.env.SP_PASSWORD ||
-      process.env.USER_PASSWORD ||
-      '';
     const defaultAllowSelfSigned =
       process.env.SP_ALLOW_SELF_SIGNED === 'true' ||
       process.env.SP_TLS_FALLBACK_INSECURE === 'true';
@@ -145,18 +135,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (sharePoint.strategy !== undefined) {
       data.sharePointStrategy = normalizeSharePointStrategy(sharePoint.strategy, defaultStrategy);
     }
-    if (sharePoint.username !== undefined) {
-      data.spUsername =
-        typeof sharePoint.username === 'string' && sharePoint.username.trim()
-          ? sharePoint.username.trim()
-          : defaultUsername;
-    }
-    if (sharePoint.password !== undefined) {
-      data.spPassword =
-        typeof sharePoint.password === 'string' && sharePoint.password.length > 0
-          ? sharePoint.password
-          : defaultPassword;
-    }
     if (sharePoint.allowSelfSigned !== undefined) {
       data.allowSelfSigned =
         typeof sharePoint.allowSelfSigned === 'boolean'
@@ -174,6 +152,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (settings) {
       data.settingsJson = serializeSettings(settings);
     }
+
+    data.spUsername = '';
+    data.spPassword = '';
 
     let updated = (await prisma.roadmapInstance.update({
       where: { slug },
