@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { Category } from '../types';
-import { clientDataService } from '../utils/clientDataService';
 import IconPicker from './IconPicker';
 import ColorPicker from './ColorPicker';
 
 interface CategoryFormProps {
   category?: Category;
-  onSave: () => void;
+  onSave: (categoryData: Omit<Category, 'id'>) => Promise<void> | void;
   onCancel: () => void;
 }
 
@@ -29,23 +28,13 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category, onSave, onCancel 
     setError('');
 
     try {
-      if (category?.id) {
-        // Update existing category
-        await clientDataService.updateCategory(category.id, {
-          name,
-          color,
-          icon,
-        });
-      } else {
-        // Create new category
-        await clientDataService.createCategory({
-          name,
-          color,
-          icon,
-        });
-      }
-
-      onSave();
+      await onSave({
+        name,
+        color,
+        icon,
+        parentId: category?.parentId,
+        isSubcategory: category?.isSubcategory,
+      });
     } catch (err) {
       console.error('Error saving category:', err);
       setError('Kategorie konnte nicht gespeichert werden. Bitte erneut versuchen.');

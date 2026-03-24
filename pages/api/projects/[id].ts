@@ -6,7 +6,75 @@ import {
   isReadSessionAllowedForInstance,
 } from '@/utils/instanceAccessServer';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
+import type { Project } from '@/types';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
+
+const normalizeTeamMembers = (value: unknown): Array<{ name: string; role: string }> => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((member) => {
+      if (!member || typeof member !== 'object') return null;
+      const record = member as Record<string, unknown>;
+      const name = typeof record.name === 'string' ? record.name.trim() : '';
+      const role =
+        typeof record.role === 'string' && record.role.trim() ? record.role.trim() : 'Teammitglied';
+      if (!name) return null;
+      return { name, role };
+    })
+    .filter((member): member is { name: string; role: string } => Boolean(member));
+};
+
+const normalizeProjectLinks = (value: unknown): Array<{ title: string; url: string }> => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((link) => {
+      if (!link || typeof link !== 'object') return null;
+      const record = link as Record<string, unknown>;
+      const title = typeof record.title === 'string' ? record.title.trim() : '';
+      const url = typeof record.url === 'string' ? record.url.trim() : '';
+      if (!title || !url) return null;
+      return { title, url };
+    })
+    .filter((link): link is { title: string; url: string } => Boolean(link));
+};
+
+const omitProjectRelations = (value: unknown): Record<string, unknown> => {
+  const record =
+    value && typeof value === 'object' ? { ...(value as Record<string, unknown>) } : {};
+  delete record.teamMembers;
+  delete record.links;
+  return record;
+};
+
+const syncProjectRelations = async (
+  instanceSlug: string,
+  forwardedHeaders: { authorization?: string; cookie?: string },
+  projectId: string,
+  teamMembers: Array<{ name: string; role: string }>,
+  links: Array<{ title: string; url: string }>
+) => {
+  await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+    clientDataService.withInstance(instanceSlug, async () => {
+      await clientDataService.deleteTeamMembersForProject(projectId);
+      for (const member of teamMembers) {
+        await clientDataService.createTeamMember({
+          name: member.name,
+          role: member.role,
+          projectId,
+        });
+      }
+
+      await clientDataService.deleteProjectLinks(projectId);
+      for (const link of links) {
+        await clientDataService.createProjectLink({
+          title: link.title,
+          url: link.url,
+          projectId,
+        });
+      }
+    })
+  );
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
@@ -46,8 +114,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Use clientDataService directly
-      const project = await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.getProjectById(id)
+      const project = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+        clientDataService.withInstance(instance.slug, () => clientDataService.getProjectById(id))
       );
 
       if (!project) {
@@ -75,11 +143,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      const projectData = req.body;
-      await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.updateProject(id, projectData)
+      const teamMembers = normalizeTeamMembers(req.body?.teamMembers);
+      const links = normalizeProjectLinks(req.body?.links);
+      const projectData = omitProjectRelations(req.body);
+
+      await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+        clientDataService.withInstance(instance.slug, () =>
+          clientDataService.updateProject(id, projectData as Partial<Project>)
+        )
       );
-      res.status(200).json({ success: true });
+
+      await syncProjectRelations(instance.slug, forwardedHeaders, id, teamMembers, links);
+
+      const updatedProject = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+        clientDataService.withInstance(instance.slug, () => clientDataService.getProjectById(id))
+      );
+
+      res.status(200).json(updatedProject ?? { success: true });
     } catch (error) {
       console.error('Error updating project:', error);
       res.status(500).json({ error: 'Failed to update project' });
@@ -100,8 +180,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.deleteProject(id)
+      await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+        clientDataService.withInstance(instance.slug, () => clientDataService.deleteProject(id))
       );
       res.status(200).json({ success: true });
     } catch (error) {

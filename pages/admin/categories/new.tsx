@@ -3,6 +3,8 @@ import { type FC } from 'react';
 import AdminSubpageLayout from '@/components/AdminSubpageLayout';
 import CategoryForm from '@/components/CategoryForm';
 import withAdminAuth from '@/components/withAdminAuth';
+import { buildInstanceAwareUrl } from '@/utils/auth';
+import type { Category } from '@/types';
 
 const NewCategoryPage: FC = () => {
   const router = useRouter();
@@ -11,7 +13,22 @@ const NewCategoryPage: FC = () => {
     router.push({ pathname: '/admin', query: router.query });
   };
 
-  const handleSave = () => {
+  const handleSave = async (categoryData: Omit<Category, 'id'>) => {
+    const response = await fetch(buildInstanceAwareUrl('/api/categories'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(categoryData),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || 'Kategorie konnte nicht gespeichert werden.');
+    }
+
     router.push({ pathname: '/admin', query: router.query });
   };
 

@@ -5,7 +5,7 @@ import JSDoITLoader from '@/components/JSDoITLoader';
 import ProjectForm from '@/components/ProjectForm';
 import withAdminAuth from '@/components/withAdminAuth';
 import { Category, Project } from '@/types';
-import { clientDataService } from '@/utils/clientDataService';
+import { buildInstanceAwareUrl } from '@/utils/auth';
 
 const NewProjectPage: FC = () => {
   const router = useRouter();
@@ -19,7 +19,15 @@ const NewProjectPage: FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const categoriesData = await clientDataService.getAllCategories();
+        const response = await fetch(buildInstanceAwareUrl('/api/categories'), {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.error || 'Kategorien konnten nicht geladen werden');
+        }
+        const categoriesData = (await response.json()) as Category[];
         if (cancelled) return;
         setCategories(categoriesData);
       } catch (err) {
@@ -45,7 +53,21 @@ const NewProjectPage: FC = () => {
 
   const handleSubmit = async (project: Project) => {
     try {
-      await clientDataService.saveProject(project);
+      const response = await fetch(buildInstanceAwareUrl('/api/projects'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(project),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || 'Projekt konnte nicht gespeichert werden.');
+      }
+
       router.push({ pathname: '/admin', query: router.query });
     } catch (err) {
       console.error('Error saving project:', err);

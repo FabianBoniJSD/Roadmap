@@ -10,6 +10,73 @@ import type { Project } from '@/types';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 
+const normalizeTeamMembers = (value: unknown): Array<{ name: string; role: string }> => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((member) => {
+      if (!member || typeof member !== 'object') return null;
+      const record = member as Record<string, unknown>;
+      const name = typeof record.name === 'string' ? record.name.trim() : '';
+      const role =
+        typeof record.role === 'string' && record.role.trim() ? record.role.trim() : 'Teammitglied';
+      if (!name) return null;
+      return { name, role };
+    })
+    .filter((member): member is { name: string; role: string } => Boolean(member));
+};
+
+const normalizeProjectLinks = (value: unknown): Array<{ title: string; url: string }> => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((link) => {
+      if (!link || typeof link !== 'object') return null;
+      const record = link as Record<string, unknown>;
+      const title = typeof record.title === 'string' ? record.title.trim() : '';
+      const url = typeof record.url === 'string' ? record.url.trim() : '';
+      if (!title || !url) return null;
+      return { title, url };
+    })
+    .filter((link): link is { title: string; url: string } => Boolean(link));
+};
+
+const omitProjectRelations = (value: unknown): Record<string, unknown> => {
+  const record =
+    value && typeof value === 'object' ? { ...(value as Record<string, unknown>) } : {};
+  delete record.teamMembers;
+  delete record.links;
+  return record;
+};
+
+const syncProjectRelations = async (
+  instanceSlug: string,
+  forwardedHeaders: { authorization?: string; cookie?: string },
+  projectId: string,
+  teamMembers: Array<{ name: string; role: string }>,
+  links: Array<{ title: string; url: string }>
+) => {
+  await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+    clientDataService.withInstance(instanceSlug, async () => {
+      await clientDataService.deleteTeamMembersForProject(projectId);
+      for (const member of teamMembers) {
+        await clientDataService.createTeamMember({
+          name: member.name,
+          role: member.role,
+          projectId,
+        });
+      }
+
+      await clientDataService.deleteProjectLinks(projectId);
+      for (const link of links) {
+        await clientDataService.createProjectLink({
+          title: link.title,
+          url: link.url,
+          projectId,
+        });
+      }
+    })
+  );
+};
+
 const deriveQuarterDate = (q: string, end = false): string => {
   const year = new Date().getFullYear();
   switch (q) {
@@ -386,13 +453,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      const projectData = req.body;
+      const teamMembers = normalizeTeamMembers(req.body?.teamMembers);
+      const links = normalizeProjectLinks(req.body?.links);
+      const projectData = omitProjectRelations(req.body);
+
       const newProject = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
         clientDataService.withInstance(instance.slug, () =>
-          clientDataService.createProject(projectData)
+          clientDataService.createProject(projectData as Omit<Project, 'id'>)
         )
       );
-      res.status(201).json(newProject);
+
+      await syncProjectRelations(
+        instance.slug,
+        forwardedHeaders,
+        newProject.id,
+        teamMembers,
+        links
+      );
+
+      const hydratedProject = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+        clientDataService.withInstance(instance.slug, () =>
+          clientDataService.getProjectById(newProject.id)
+        )
+      );
+
+      res.status(201).json(hydratedProject || newProject);
     } catch (error: unknown) {
       console.error('Error creating project:', error);
       res.status(500).json({ error: 'Failed to create project' });

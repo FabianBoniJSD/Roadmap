@@ -5,6 +5,7 @@ import JSDoITLoader from '@/components/JSDoITLoader';
 import ProjectForm from '@/components/ProjectForm';
 import withAdminAuth from '@/components/withAdminAuth';
 import { Category, Project, TeamMember } from '@/types';
+import { buildInstanceAwareUrl } from '@/utils/auth';
 import { clientDataService } from '@/utils/clientDataService';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 
@@ -64,18 +65,38 @@ const EditProjectPage: FC = () => {
         setLoading(true);
         setError(null);
 
-        const [projectData, categoriesData, teamMembersData, attachmentsData] = await Promise.all([
-          clientDataService.getProjectById(id),
-          clientDataService.getAllCategories(),
-          clientDataService.getTeamMembersForProject(id),
+        const [projectResponse, categoriesResponse, attachmentsData] = await Promise.all([
+          fetch(buildInstanceAwareUrl(`/api/projects/${encodeURIComponent(id)}`), {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+          }),
+          fetch(buildInstanceAwareUrl('/api/categories'), {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+          }),
           clientDataService.listAttachments(id),
         ]);
+
+        if (!projectResponse.ok || !categoriesResponse.ok) {
+          const projectPayload = await projectResponse.json().catch(() => null);
+          const categoriesPayload = await categoriesResponse.json().catch(() => null);
+          throw new Error(
+            projectPayload?.error ||
+              categoriesPayload?.error ||
+              'Projektdaten konnten nicht geladen werden.'
+          );
+        }
+
+        const [projectData, categoriesData] = (await Promise.all([
+          projectResponse.json(),
+          categoriesResponse.json(),
+        ])) as [Project | null, Category[]];
 
         if (requestId !== fetchRequestIdRef.current) return;
 
         setProject(projectData);
         setCategories(categoriesData);
-        setTeamMembers(teamMembersData);
+        setTeamMembers(Array.isArray(projectData?.teamMembers) ? projectData.teamMembers : []);
         setAttachments(attachmentsData);
       } catch (err) {
         console.error('Error fetching project data:', err);
@@ -221,50 +242,25 @@ const EditProjectPage: FC = () => {
         }
       }
 
-      const teamMembersToSave =
-        updatedProject.teamMembers && Array.isArray(updatedProject.teamMembers)
-          ? updatedProject.teamMembers.map((member) =>
-              typeof member === 'string'
-                ? { name: member, role: 'Teammitglied' }
-                : { name: member.name, role: member.role || 'Teammitglied' }
-            )
-          : [];
+      projectToSave.teamMembers = updatedProject.teamMembers;
+      projectToSave.links = updatedProject.links;
 
-      const savedProject = await clientDataService.updateProject(
-        projectToSave.id,
-        projectToSave as Partial<Project>
+      const response = await fetch(
+        buildInstanceAwareUrl(`/api/projects/${encodeURIComponent(projectToSave.id)}`),
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify(projectToSave),
+        }
       );
 
-      try {
-        await clientDataService.deleteTeamMembersForProject(savedProject.id);
-        for (const member of teamMembersToSave) {
-          if (member.name) {
-            await clientDataService.createTeamMember({
-              name: member.name,
-              role: member.role || 'Teammitglied',
-              projectId: savedProject.id,
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Error updating team members:', err);
-      }
-
-      if (Array.isArray(updatedProject.links)) {
-        try {
-          await clientDataService.deleteProjectLinks(savedProject.id);
-          for (const link of updatedProject.links) {
-            if (link && link.title && link.url) {
-              await clientDataService.createProjectLink({
-                title: link.title,
-                url: link.url,
-                projectId: savedProject.id,
-              });
-            }
-          }
-        } catch (err) {
-          console.error('Error updating links:', err);
-        }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || 'Projekt konnte nicht gespeichert werden.');
       }
 
       router.push({ pathname: '/admin', query: router.query });

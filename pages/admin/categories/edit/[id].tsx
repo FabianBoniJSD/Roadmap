@@ -5,7 +5,7 @@ import CategoryForm from '@/components/CategoryForm';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import withAdminAuth from '@/components/withAdminAuth';
 import { Category } from '@/types';
-import { clientDataService } from '@/utils/clientDataService';
+import { buildInstanceAwareUrl } from '@/utils/auth';
 
 const EditCategoryPage: FC = () => {
   const router = useRouter();
@@ -23,7 +23,18 @@ const EditCategoryPage: FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await clientDataService.getCategoryById(id);
+        const response = await fetch(
+          buildInstanceAwareUrl(`/api/categories/${encodeURIComponent(id)}`),
+          {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+          }
+        );
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.error || 'Kategorie konnte nicht geladen werden.');
+        }
+        const data = (await response.json()) as Category;
         if (cancelled) return;
         setCategory(data);
       } catch (err) {
@@ -47,7 +58,29 @@ const EditCategoryPage: FC = () => {
     router.push({ pathname: '/admin', query: router.query });
   };
 
-  const handleSave = () => {
+  const handleSave = async (categoryData: Omit<Category, 'id'>) => {
+    if (!id || typeof id !== 'string') {
+      throw new Error('Ungültige Kategorie-ID');
+    }
+
+    const response = await fetch(
+      buildInstanceAwareUrl(`/api/categories/${encodeURIComponent(id)}`),
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(categoryData),
+      }
+    );
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || 'Kategorie konnte nicht gespeichert werden.');
+    }
+
     router.push({ pathname: '/admin', query: router.query });
   };
 
