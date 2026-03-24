@@ -185,7 +185,7 @@ const EditProjectPage: FC = () => {
 
   const handleSubmit = async (updatedProject: Project) => {
     try {
-      const projectToSave = {
+      const projectToSave: Project = {
         id: updatedProject.id,
         title: updatedProject.title || '',
         projectType: updatedProject.projectType || 'long',
@@ -206,6 +206,8 @@ const EditProjectPage: FC = () => {
         projektphase: updatedProject.projektphase || '',
         naechster_meilenstein: updatedProject.naechster_meilenstein || '',
         ProjectFields: [] as string[],
+        teamMembers: updatedProject.teamMembers,
+        links: updatedProject.links,
       };
 
       if (updatedProject.startDate) {
@@ -241,10 +243,6 @@ const EditProjectPage: FC = () => {
           projectToSave.ProjectFields = [String(projectFieldsRaw)];
         }
       }
-
-      projectToSave.teamMembers = updatedProject.teamMembers;
-      projectToSave.links = updatedProject.links;
-
       const response = await fetch(
         buildInstanceAwareUrl(`/api/projects/${encodeURIComponent(projectToSave.id)}`),
         {
