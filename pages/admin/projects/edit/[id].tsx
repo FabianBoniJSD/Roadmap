@@ -203,7 +203,7 @@ const EditProjectPage: FC = () => {
         budget: updatedProject.budget || '',
         startDate: '',
         endDate: '',
-        projektphase: updatedProject.projektphase || '',
+        projektphase: updatedProject.projektphase || undefined,
         naechster_meilenstein: updatedProject.naechster_meilenstein || '',
         ProjectFields: [] as string[],
         teamMembers: updatedProject.teamMembers,
