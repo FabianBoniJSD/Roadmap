@@ -402,7 +402,10 @@ export function maskSharePointSecrets(settings: RoadmapInstanceSharePointSetting
 }
 
 export function setInstanceCookieHeader(slug: string): string {
-  const safeSlug = normalizeSlug(slug) || DEFAULT_INSTANCE_SLUG;
+  const safeSlug = normalizeSlug(slug);
+  if (!safeSlug) {
+    return `${INSTANCE_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
+  }
   const maxAge = 60 * 60 * 24 * 30; // 30 days
   return `${INSTANCE_COOKIE_NAME}=${safeSlug}; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
 }
