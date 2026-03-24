@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { requireAdminSession } from '@/utils/apiAuth';
+import prisma from '@/lib/prisma';
+import { requireUserSession } from '@/utils/apiAuth';
 import { clientDataService } from '@/utils/clientDataService';
+import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
@@ -15,10 +17,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const session = requireAdminSession(req);
+    const session = requireUserSession(req);
     const groups = Array.isArray(session.groups)
       ? session.groups.filter((g): g is string => typeof g === 'string')
       : [];
+    const requestHeaders = {
+      authorization:
+        typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
+      cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
+    };
+    const candidateInstanceSlugs = (
+      await prisma.roadmapInstance.findMany({ select: { slug: true }, orderBy: { slug: 'asc' } })
+    )
+      .map((record) => String(record.slug || '').trim())
+      .filter(Boolean);
+    const isSuperAdmin = await isSuperAdminSessionWithSharePointFallback(session, {
+      candidateInstanceSlugs,
+      requestHeaders,
+    });
+    let isAdmin = isSuperAdmin;
+    if (!isAdmin) {
+      for (const slug of candidateInstanceSlugs) {
+        if (
+          await isAdminSessionAllowedForInstance({
+            session,
+            instance: { slug },
+            requestHeaders,
+          })
+        ) {
+          isAdmin = true;
+          break;
+        }
+      }
+    }
 
     const debugInstance = typeof req.query.instance === 'string' ? req.query.instance : null;
     const debugGroup = typeof req.query.group === 'string' ? req.query.group : null;
@@ -55,8 +86,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       username: session.username ?? null,
       displayName: session.displayName ?? null,
       source: session.source ?? null,
-      isAdmin: session.isAdmin === true,
-      isSuperAdmin: await isSuperAdminSessionWithSharePointFallback(session),
+      isAdmin,
+      isSuperAdmin,
       groups,
       entra: session.entra ?? null,
       spGroupMembership,

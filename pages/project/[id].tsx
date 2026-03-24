@@ -212,16 +212,15 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
             <FiInfo className="mx-auto h-10 w-10 text-amber-200" aria-hidden="true" />
             <h1 className="mt-4 text-xl font-semibold text-white">Kein Zugriff</h1>
             <p className="mt-3 text-sm text-slate-200">
-              Du hast keinen Zugriff auf diese Roadmap-Instanz. Bitte lasse dir eine Gruppe im
-              Format <span className="font-mono">admin-&lt;instanz&gt;</span> zuweisen oder verwende{' '}
-              <span className="font-mono">superadmin</span> für Vollzugriff.
+              Du hast keinen Zugriff auf diese Roadmap-Instanz. Sichtbarkeit wird pro Instanz anhand
+              deiner Abteilung oder expliziter Admin-Berechtigungen gesteuert.
             </p>
             <div className="mt-6">
               <Link
-                href="/admin"
+                href="/roadmap"
                 className="inline-flex items-center justify-center rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
               >
-                Zum Adminbereich
+                Zur Roadmap
               </Link>
             </div>
           </div>
@@ -507,7 +506,7 @@ export const getServerSideProps: GetServerSideProps<{ accessDenied?: boolean }> 
     cookie: typeof ctx.req.headers.cookie === 'string' ? ctx.req.headers.cookie : undefined,
   };
 
-  if (!session?.isAdmin) {
+  if (!session) {
     const returnUrl = typeof ctx.resolvedUrl === 'string' ? ctx.resolvedUrl : '/project';
     return {
       redirect: {

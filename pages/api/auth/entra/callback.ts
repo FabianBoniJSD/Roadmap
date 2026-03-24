@@ -234,7 +234,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       {
         username,
         displayName,
-        isAdmin: true,
+        isAdmin: false,
         source: 'entra',
         groups: groupNames,
         entra: {

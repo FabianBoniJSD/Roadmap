@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
-import { extractAdminSession, requireAdminSession } from '@/utils/apiAuth';
+import { requireUserSession } from '@/utils/apiAuth';
 import {
   isAdminSessionAllowedForInstance,
   isReadSessionAllowedForInstance,
@@ -34,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // GET - Fetch a single project
   if (req.method === 'GET') {
     try {
-      const session = requireAdminSession(req);
+      const session = requireUserSession(req);
       if (
         !(await isReadSessionAllowedForInstance({
           session,
@@ -63,26 +63,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // PUT - Update a project
   else if (req.method === 'PUT') {
     try {
-      const session = extractAdminSession(req);
+      const session = requireUserSession(req);
 
-      if (session?.isAdmin) {
-        if (
-          !(await isAdminSessionAllowedForInstance({
-            session,
-            instance,
-            requestHeaders: forwardedHeaders,
-          }))
-        ) {
-          return res.status(403).json({ error: 'Forbidden' });
-        }
-      } else {
-        // Admin-only: ensure caller is a Site Collection Admin
-        const isAdmin = await clientDataService.withInstance(instance.slug, () =>
-          clientDataService.isCurrentUserAdmin()
-        );
-        if (!isAdmin) {
-          return res.status(401).json({ error: 'Unauthorized' });
-        }
+      if (
+        !(await isAdminSessionAllowedForInstance({
+          session,
+          instance,
+          requestHeaders: forwardedHeaders,
+        }))
+      ) {
+        return res.status(403).json({ error: 'Forbidden' });
       }
 
       const projectData = req.body;
@@ -98,26 +88,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // DELETE - Delete a project
   else if (req.method === 'DELETE') {
     try {
-      const session = extractAdminSession(req);
+      const session = requireUserSession(req);
 
-      if (session?.isAdmin) {
-        if (
-          !(await isAdminSessionAllowedForInstance({
-            session,
-            instance,
-            requestHeaders: forwardedHeaders,
-          }))
-        ) {
-          return res.status(403).json({ error: 'Forbidden' });
-        }
-      } else {
-        // Admin-only: ensure caller is a Site Collection Admin
-        const isAdmin = await clientDataService.withInstance(instance.slug, () =>
-          clientDataService.isCurrentUserAdmin()
-        );
-        if (!isAdmin) {
-          return res.status(401).json({ error: 'Unauthorized' });
-        }
+      if (
+        !(await isAdminSessionAllowedForInstance({
+          session,
+          instance,
+          requestHeaders: forwardedHeaders,
+        }))
+      ) {
+        return res.status(403).json({ error: 'Forbidden' });
       }
 
       await clientDataService.withInstance(instance.slug, () =>

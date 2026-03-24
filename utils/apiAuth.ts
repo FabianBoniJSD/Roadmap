@@ -75,6 +75,14 @@ export function extractAdminSession(req: NextApiRequest): AdminSessionPayload | 
   });
 }
 
+export function requireUserSession(req: NextApiRequest): AdminSessionPayload {
+  const payload = extractAdminSession(req);
+  if (!payload) {
+    throw new Error('Unauthorized');
+  }
+  return payload;
+}
+
 export function requireAdminSession(req: NextApiRequest): AdminSessionPayload {
   const payload = extractAdminSession(req);
   if (!payload || payload.isAdmin !== true) {

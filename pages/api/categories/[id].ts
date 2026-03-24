@@ -1,7 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
-import { extractAdminSession, requireAdminSession } from '@/utils/apiAuth';
-import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { requireUserSession } from '@/utils/apiAuth';
+import {
+  isAdminSessionAllowedForInstance,
+  isReadSessionAllowedForInstance,
+} from '@/utils/instanceAccessServer';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 
@@ -31,9 +34,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // GET - Fetch a single category
   if (req.method === 'GET') {
     try {
-      const session = requireAdminSession(req);
+      const session = requireUserSession(req);
       if (
-        !(await isAdminSessionAllowedForInstance({
+        !(await isReadSessionAllowedForInstance({
           session,
           instance,
           requestHeaders: forwardedHeaders,
@@ -60,26 +63,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // PUT - Update a category
   else if (req.method === 'PUT') {
     try {
-      const session = extractAdminSession(req);
+      const session = requireUserSession(req);
 
-      if (session?.isAdmin) {
-        if (
-          !(await isAdminSessionAllowedForInstance({
-            session,
-            instance,
-            requestHeaders: forwardedHeaders,
-          }))
-        ) {
-          return res.status(403).json({ error: 'Forbidden' });
-        }
-      } else {
-        // Admin-only: ensure caller is a Site Collection Admin
-        const isAdmin = await clientDataService.withInstance(instance.slug, () =>
-          clientDataService.isCurrentUserAdmin()
-        );
-        if (!isAdmin) {
-          return res.status(401).json({ error: 'Unauthorized' });
-        }
+      if (
+        !(await isAdminSessionAllowedForInstance({
+          session,
+          instance,
+          requestHeaders: forwardedHeaders,
+        }))
+      ) {
+        return res.status(403).json({ error: 'Forbidden' });
       }
 
       const { name, color, icon } = req.body;
@@ -107,26 +100,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // DELETE - Delete a category
   else if (req.method === 'DELETE') {
     try {
-      const session = extractAdminSession(req);
+      const session = requireUserSession(req);
 
-      if (session?.isAdmin) {
-        if (
-          !(await isAdminSessionAllowedForInstance({
-            session,
-            instance,
-            requestHeaders: forwardedHeaders,
-          }))
-        ) {
-          return res.status(403).json({ error: 'Forbidden' });
-        }
-      } else {
-        // Admin-only: ensure caller is a Site Collection Admin
-        const isAdmin = await clientDataService.withInstance(instance.slug, () =>
-          clientDataService.isCurrentUserAdmin()
-        );
-        if (!isAdmin) {
-          return res.status(401).json({ error: 'Unauthorized' });
-        }
+      if (
+        !(await isAdminSessionAllowedForInstance({
+          session,
+          instance,
+          requestHeaders: forwardedHeaders,
+        }))
+      ) {
+        return res.status(403).json({ error: 'Forbidden' });
       }
 
       await clientDataService.withInstance(instance.slug, () =>

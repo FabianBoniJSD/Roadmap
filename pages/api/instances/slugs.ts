@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { extractAdminSession } from '@/utils/apiAuth';
-import { getInstanceSlugsFromPrincipal, isSuperAdminPrincipal } from '@/utils/instanceAccess';
 import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
@@ -143,41 +142,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const details = String(req.query.details || '').toLowerCase() === 'landing';
     const session = extractAdminSession(req);
-    if (!session || session.isAdmin !== true) {
+    if (!session) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const username =
-      (typeof session?.username === 'string' && session.username) ||
-      (typeof session?.displayName === 'string' && session.displayName) ||
-      null;
-
-    const principal = { username, groups: session?.groups };
     const forwardedHeaders = {
       authorization:
         typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
       cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
     };
-    const tokenSuperAdmin = isSuperAdminPrincipal(principal);
-    const isSuperAdmin =
-      tokenSuperAdmin || (await isSuperAdminSessionWithSharePointFallback(session));
+    const isSuperAdmin = await isSuperAdminSessionWithSharePointFallback(session, {
+      requestHeaders: forwardedHeaders,
+    });
 
-    // Fast path: token already contains instance groups.
-    const tokenAllowedSlugs = isSuperAdmin ? null : getInstanceSlugsFromPrincipal(principal);
-    if (tokenAllowedSlugs && tokenAllowedSlugs.length > 0) {
-      const records = await prisma.roadmapInstance.findMany({
-        ...instanceQuery,
-        where: { slug: { in: tokenAllowedSlugs } },
-        orderBy: { slug: 'asc' },
-      });
-      const instances = details
-        ? records.map((r) => toLandingInstance(r))
-        : records.map((r) => toInstanceOption(r));
-      return res.status(200).json({ instances });
-    }
-
-    // Fallback: if no implicit groups are present in the JWT, verify membership in
-    // SharePoint site group "admin-<slug>" for each instance.
     const allRecords = await prisma.roadmapInstance.findMany({
       ...instanceQuery,
       orderBy: { slug: 'asc' },

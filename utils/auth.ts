@@ -265,6 +265,28 @@ export function getAdminSessionToken(): string | null {
   return getStoredToken();
 }
 
+export async function hasValidUserSession(): Promise<boolean> {
+  try {
+    if (typeof window === 'undefined') return false;
+
+    const token = getStoredToken();
+    if (!token) return false;
+
+    const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin-session'), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      clearStoredSession();
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Strict session check: returns true ONLY when a JWT admin session token exists and is valid.
  * Does not fall back to the SharePoint service-account permission check.
@@ -285,9 +307,18 @@ export async function hasValidAdminSession(): Promise<boolean> {
       return false;
     }
 
-    const data = (await response.json().catch(() => null)) as null | { isAdmin?: unknown };
+    const data = (await response.json().catch(() => null)) as null | {
+      authenticated?: unknown;
+      isAdmin?: unknown;
+    };
+    const authenticated = Boolean(
+      data && typeof data.authenticated === 'boolean' ? data.authenticated : true
+    );
+    if (!authenticated) {
+      clearStoredSession();
+      return false;
+    }
     const ok = Boolean(data && typeof data.isAdmin === 'boolean' ? data.isAdmin : false);
-    if (!ok) clearStoredSession();
     return ok;
   } catch {
     return false;
@@ -322,25 +353,7 @@ export async function hasAdminAccess(): Promise<boolean> {
       }
     }
 
-    log('hasAdminAccess: falling back to service account metadata');
-    try {
-      const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin'));
-      if (response.ok) {
-        const data = await response.json();
-        if (data.requiresUserSession) {
-          log('hasAdminAccess: environment requires user session, no auto access');
-          return false;
-        }
-        log(`hasAdminAccess: service account fallback -> ${data.isAdmin}`);
-        return Boolean(data.isAdmin);
-      } else {
-        log('hasAdminAccess: fallback check failed with status', response.status);
-        return false;
-      }
-    } catch (error) {
-      log('hasAdminAccess: error checking fallback admin status', error);
-      return false;
-    }
+    return false;
   } catch (error) {
     console.error('Admin check failed:', error);
     return false;

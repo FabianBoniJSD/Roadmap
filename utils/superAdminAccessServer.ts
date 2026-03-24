@@ -2,7 +2,7 @@ import type { NextApiRequest } from 'next';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import type { AdminSessionPayload } from '@/utils/apiAuth';
-import { isSuperAdminSession, requireAdminSession } from '@/utils/apiAuth';
+import { requireUserSession } from '@/utils/apiAuth';
 import { clientDataService } from '@/utils/clientDataService';
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
@@ -30,15 +30,7 @@ const extractIdentifiers = (session: AdminSessionPayload | null | undefined) => 
   return { username, upn, mail, displayName };
 };
 
-type CacheEntry = { expires: number; ok: boolean };
-const superAdminCache: Record<string, CacheEntry> = {};
-const SUPERADMIN_CACHE_TTL_MS = 2 * 60 * 1000;
 type ForwardedRequestHeaders = { authorization?: string; cookie?: string };
-
-const buildCacheKey = (ids: ReturnType<typeof extractIdentifiers>): string => {
-  const primary = ids.upn || ids.mail || ids.username || ids.displayName || 'unknown';
-  return normalize(primary);
-};
 
 async function isDbSuperAdmin(ids: ReturnType<typeof extractIdentifiers>): Promise<boolean> {
   const candidates = Array.from(
@@ -104,16 +96,10 @@ export async function isSuperAdminSessionWithSharePointFallback(
   opts?: { candidateInstanceSlugs?: string[]; requestHeaders?: ForwardedRequestHeaders }
 ): Promise<boolean> {
   if (!session) return false;
-  if (isSuperAdminSession(session)) return true;
 
   const ids = extractIdentifiers(session);
-  const cacheKey = buildCacheKey(ids);
-  const now = Date.now();
-  const cached = superAdminCache[cacheKey];
-  if (cached && cached.expires > now) return cached.ok;
 
   if (await isDbSuperAdmin(ids)) {
-    superAdminCache[cacheKey] = { ok: true, expires: now + SUPERADMIN_CACHE_TTL_MS };
     return true;
   }
 
@@ -141,13 +127,18 @@ export async function isSuperAdminSessionWithSharePointFallback(
     if (ok) break;
   }
 
-  superAdminCache[cacheKey] = { ok, expires: now + SUPERADMIN_CACHE_TTL_MS };
   return ok;
 }
 
 export async function requireSuperAdminAccess(req: NextApiRequest): Promise<AdminSessionPayload> {
-  const session = requireAdminSession(req);
-  const ok = await isSuperAdminSessionWithSharePointFallback(session);
+  const session = requireUserSession(req);
+  const ok = await isSuperAdminSessionWithSharePointFallback(session, {
+    requestHeaders: {
+      authorization:
+        typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
+      cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
+    },
+  });
   if (!ok) throw new Error('Forbidden');
   return session;
 }

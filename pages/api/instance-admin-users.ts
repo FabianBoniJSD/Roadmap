@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
-import { requireAdminSession } from '@/utils/apiAuth';
+import { requireUserSession } from '@/utils/apiAuth';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import {
   appendAllowedUser,
@@ -27,7 +27,7 @@ const decodeSettings = (settingsJson: string | null): Record<string, unknown> =>
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   let session;
   try {
-    session = requireAdminSession(req);
+    session = requireUserSession(req);
   } catch {
     return res.status(401).json({ error: 'Unauthorized' });
   }

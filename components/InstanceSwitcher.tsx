@@ -59,7 +59,7 @@ const InstanceSwitcher = () => {
     };
   }, []);
 
-  // Load available instances (admin-only; filtered by group membership)
+  // Load available instances for the current authenticated user.
   useEffect(() => {
     if (!router.isReady) return;
     let cancelled = false;

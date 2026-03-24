@@ -12,10 +12,10 @@ import {
   buildInstanceAwareUrl,
   getAdminSessionToken,
   hasValidAdminSession,
+  hasValidUserSession,
   persistAdminSession,
 } from '@/utils/auth';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
-import { getInstanceSlugsFromPrincipal, isSuperAdminPrincipal } from '@/utils/instanceAccess';
 import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
@@ -137,6 +137,7 @@ const LandingPage = ({ instances }: LandingPageProps) => {
   const [instancesLoading, setInstancesLoading] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [canManageInstances, setCanManageInstances] = useState(false);
   const [entraEnabled, setEntraEnabled] = useState(false);
   const [authStatus, setAuthStatus] = useState<string>('');
   const [sessionRevision, setSessionRevision] = useState(0);
@@ -216,8 +217,14 @@ const LandingPage = ({ instances }: LandingPageProps) => {
           // ignore
         }
 
-        const ok = await hasValidAdminSession();
-        if (!cancelled) setAuthed(ok);
+        const [hasSession, hasAdmin] = await Promise.all([
+          hasValidUserSession(),
+          hasValidAdminSession(),
+        ]);
+        if (!cancelled) {
+          setAuthed(hasSession);
+          setCanManageInstances(hasAdmin);
+        }
       } finally {
         if (!cancelled) setAuthChecked(true);
       }
@@ -579,7 +586,7 @@ const LandingPage = ({ instances }: LandingPageProps) => {
                       href={`/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}`}
                       className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
                     >
-                      Admin Login
+                      Anmelden
                     </Link>
                   )}
                   <Link
@@ -616,7 +623,7 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
   });
 
   // If the caller is not authenticated, do not expose instance metadata.
-  if (!session?.isAdmin) {
+  if (!session) {
     return {
       props: { instances: [] },
     };
@@ -647,38 +654,22 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
     };
   }
 
-  // Fast path: token groups contain allowed slugs.
-  const username =
-    (typeof session?.username === 'string' && session.username) ||
-    (typeof session?.displayName === 'string' && session.displayName) ||
-    null;
-  const principal = { username, groups: session?.groups };
-  const tokenAllowedSlugs = isSuperAdminPrincipal(principal)
-    ? null
-    : getInstanceSlugsFromPrincipal(principal);
+  const checks = await Promise.all(
+    records.map(async (r) => {
+      try {
+        const allowed = await isReadSessionAllowedForInstance({
+          session,
+          instance: { slug: r.slug },
+          requestHeaders: forwardedHeaders,
+        });
+        return { record: r, allowed };
+      } catch {
+        return { record: r, allowed: false };
+      }
+    })
+  );
 
-  let filtered = records;
-  if (tokenAllowedSlugs && tokenAllowedSlugs.length > 0) {
-    const allowed = new Set(tokenAllowedSlugs.map((s) => String(s).toLowerCase()));
-    filtered = records.filter((r) => allowed.has(String(r.slug).toLowerCase()));
-  } else {
-    // Fallback: SharePoint group membership per instance.
-    const checks = await Promise.all(
-      records.map(async (r) => {
-        try {
-          const allowed = await isReadSessionAllowedForInstance({
-            session,
-            instance: { slug: r.slug },
-            requestHeaders: forwardedHeaders,
-          });
-          return { record: r, allowed };
-        } catch {
-          return { record: r, allowed: false };
-        }
-      })
-    );
-    filtered = checks.filter((c) => c.allowed).map((c) => c.record);
-  }
+  const filtered = checks.filter((c) => c.allowed).map((c) => c.record);
 
   const instances: LandingInstance[] = filtered.map((record) => {
     const hosts = record.hosts.map((host) => host.host);

@@ -162,10 +162,8 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
             <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-8 shadow-xl shadow-slate-950/40">
               <h1 className="text-xl font-semibold text-white">Kein Zugriff</h1>
               <p className="mt-3 text-sm text-slate-200">
-                Du hast keinen Zugriff auf eine Roadmap-Instanz. Bitte lasse dir eine Gruppe im
-                Format <span className="font-mono">admin-&lt;instanz&gt;</span> (z.B.
-                <span className="font-mono"> admin-bdm-projects</span>) zuweisen oder verwende die
-                Gruppe <span className="font-mono">superadmin</span> für Vollzugriff.
+                Du hast keinen Zugriff auf diese Roadmap-Instanz. Sichtbarkeit wird pro Instanz
+                anhand deiner Abteilung oder expliziter Admin-Berechtigungen gesteuert.
               </p>
             </div>
           </div>
@@ -214,7 +212,7 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
           : undefined,
       cookie: typeof ctx.req.headers.cookie === 'string' ? ctx.req.headers.cookie : undefined,
     };
-    if (!session?.isAdmin) {
+    if (!session) {
       const returnUrl = typeof ctx.resolvedUrl === 'string' ? ctx.resolvedUrl : '/roadmap';
       return {
         redirect: {

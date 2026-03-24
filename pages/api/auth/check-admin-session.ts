@@ -1,9 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import jwt from 'jsonwebtoken';
-import type { AdminSessionPayload } from '@/utils/apiAuth';
+import prisma from '@/lib/prisma';
+import { extractAdminSession } from '@/utils/apiAuth';
+import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'roadmap-secret-change-in-production';
 
 /**
  * Check if the current session has a valid JWT token
@@ -14,55 +13,70 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(403).json({ isAdmin: false, error: 'No token provided' });
+    const session = extractAdminSession(req);
+    if (!session) {
+      return res
+        .status(403)
+        .json({ authenticated: false, isAdmin: false, error: 'No token provided' });
     }
 
-    const token = authHeader.substring(7);
+    const requestHeaders = {
+      authorization:
+        typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
+      cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
+    };
 
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET) as AdminSessionPayload;
+    const groups = Array.isArray(session.groups)
+      ? session.groups.filter((g): g is string => typeof g === 'string')
+      : [];
+    const entra =
+      session.entra && typeof session.entra === 'object'
+        ? (session.entra as Record<string, unknown>)
+        : null;
+    const department =
+      (entra && typeof entra.department === 'string' ? entra.department : null) ||
+      (typeof session.department === 'string' ? session.department : null);
 
-      const groups = Array.isArray(decoded.groups)
-        ? decoded.groups.filter((g): g is string => typeof g === 'string')
-        : [];
-      const isSuperAdmin = await isSuperAdminSessionWithSharePointFallback(decoded);
-      const entra =
-        decoded.entra && typeof decoded.entra === 'object'
-          ? (decoded.entra as Record<string, unknown>)
-          : null;
-      const department =
-        (entra && typeof entra.department === 'string' ? entra.department : null) ||
-        (typeof decoded.department === 'string' ? decoded.department : null);
+    const candidateInstanceSlugs = (
+      await prisma.roadmapInstance.findMany({ select: { slug: true }, orderBy: { slug: 'asc' } })
+    )
+      .map((record) => String(record.slug || '').trim())
+      .filter(Boolean);
 
-      return res.status(200).json({
-        isAdmin: decoded.isAdmin || false,
-        username: decoded.displayName || decoded.username,
-        department,
-        groups,
-        isSuperAdmin,
-      });
-    } catch (jwtError) {
-      const errorMessage = jwtError instanceof Error ? jwtError.message : 'Unknown error';
-      const isExpired =
-        jwtError instanceof Error &&
-        (jwtError.name === 'TokenExpiredError' || /jwt expired/i.test(jwtError.message));
-      if (isExpired) {
-        console.warn('[check-admin-session] JWT expired');
-      } else {
-        console.error('[check-admin-session] JWT verification failed:', errorMessage);
+    const isSuperAdmin = await isSuperAdminSessionWithSharePointFallback(session, {
+      candidateInstanceSlugs,
+      requestHeaders,
+    });
+
+    let isAdmin = isSuperAdmin;
+    if (!isAdmin) {
+      for (const slug of candidateInstanceSlugs) {
+        if (
+          await isAdminSessionAllowedForInstance({
+            session,
+            instance: { slug },
+            requestHeaders,
+          })
+        ) {
+          isAdmin = true;
+          break;
+        }
       }
-      return res.status(403).json({
-        isAdmin: false,
-        error: 'Invalid or expired token',
-      });
     }
+
+    return res.status(200).json({
+      authenticated: true,
+      isAdmin,
+      username: session.displayName || session.username,
+      department,
+      groups,
+      isSuperAdmin,
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     console.error('[check-admin-session] Error:', error);
     return res.status(500).json({
+      authenticated: false,
       isAdmin: false,
       error: errorMessage,
     });

@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { extname } from 'path';
 import { clientDataService } from '@/utils/clientDataService';
-import { requireAdminSession } from '@/utils/apiAuth';
+import { requireUserSession } from '@/utils/apiAuth';
 import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import {
@@ -64,9 +64,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  let session: ReturnType<typeof requireAdminSession>;
+  let session: ReturnType<typeof requireUserSession>;
   try {
-    session = requireAdminSession(req);
+    session = requireUserSession(req);
   } catch {
     return res.status(401).json({ error: 'Unauthorized' });
   }

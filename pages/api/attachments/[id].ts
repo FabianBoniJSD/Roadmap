@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
-import { requireAdminSession } from '@/utils/apiAuth';
+import { requireUserSession } from '@/utils/apiAuth';
 import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import {
   getInstanceConfigFromRequest,
@@ -107,9 +107,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!id || Array.isArray(id)) return res.status(400).json({ error: 'Invalid id' });
 
-  let session: ReturnType<typeof requireAdminSession>;
+  let session: ReturnType<typeof requireUserSession>;
   try {
-    session = requireAdminSession(req);
+    session = requireUserSession(req);
   } catch {
     return res.status(401).json({ error: 'Unauthorized' });
   }

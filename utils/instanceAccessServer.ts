@@ -79,8 +79,11 @@ async function isSessionAllowedForInstance(opts: {
     return true;
   }
 
-  // Fast path: token already contains the needed groups.
-  if (isAdminPrincipalAllowedForInstance(principal, effectiveInstance)) return true;
+  // Token-derived implicit admin groups can be stale until the next login.
+  // They are acceptable as a read hint, but admin access must be revalidated live.
+  if (opts.mode === 'read' && isAdminPrincipalAllowedForInstance(principal, effectiveInstance)) {
+    return true;
+  }
 
   if (opts.mode === 'read') {
     // Department-linked users may view an instance but never gain admin rights from that alone.

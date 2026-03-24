@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { clientDataService } from '@/utils/clientDataService';
-import { extractAdminSession } from '@/utils/apiAuth';
+import { requireUserSession } from '@/utils/apiAuth';
 import {
   isAdminSessionAllowedForInstance,
   isReadSessionAllowedForInstance,
@@ -230,9 +230,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
       };
 
-      // Read access requires a logged-in admin session
-      const session = extractAdminSession(req);
-      if (!session?.isAdmin) {
+      const session = requireUserSession(req);
+      if (!session) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
       if (
@@ -375,28 +374,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         cookie: typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined,
       };
 
-      const session = extractAdminSession(req);
+      const session = requireUserSession(req);
 
-      if (session?.isAdmin) {
-        if (
-          !(await isAdminSessionAllowedForInstance({
-            session,
-            instance,
-            requestHeaders: forwardedHeaders,
-          }))
-        ) {
-          return res.status(403).json({ error: 'Forbidden' });
-        }
-      } else {
-        // Admin-only: ensure caller is a Site Collection Admin
-        const isAdmin = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
-          clientDataService.withInstance(instance.slug, () =>
-            clientDataService.isCurrentUserAdmin()
-          )
-        );
-        if (!isAdmin) {
-          return res.status(401).json({ error: 'Unauthorized' });
-        }
+      if (
+        !(await isAdminSessionAllowedForInstance({
+          session,
+          instance,
+          requestHeaders: forwardedHeaders,
+        }))
+      ) {
+        return res.status(403).json({ error: 'Forbidden' });
       }
 
       const projectData = req.body;
