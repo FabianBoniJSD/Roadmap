@@ -1,4 +1,4 @@
-const MODERN_STRATEGIES = new Set(['kerberos', 'fba', 'basic', 'delegated']);
+const MODERN_STRATEGIES = new Set(['kerberos', 'basic', 'delegated']);
 const DELEGATED_ALIASES = new Set(['delegate', 'kcd', 'userdelegation']);
 const LEGACY_KERBEROS_ALIASES = new Set(['onprem', 'ntlm', 'online']);
 

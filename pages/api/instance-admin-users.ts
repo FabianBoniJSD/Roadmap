@@ -34,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   let instance: RoadmapInstanceConfig | null = null;
   try {
-    instance = await getInstanceConfigFromRequest(req, { fallbackToDefault: false });
+    instance = await getInstanceConfigFromRequest(req);
   } catch (error) {
     console.error('[instance-admin-users] failed to resolve instance', error);
     return res.status(500).json({ error: 'Failed to resolve roadmap instance' });

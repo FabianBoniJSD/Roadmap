@@ -16,7 +16,7 @@ async function loadNextEnvironment() {
 
 function normalizeSharePointStrategy(raw, fallbackRaw) {
   const normalize = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
-  const modern = new Set(['kerberos', 'fba', 'basic', 'delegated']);
+  const modern = new Set(['kerberos', 'basic', 'delegated']);
   const delegatedAliases = new Set(['delegate', 'kcd', 'userdelegation']);
   const legacyKerberosAliases = new Set(['onprem', 'ntlm', 'online']);
   const value = normalize(raw);

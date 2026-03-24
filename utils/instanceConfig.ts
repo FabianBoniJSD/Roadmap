@@ -14,7 +14,6 @@ import type {
 export const INSTANCE_COOKIE_NAME = 'roadmap-instance';
 export const INSTANCE_QUERY_PARAM = 'roadmapInstance';
 const INSTANCE_HEADER = 'x-roadmap-instance';
-const DEFAULT_INSTANCE_SLUG = (process.env.DEFAULT_ROADMAP_INSTANCE || 'default').toLowerCase();
 const CACHE_TTL_MS = Math.max(
   Number.parseInt(process.env.INSTANCE_CACHE_TTL_MS || '30000', 10),
   5000
@@ -282,8 +281,7 @@ export async function getInstanceConfigBySlug(slug: string): Promise<RoadmapInst
 }
 
 export async function getInstanceConfigFromRequest(
-  req: ApiRequestLike,
-  options: { optional?: boolean; fallbackToDefault?: boolean } = {}
+  req: ApiRequestLike
 ): Promise<RoadmapInstanceConfig | null> {
   const preferSlug = extractSlugFromRequest(req);
   if (preferSlug) {
@@ -296,18 +294,7 @@ export async function getInstanceConfigFromRequest(
     const instance = await fetchInstanceByHost(host);
     if (instance) return instance;
   }
-
-  if (options.fallbackToDefault === false) {
-    return null;
-  }
-
-  const fallback = await fetchInstanceBySlug(DEFAULT_INSTANCE_SLUG);
-  if (!fallback && !options.optional) {
-    throw new Error(
-      `Roadmap instance "${DEFAULT_INSTANCE_SLUG}" not found. Seed the database or set DEFAULT_ROADMAP_INSTANCE.`
-    );
-  }
-  return fallback;
+  return null;
 }
 
 export function toInstanceSummary(config: RoadmapInstanceConfig): RoadmapInstanceSummary {

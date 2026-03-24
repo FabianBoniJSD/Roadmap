@@ -40,7 +40,7 @@ export default async function handler(
   let candidateInstances: RoadmapInstanceConfig[] = [];
   try {
     // Do not fallback to a default instance; require explicit slug/host/cookie resolution first
-    instance = await getInstanceConfigFromRequest(req, { fallbackToDefault: false });
+    instance = await getInstanceConfigFromRequest(req);
     if (instance) {
       candidateInstances = [instance];
     }

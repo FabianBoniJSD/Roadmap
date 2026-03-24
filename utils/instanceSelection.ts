@@ -39,7 +39,7 @@ export async function resolveInstanceForAdminSession(
 ): Promise<RoadmapInstanceConfig | null> {
   const forwardedHeaders = getForwardedRequestHeaders(req);
   // 1) Use explicit request selection when present.
-  const explicit = await getInstanceConfigFromRequest(req, { fallbackToDefault: false });
+  const explicit = await getInstanceConfigFromRequest(req);
   if (explicit) return explicit;
 
   // 2) If superadmin, return the first configured instance (stable order).

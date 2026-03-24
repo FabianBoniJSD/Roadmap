@@ -4,7 +4,6 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { Buffer } from 'buffer';
 
-import { fbaLogin } from './fbaAuth';
 import { resolveSharePointSiteUrl } from './sharepointEnv';
 import { normalizeSharePointStrategy } from './sharePointStrategy';
 import { getPrimaryCredentials } from './userCredentials';
@@ -91,21 +90,6 @@ export async function getSharePointAuthHeaders(
   const cached = cache.get(cacheKey);
   if (cached && cached.expires > Date.now()) return cached;
   if (cached) cache.delete(cacheKey);
-
-  if (strategy === 'fba') {
-    debugLog('fba auth start', { siteUrl, user: username });
-    const fba = await fbaLogin(
-      siteUrl,
-      username.includes('\\') ? username.split('\\')[1] : username,
-      password
-    );
-    const entry: CacheEntry = {
-      headers: { Cookie: fba.cookie, Accept: 'application/json;odata=verbose' },
-      expires: fba.expires,
-    };
-    cache.set(cacheKey, entry);
-    return entry;
-  }
 
   if (strategy === 'basic') {
     const auth = Buffer.from(`${username}:${password}`).toString('base64');

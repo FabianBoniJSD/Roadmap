@@ -15,7 +15,7 @@ This project uses environment variables for SharePoint auth, app config, and dep
 - `INTERNAL_API_BASE_URL`: Absolute server URL for SSR fetches.
 - `NEXT_PUBLIC_DEPLOYMENT_ENV`: `dev` | `production`.
 - `NEXT_PUBLIC_BASE_PATH_DEV` / `NEXT_PUBLIC_BASE_PATH_PROD`: Reverse proxy base paths.
-- SharePoint site/web URLs and credentials per auth mode (see `utils/authMode.ts`, `utils/sharepointEnv.ts`).
+- SharePoint site/web URLs and credentials for the active strategy (see `utils/sharepointEnv.ts`).
 - JWT and PM2/Prisma related secrets as required by the stack.
 
 ## Local Development

@@ -91,6 +91,15 @@ const InstanceSwitcher = () => {
         const next = Array.isArray(data.instances) ? data.instances : [];
         if (!cancelled) {
           setOptions(next);
+          setSelected((current) => {
+            if (!current) return current;
+            const stillAllowed = next.some((option) => option.slug === current);
+            if (stillAllowed) return current;
+            if (typeof document !== 'undefined') {
+              document.cookie = `${COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
+            }
+            return '';
+          });
           if (next.length === 0) setError('Kein Zugriff auf Roadmap-Instanzen.');
         }
       } catch (err) {
@@ -142,7 +151,7 @@ const InstanceSwitcher = () => {
         disabled={loading || (!!error && options.length === 0)}
         aria-label="Roadmap Instanz auswählen"
       >
-        <option value="">Default</option>
+        <option value="">Instanz wählen</option>
         {options.map((opt) => (
           <option key={opt.slug} value={opt.slug}>
             {opt.displayName || opt.slug}

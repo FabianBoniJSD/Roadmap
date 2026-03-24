@@ -11,7 +11,7 @@ import {
   ADMIN_SESSION_CHANGED_EVENT,
   buildInstanceAwareUrl,
   getAdminSessionToken,
-  hasValidAdminSession,
+  hasValidSuperAdminSession,
   hasValidUserSession,
   persistAdminSession,
 } from '@/utils/auth';
@@ -217,13 +217,13 @@ const LandingPage = ({ instances }: LandingPageProps) => {
           // ignore
         }
 
-        const [hasSession, hasAdmin] = await Promise.all([
+        const [hasSession, hasSuperAdmin] = await Promise.all([
           hasValidUserSession(),
-          hasValidAdminSession(),
+          hasValidSuperAdminSession(),
         ]);
         if (!cancelled) {
           setAuthed(hasSession);
-          setCanManageInstances(hasAdmin);
+          setCanManageInstances(hasSuperAdmin);
         }
       } finally {
         if (!cancelled) setAuthChecked(true);
@@ -480,15 +480,19 @@ const LandingPage = ({ instances }: LandingPageProps) => {
                   <p className="text-sm text-slate-300">
                     {visibleInstances.length
                       ? 'Wähle eine Instanz, um dich mit der passenden Roadmap zu verbinden.'
-                      : 'Noch keine Instanzen angelegt. Lege die erste im Adminbereich an.'}
+                      : canManageInstances
+                        ? 'Noch keine Instanzen angelegt. Lege die erste in der Instanzverwaltung an.'
+                        : 'Für dein Konto ist aktuell keine Roadmap-Instanz freigegeben.'}
                   </p>
                 </div>
-                <Link
-                  href="/admin/instances"
-                  className="w-full rounded-full border border-slate-700 px-5 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-400 hover:text-white sm:w-auto"
-                >
-                  Instanzen verwalten
-                </Link>
+                {canManageInstances ? (
+                  <Link
+                    href="/admin/instances"
+                    className="w-full rounded-full border border-slate-700 px-5 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-400 hover:text-white sm:w-auto"
+                  >
+                    Instanzen verwalten
+                  </Link>
+                ) : null}
               </div>
 
               {errorMessage && (
@@ -551,10 +555,15 @@ const LandingPage = ({ instances }: LandingPageProps) => {
 
               {!visibleInstances.length && !instancesLoading && (
                 <div className="mt-12 rounded-2xl border border-dashed border-slate-700/80 bg-slate-900/70 p-8 text-center text-slate-300">
-                  <p className="text-lg font-medium text-white">Noch keine Instanzen vorhanden</p>
+                  <p className="text-lg font-medium text-white">
+                    {canManageInstances
+                      ? 'Noch keine Instanzen vorhanden'
+                      : 'Keine freigegebenen Instanzen'}
+                  </p>
                   <p className="mt-2 text-sm">
-                    Erstelle im Adminbereich eine neue Roadmap-Instanz und verknüpfe den passenden
-                    SharePoint-Endpunkt.
+                    {canManageInstances
+                      ? 'Erstelle in der Instanzverwaltung eine neue Roadmap-Instanz und verknüpfe den passenden SharePoint-Endpunkt.'
+                      : 'Dir ist aktuell keine Roadmap-Instanz per Abteilung oder Admin-Berechtigung zugeordnet.'}
                   </p>
                 </div>
               )}

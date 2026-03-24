@@ -1,6 +1,6 @@
 # SharePoint Roadmap (Next.js 14)
 
-SharePoint-backed roadmap application built with Next.js 14 (pages router), TypeScript, Tailwind CSS, and PM2. It integrates with SharePoint via resilient fetch fallbacks and supports Kerberos (SPNEGO) and optional FBA/basic modes.
+SharePoint-backed roadmap application built with Next.js 14 (pages router), TypeScript, Tailwind CSS, and PM2. It integrates with SharePoint via resilient fetch fallbacks and supports Kerberos (SPNEGO), delegated access, and optional basic auth.
 
 ## Tech Stack
 
@@ -29,15 +29,15 @@ SharePoint-backed roadmap application built with Next.js 14 (pages router), Type
    - `SP_STRATEGY` (deprecated for proxy; Kerberos is the hardcoded default)
    - `SP_USE_CURL` (deprecated; Kerberos proxy uses curl unconditionally)
    - `NEXT_PUBLIC_BASE_PATH_DEV` / `NEXT_PUBLIC_BASE_PATH_PROD` (reverse proxy base paths)
-   - SharePoint site/web URLs and credentials per auth mode (see `utils/authMode.ts`, `utils/sharepointEnv.ts`).
-4. **Run dev**: `npm run dev` (port 3000).
+   - SharePoint site/web URLs and credentials for the active strategy (see `utils/sharepointEnv.ts`).
+4. **Run dev**: `npm run dev` (port 3000, Turbopack enabled).
 5. **Build**: `npm run build`; **start**: `npm run start`.
 
 ## Auth Modes
 
 - **kerberos**: Server proxy uses `curl --negotiate` (hardcoded; no `SP_USE_CURL` flag required).
-- **fba**: Forms-based auth with cookie handling.
 - **basic**: Basic auth header (only if your SharePoint supports it).
+- **delegated**: forward authenticated user context when the surrounding setup supports it.
 
 ## Development Workflow
 

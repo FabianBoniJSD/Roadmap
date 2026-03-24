@@ -34,6 +34,7 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
     if (!router.isReady) return resolvedInstanceSlug;
     if (Array.isArray(raw)) return raw[0] ?? '';
     if (typeof raw === 'string' && raw) return raw;
+    if (resolvedInstanceSlug) return resolvedInstanceSlug;
     if (typeof window !== 'undefined') {
       const match = document.cookie.match(
         new RegExp(`(?:^|;\\s*)roadmap-instance=([^;\\s]+)`, 'i')
@@ -46,7 +47,7 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
         }
       }
     }
-    return resolvedInstanceSlug;
+    return '';
   }, [resolvedInstanceSlug, router.isReady, router.query]);
 
   const [projectsState, setProjectsState] = useState<Project[]>(projects);

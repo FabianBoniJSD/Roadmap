@@ -325,6 +325,40 @@ export async function hasValidAdminSession(): Promise<boolean> {
   }
 }
 
+export async function hasValidSuperAdminSession(): Promise<boolean> {
+  try {
+    if (typeof window === 'undefined') return false;
+
+    const token = getStoredToken();
+    if (!token) return false;
+
+    const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin-session'), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      clearStoredSession();
+      return false;
+    }
+
+    const data = (await response.json().catch(() => null)) as null | {
+      authenticated?: unknown;
+      isSuperAdmin?: unknown;
+    };
+    const authenticated = Boolean(
+      data && typeof data.authenticated === 'boolean' ? data.authenticated : true
+    );
+    if (!authenticated) {
+      clearStoredSession();
+      return false;
+    }
+
+    return Boolean(data && typeof data.isSuperAdmin === 'boolean' ? data.isSuperAdmin : false);
+  } catch {
+    return false;
+  }
+}
+
 // Check if the current browser session has admin access
 export async function hasAdminAccess(): Promise<boolean> {
   try {

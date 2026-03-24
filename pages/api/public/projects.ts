@@ -112,11 +112,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const instanceSlug = typeof slug === 'string' && slug.trim() ? slug.trim().toLowerCase() : null;
 
   try {
-    const instance = instanceSlug
-      ? await getInstanceConfigBySlug(instanceSlug)
-      : await getInstanceConfigBySlug(
-          (process.env.DEFAULT_ROADMAP_INSTANCE || 'default').toLowerCase()
-        );
+    if (!instanceSlug) {
+      return res.status(400).json({
+        error: 'instance query parameter is required',
+      });
+    }
+
+    const instance = await getInstanceConfigBySlug(instanceSlug);
 
     if (!instance) {
       return res.status(404).json({ error: 'Instance not found' });

@@ -129,36 +129,20 @@ export async function isAnyDepartmentCandidateAllowedForInstance(opts: {
       WHERE "instanceSlug" = ${instanceSlug}
     `);
 
-    if (rows.length > 0) {
-      return rows.some((row) => {
-        const normalizedCandidate = normalize(row.normalizedDepartment || row.department || '');
-        if (!normalizedCandidate) return false;
-
-        if (candidates.includes(normalizedCandidate)) return true;
-
-        return candidates.some((sourceCandidate) =>
-          isDepartmentLikeMatch(row.department || row.normalizedDepartment, sourceCandidate)
-        );
-      });
+    if (rows.length === 0) {
+      return false;
     }
 
-    const instanceRows = await prisma.$queryRaw<Array<{ department: string | null }>>(Prisma.sql`
-      SELECT "department"
-      FROM "RoadmapInstance"
-      WHERE "slug" = ${instanceSlug}
-      LIMIT 1
-    `);
+    return rows.some((row) => {
+      const normalizedCandidate = normalize(row.normalizedDepartment || row.department || '');
+      if (!normalizedCandidate) return false;
 
-    if (instanceRows.length === 0) return false;
-    const fallbackDepartment = String(instanceRows[0]?.department || '').trim();
-    if (!fallbackDepartment) return false;
+      if (candidates.includes(normalizedCandidate)) return true;
 
-    const normalizedFallback = normalize(fallbackDepartment);
-    if (normalizedFallback && candidates.includes(normalizedFallback)) return true;
-
-    return candidates.some((sourceCandidate) =>
-      isDepartmentLikeMatch(fallbackDepartment, sourceCandidate)
-    );
+      return candidates.some((sourceCandidate) =>
+        isDepartmentLikeMatch(row.department || row.normalizedDepartment, sourceCandidate)
+      );
+    });
   } catch {
     return false;
   }

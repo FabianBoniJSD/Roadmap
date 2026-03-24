@@ -46,9 +46,9 @@ Returns a list of projects for a given roadmap instance.
 
 #### Query parameters
 
-- `instance` (optional): roadmap instance slug
+- `instance` (required): roadmap instance slug
   - Alternative alias: `roadmapInstance`
-  - If omitted, the server uses `DEFAULT_ROADMAP_INSTANCE` (or `default`)
+  - Required. The API no longer falls back to a global default instance.
 - `category` (optional): category filter (string)
   - Category normalization applies: values matching `^\d+\.0$` are collapsed (e.g. `"7.0" → "7"`)
 - `status` (optional): one or more statuses

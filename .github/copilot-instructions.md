@@ -95,8 +95,8 @@ Copy from `dataService.ts` (line ~108-130) if adding to new service.
 ### Modes (legacy `SP_STRATEGY` / `NEXT_PUBLIC_SP_AUTH_MODE`)
 
 - `kerberos` - Server-side SPNEGO via `curl --negotiate` (hardcoded; env flags deprecated)
-- `fba` - Forms-based auth
 - `basic` - Basic auth header (only if supported by the SharePoint/IIS config)
+- `delegated` - pass through authenticated user context when the deployment supports it
 
 **Kerberos**: SharePoint proxy runs in curl mode only (hardcoded).
 
@@ -220,6 +220,6 @@ Redirects to `/admin/login` if `hasAdminAccess()` returns false (see `components
 | Normalize category       | Trim + collapse "X.0" → "X" (see pattern above)                         |
 | Derive date from quarter | Copy `derive()` from `dataService.ts` line ~108                         |
 | Resolve list title       | `await clientDataService.resolveListTitle('Roadmap Projects')`          |
-| Auth mode                | `getAuthMode()` in `utils/authMode.ts`                                  |
+| Auth mode                | `normalizeSharePointStrategy()` in `utils/sharePointStrategy.ts`        |
 
 **Reference**: See `docs/ADMIN_AUTH_CHANGES.md` for admin migration details, `README.md` Kerberos section for auth setup.
