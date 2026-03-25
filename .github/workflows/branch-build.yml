@@ -1,0 +1,62 @@
+name: Branch Build
+
+on:
+  push:
+    branches:
+      - 'features/**'
+      - 'fix/**'
+      - 'refactor/**'
+  workflow_dispatch:
+
+concurrency:
+  group: branch-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build on branch runner
+    runs-on: ${{ fromJson(vars.NON_MAIN_RUNNER_LABELS_JSON != '' && vars.NON_MAIN_RUNNER_LABELS_JSON || '["self-hosted","linux","roadmap-test"]') }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: yarn
+
+      - name: Prepare environment file
+        env:
+          ENV_FILE_CONTENT: ${{ secrets.env }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${ENV_FILE_CONTENT:-}" ]; then
+            printf "%s" "$ENV_FILE_CONTENT" > .env
+          else
+            cp .env.example .env
+          fi
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          yarn install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: |
+          set -euo pipefail
+          yarn prisma:generate
+
+      - name: Build application
+        run: |
+          set -euo pipefail
+          yarn build
