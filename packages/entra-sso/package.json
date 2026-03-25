@@ -2,7 +2,7 @@
   "name": "@roadmap/entra-sso",
   "version": "0.1.0",
   "private": true,
-  "type": "commonjs",
+  "type": "module",
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",

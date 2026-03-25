@@ -1,377 +1,82 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import type { GetServerSideProps } from 'next';
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/router';
-import prisma from '@/lib/prisma';
+import {
+  FiArrowUpRight,
+  FiCheckCircle,
+  FiCompass,
+  FiGrid,
+  FiLayers,
+  FiShield,
+  FiTrendingUp,
+  FiUsers,
+} from 'react-icons/fi';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
-import JSDoITLoader from '@/components/JSDoITLoader';
-import {
-  ADMIN_SESSION_CHANGED_EVENT,
-  buildInstanceAwareUrl,
-  getAdminSessionToken,
-  hasValidSuperAdminSession,
-  hasValidUserSession,
-  persistAdminSession,
-} from '@/utils/auth';
-import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
-import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
-import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
-const HTTP_URL_REGEX = /^https?:\/\//i;
-
-type LandingInstance = {
-  slug: string;
-  displayName: string;
-  department: string | null;
-  description: string | null;
-  sharePointUrl: string;
-  strategy: string;
-  hosts: string[];
-  frontendTarget: string | null;
-  landingPage: string | null;
-};
-
-type LandingPageProps = {
-  instances: LandingInstance[];
-};
-
-type MetadataRecord = Record<string, unknown>;
-
-const isRecord = (value: unknown): MetadataRecord | undefined => {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as MetadataRecord;
-  }
-  return undefined;
-};
-
-const toTrimmedString = (value: unknown): string | null => {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length ? trimmed : null;
-};
-
-const firstStringFromArray = (value: unknown): string | null => {
-  if (!Array.isArray(value)) return null;
-  for (const entry of value) {
-    const candidate = toTrimmedString(entry);
-    if (candidate) return candidate;
-  }
-  return null;
-};
-
-const parseMetadata = (settingsJson?: string | null): MetadataRecord | undefined => {
-  if (!settingsJson) return undefined;
-  try {
-    const parsed = JSON.parse(settingsJson);
-    const parsedRecord = isRecord(parsed);
-    const metadataCandidate = parsedRecord?.metadata;
-    return isRecord(metadataCandidate);
-  } catch {
-    return undefined;
-  }
-};
-
-const buildTargetFromHost = (hostValue: string | null, path?: string | null): string | null => {
-  if (!hostValue) return null;
-  const trimmed = hostValue.trim();
-  if (!trimmed) return null;
-  const normalizedPath = path ? `/${path.replace(/^\/+/, '')}` : '';
-  if (HTTP_URL_REGEX.test(trimmed)) {
-    return `${trimmed.replace(/\/$/, '')}${normalizedPath}`;
-  }
-  if (trimmed.startsWith('//')) {
-    return `${trimmed.replace(/\/$/, '')}${normalizedPath}`;
-  }
-  if (trimmed.startsWith('/')) {
-    const base = trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
-    return `${base}${normalizedPath}`;
-  }
-  const sanitizedHost = trimmed.replace(/\/+$/, '');
-  return `//${sanitizedHost}${normalizedPath}`;
-};
-
-const resolveFrontendTarget = (settingsJson: string | null, hosts: string[]): string | null => {
-  const metadata = parseMetadata(settingsJson);
-  const frontendConfig = isRecord(metadata?.frontend);
-  const directUrl = toTrimmedString(metadata?.frontendUrl) || toTrimmedString(frontendConfig?.url);
-  if (directUrl) {
-    return directUrl;
-  }
-  const hostCandidate =
-    toTrimmedString(metadata?.frontendHost) ||
-    firstStringFromArray(metadata?.frontendHosts) ||
-    toTrimmedString(frontendConfig?.host) ||
-    hosts[0] ||
-    null;
-  if (!hostCandidate) return null;
-  const pathCandidate =
-    toTrimmedString(metadata?.frontendPath) || toTrimmedString(frontendConfig?.path) || null;
-  return buildTargetFromHost(hostCandidate, pathCandidate);
-};
-
-const highlightCards = [
+const valueProps = [
   {
-    title: 'Klarer Projektüberblick',
+    title: 'Zentrale Transparenz',
+    icon: FiLayers,
     description:
-      'Visualisiere Initiativen, Status und Verantwortliche in einer konsistenten Roadmap für alle Teams.',
+      'Roadmaps, Statusstände und Verantwortlichkeiten werden an einem Ort gebündelt und bleiben für Stakeholder nachvollziehbar.',
   },
   {
-    title: 'Vertrauenswürdige Datenquelle',
+    title: 'SharePoint als Quelle',
+    icon: FiShield,
     description:
-      'Die Roadmap synchronisiert sich direkt mit SharePoint. Berechtigungen und Rollen bleiben erhalten.',
+      'Die Applikation nutzt die bestehende SharePoint-Struktur weiter, inklusive Rollen, Listen und vorhandenen Betriebsprozessen.',
   },
   {
-    title: 'Gemeinsame Steuerung',
+    title: 'Schneller Zugang pro Instanz',
+    icon: FiCompass,
     description:
-      'Stakeholder, Projektleitungen und Management finden auf einen Blick Kennzahlen und nächste Schritte.',
+      'Benutzer öffnen genau die Instanz, für die sie freigeschaltet sind, ohne manuell zwischen verschiedenen Umgebungen wechseln zu müssen.',
   },
 ];
 
-const LandingPage = ({ instances }: LandingPageProps) => {
-  const router = useRouter();
-  const [selectingSlug, setSelectingSlug] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [visibleInstances, setVisibleInstances] = useState<LandingInstance[]>(instances);
-  const [instancesLoading, setInstancesLoading] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [authed, setAuthed] = useState(false);
-  const [canManageInstances, setCanManageInstances] = useState(false);
-  const [entraEnabled, setEntraEnabled] = useState(false);
-  const [authStatus, setAuthStatus] = useState<string>('');
-  const [sessionRevision, setSessionRevision] = useState(0);
+const workflowSteps = [
+  {
+    title: 'Zugang prüfen',
+    description: 'Benutzer melden sich an und sehen nur die Instanzen, für die Freigaben bestehen.',
+  },
+  {
+    title: 'Instanz öffnen',
+    description: 'Die passende Roadmap wird gezielt im separaten Übersichtsfenster ausgewählt.',
+  },
+  {
+    title: 'Vorhaben steuern',
+    description:
+      'Status, Kategorien, Zuständigkeiten und Prioritäten bleiben für alle Rollen sichtbar.',
+  },
+];
 
-  const defaultInstance = useMemo(() => visibleInstances[0], [visibleInstances]);
+const spotlightStats = [
+  { label: 'Mehrinstanzfähig', value: '1 Plattform' },
+  { label: 'Datenhaltung', value: 'SharePoint-basiert' },
+  { label: 'Zugriffsmodell', value: 'rollenbasiert' },
+];
 
-  const returnUrl = useMemo(() => {
-    const raw = typeof router.asPath === 'string' ? router.asPath : '/';
-    return raw.split('#')[0] || '/';
-  }, [router.asPath]);
+const audienceCards = [
+  {
+    title: 'Fachbereiche',
+    description:
+      'Verfolgen Prioritäten, Abhängigkeiten und geplante Deliverables in ihrer Instanz.',
+  },
+  {
+    title: 'Portfoliosteuerung',
+    description: 'Erhält einen belastbaren Überblick über Status, Reifegrad und Steuerungsbedarf.',
+  },
+  {
+    title: 'Instanz-Admins',
+    description: 'Pflegen Projekte, Kategorien und Inhalte innerhalb ihres abgegrenzten Bereichs.',
+  },
+  {
+    title: 'Superadmins',
+    description: 'Steuern Instanzen, technische Konfiguration und zentrale Zugriffslogik.',
+  },
+];
 
-  const manual = String(router.query.manual || '') === '1';
-  const autoEntraSso =
-    String(process.env.NEXT_PUBLIC_ENTRA_AUTO_LOGIN || '').toLowerCase() === 'true' ||
-    String(router.query.autoSso || '') === '1';
-
-  useEffect(() => {
-    setVisibleInstances(instances);
-  }, [instances]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleSessionChanged = () => {
-      setSessionRevision((prev) => prev + 1);
-    };
-    window.addEventListener(ADMIN_SESSION_CHANGED_EVENT, handleSessionChanged);
-    window.addEventListener('focus', handleSessionChanged);
-    return () => {
-      window.removeEventListener(ADMIN_SESSION_CHANGED_EVENT, handleSessionChanged);
-      window.removeEventListener('focus', handleSessionChanged);
-    };
-  }, []);
-
-  // Consume non-popup Entra callback token (fragment)
-  useEffect(() => {
-    if (!router.isReady) return;
-    if (typeof window === 'undefined') return;
-    try {
-      const hash = window.location.hash || '';
-      if (!hash.startsWith('#')) return;
-      const params = new URLSearchParams(hash.substring(1));
-      const token = params.get('token');
-      const u = params.get('username');
-      if (!token) return;
-
-      persistAdminSession(token, u || 'Microsoft SSO');
-      try {
-        const cleanUrl = window.location.pathname + window.location.search;
-        window.history.replaceState(null, document.title, cleanUrl);
-        window.location.replace(cleanUrl);
-        return;
-      } catch {
-        window.location.hash = '';
-      }
-      setAuthStatus('Anmeldung erfolgreich. Lade Instanzen …');
-      window.location.reload();
-    } catch {
-      // ignore
-    }
-  }, [router.isReady, returnUrl]);
-
-  // Load Entra availability and validate session
-  useEffect(() => {
-    if (!router.isReady) return;
-    let cancelled = false;
-
-    const run = async () => {
-      try {
-        // Entra availability (controls SSO button & auto-login)
-        try {
-          const resp = await fetch(buildInstanceAwareUrl('/api/auth/entra/status'));
-          if (resp.ok) {
-            const data = await resp.json();
-            if (!cancelled) setEntraEnabled(Boolean(data.enabled));
-          }
-        } catch {
-          // ignore
-        }
-
-        const [hasSession, hasSuperAdmin] = await Promise.all([
-          hasValidUserSession(),
-          hasValidSuperAdminSession(),
-        ]);
-        if (!cancelled) {
-          setAuthed(hasSession);
-          setCanManageInstances(hasSuperAdmin);
-        }
-      } finally {
-        if (!cancelled) setAuthChecked(true);
-      }
-    };
-
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [router.isReady, sessionRevision]);
-
-  useEffect(() => {
-    if (!authChecked || !authed) return;
-    let cancelled = false;
-
-    const run = async () => {
-      const token = getAdminSessionToken();
-      if (!token) return;
-      setInstancesLoading(true);
-      try {
-        const resp = await fetch(buildInstanceAwareUrl('/api/instances/slugs?details=landing'), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const payload = await resp.json().catch(() => null);
-        if (!resp.ok) {
-          throw new Error(payload?.error || 'Instanzen konnten nicht geladen werden');
-        }
-        if (!cancelled) {
-          setVisibleInstances(Array.isArray(payload?.instances) ? payload.instances : []);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          const message =
-            error instanceof Error ? error.message : 'Instanzen konnten nicht geladen werden';
-          setErrorMessage(message);
-        }
-      } finally {
-        if (!cancelled) setInstancesLoading(false);
-      }
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authChecked, authed, sessionRevision]);
-
-  // Optional auto-start SSO (full page redirect)
-  useEffect(() => {
-    if (!router.isReady) return;
-    if (typeof window === 'undefined') return;
-    if (!authChecked) return;
-    if (authed) return;
-    if (!entraEnabled) return;
-    if (!autoEntraSso) return;
-    if (manual) return;
-
-    // Don't auto-retry if an error is present
-    if (
-      typeof router.query.error === 'string' ||
-      typeof router.query.error_description === 'string'
-    ) {
-      return;
-    }
-
-    setAuthStatus('Weiterleitung zu Microsoft SSO …');
-    const loginUrl = buildInstanceAwareUrl(
-      `/api/auth/entra/login?returnUrl=${encodeURIComponent(returnUrl)}`
-    );
-    window.location.assign(loginUrl);
-  }, [
-    router.isReady,
-    authChecked,
-    authed,
-    entraEnabled,
-    autoEntraSso,
-    manual,
-    returnUrl,
-    router.query,
-  ]);
-
-  const startSso = () => {
-    const loginUrl = buildInstanceAwareUrl(
-      `/api/auth/entra/login?returnUrl=${encodeURIComponent(returnUrl)}`
-    );
-    window.location.assign(loginUrl);
-  };
-
-  const buildClientRedirectUrl = (target?: string | null): string | null => {
-    if (!target) return null;
-    if (HTTP_URL_REGEX.test(target) || target.startsWith('/')) {
-      return target;
-    }
-    if (target.startsWith('//')) {
-      const protocol =
-        typeof window !== 'undefined' && window.location?.protocol
-          ? window.location.protocol
-          : 'https:';
-      return `${protocol}${target}`;
-    }
-    return `https://${target}`;
-  };
-
-  const appendInstanceQuery = (url: string, slug: string) => {
-    if (!slug) return url;
-    const [base, hash] = url.split('#');
-    const separator = base.includes('?') ? '&' : '?';
-    const withQuery = `${base}${separator}roadmapInstance=${encodeURIComponent(slug)}`;
-    return hash ? `${withQuery}#${hash}` : withQuery;
-  };
-
-  const openInstance = async (instance?: LandingInstance) => {
-    if (typeof window === 'undefined' || !instance?.slug) return;
-    if (!authed) return;
-    setSelectingSlug(instance.slug);
-    setErrorMessage(null);
-    try {
-      document.cookie = `roadmap-instance=${encodeURIComponent(instance.slug)}; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`;
-
-      const token = getAdminSessionToken();
-      if (token) {
-        try {
-          await fetch('/api/instances/select', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ slug: instance.slug }),
-          });
-        } catch {
-          // ignore and continue with client-side redirect + cookie fallback
-        }
-      }
-
-      const target = buildClientRedirectUrl(instance.frontendTarget) || '/roadmap';
-      const redirectTarget = appendInstanceQuery(target, instance.slug);
-      window.location.assign(redirectTarget);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
-      setErrorMessage(message);
-      setSelectingSlug(null);
-    }
-  };
-
+const LandingPage = () => {
   return (
     <>
       <Head>
@@ -380,327 +85,187 @@ const LandingPage = ({ instances }: LandingPageProps) => {
       <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
         <SiteHeader activeRoute="home" />
         <main className="flex-1">
-          <section className="relative isolate overflow-hidden border-b border-slate-800/70">
+          <section className="relative isolate overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_32%),radial-gradient(circle_at_85%_15%,_rgba(251,191,36,0.15),_transparent_24%),linear-gradient(180deg,_#08111f_0%,_#0f172a_55%,_#09111d_100%)]">
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
-              <div className="absolute left-1/3 top-[-20%] h-80 w-80 rounded-full bg-sky-500/40 blur-3xl" />
-              <div className="absolute right-[-10%] top-1/2 h-72 w-72 rounded-full bg-amber-400/20 blur-3xl" />
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-200/40 to-transparent" />
+              <div className="absolute left-[-8%] top-8 h-72 w-72 rounded-full bg-cyan-300/10 blur-3xl" />
+              <div className="absolute right-[6%] top-[-12%] h-[26rem] w-[26rem] rounded-full bg-sky-500/20 blur-3xl" />
+              <div className="absolute bottom-[-20%] left-1/3 h-[22rem] w-[22rem] rounded-full bg-amber-300/10 blur-3xl" />
+              <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:72px_72px]" />
             </div>
-            <div className="relative mx-auto flex max-w-6xl flex-col gap-12 px-6 py-20 sm:px-8 lg:flex-row lg:items-center">
-              <div className="max-w-2xl space-y-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.4em] text-sky-300/90">
-                  Roadmap Control Center
-                </p>
-                <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl">
-                  Eine gemeinsame Roadmap für alle Projekte im Kanton
-                </h1>
-                <p className="text-base text-slate-300 sm:text-lg">
-                  Willkommen in der zentralen Übersicht für Roadmap-Instanzen. Wähle deine
-                  Organisationseinheit, starte direkt in die passende Roadmap oder informiere dich,
-                  welche Verantwortlichen bereits aktiv sind.
-                </p>
-                <div className="flex flex-wrap items-center gap-4">
-                  {authed ? (
-                    <button
-                      type="button"
-                      onClick={() => openInstance(defaultInstance)}
-                      disabled={!visibleInstances.length || selectingSlug !== null}
-                      className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {!visibleInstances.length
-                        ? 'Keine Instanzen vorhanden'
-                        : selectingSlug
-                          ? 'Weiterleitung wird vorbereitet …'
-                          : 'Roadmap starten'}
-                    </button>
-                  ) : entraEnabled ? (
-                    <button
-                      type="button"
-                      onClick={startSso}
-                      className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
-                    >
-                      Mit Microsoft anmelden (SSO)
-                    </button>
-                  ) : (
-                    <Link
-                      href={`/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}`}
-                      className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
-                    >
-                      Anmelden
-                    </Link>
-                  )}
+
+            <div className="relative mx-auto grid max-w-6xl gap-12 px-6 py-20 sm:px-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:py-24">
+              <div className="max-w-3xl space-y-8">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.34em] text-cyan-200 backdrop-blur">
+                  <FiGrid className="h-4 w-4" />
+                  JSDoIT Roadmap Center
+                </div>
+
+                <div className="space-y-6">
+                  <h1 className="max-w-4xl text-4xl font-semibold leading-[1.05] text-white sm:text-5xl lg:text-6xl">
+                    Roadmaps, Prioritäten und Instanzen in einer klaren visuellen Einstiegsebene
+                  </h1>
+                  <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
+                    Die Anwendung verbindet SharePoint-basierte Roadmap-Daten mit einer zentralen,
+                    verständlichen Oberfläche. Fachbereiche, Steuerung und Administration starten
+                    von hier aus in die richtige Instanz und behalten gleichzeitig den Gesamtzweck
+                    der Plattform im Blick.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-4">
+                  <Link
+                    href="/instances"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-amber-200 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_50px_rgba(34,211,238,0.22)] transition hover:translate-y-[-1px] hover:shadow-[0_22px_60px_rgba(34,211,238,0.28)]"
+                  >
+                    Instanzübersicht in neuem Fenster öffnen
+                    <FiArrowUpRight className="h-4 w-4" />
+                  </Link>
                   <Link
                     href="/help"
-                    className="rounded-full border border-slate-700 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
+                    className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-slate-100 backdrop-blur transition hover:border-cyan-300/40 hover:bg-white/10"
                   >
-                    Hilfe entdecken
+                    Mehr zur Nutzung
                   </Link>
                 </div>
-              </div>
-            </div>
-          </section>
 
-          <section className="border-b border-slate-800/70 bg-slate-950/70">
-            <div className="mx-auto max-w-6xl px-6 py-14 sm:px-8">
-              <div className="mb-10 max-w-3xl space-y-4">
-                <h2 className="text-2xl font-semibold text-white sm:text-3xl">
-                  Orientierung für Teams und Stakeholder
-                </h2>
-                <p className="text-sm text-slate-300">
-                  Die Roadmap vereint Status, Aufgaben und Ansprechpersonen. Die folgenden
-                  Highlights zeigen, wie du schnell ans Ziel kommst.
-                </p>
-              </div>
-              <div className="grid gap-6 md:grid-cols-3">
-                {highlightCards.map((card) => (
-                  <article
-                    key={card.title}
-                    className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-6 shadow-lg shadow-slate-950/40 transition hover:border-sky-500/60 hover:shadow-sky-900/40"
-                  >
-                    <h3 className="text-lg font-semibold text-white">{card.title}</h3>
-                    <p className="mt-3 text-sm text-slate-300">{card.description}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {!authChecked ? (
-            <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
-              <div className="flex items-center justify-center">
-                <JSDoITLoader sizeRem={2.2} message={authStatus || 'Anmeldung wird geprüft …'} />
-              </div>
-            </section>
-          ) : authed ? (
-            <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
-              <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-semibold text-white sm:text-3xl">
-                    Aktive Instanzen
-                  </h2>
-                  <p className="text-sm text-slate-300">
-                    {visibleInstances.length
-                      ? 'Wähle eine Instanz, um dich mit der passenden Roadmap zu verbinden.'
-                      : canManageInstances
-                        ? 'Noch keine Instanzen angelegt. Lege die erste in der Instanzverwaltung an.'
-                        : 'Für dein Konto ist aktuell keine Roadmap-Instanz freigegeben.'}
-                  </p>
-                </div>
-                {canManageInstances ? (
-                  <Link
-                    href="/admin/instances"
-                    className="w-full rounded-full border border-slate-700 px-5 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-400 hover:text-white sm:w-auto"
-                  >
-                    Instanzen verwalten
-                  </Link>
-                ) : null}
-              </div>
-
-              {errorMessage && (
-                <div className="mb-6 rounded-xl border border-red-500/40 bg-red-600/10 px-4 py-3 text-sm text-red-200">
-                  {errorMessage}
-                </div>
-              )}
-
-              <div className="grid gap-6 md:grid-cols-2">
-                {visibleInstances.map((instance) => (
-                  <article
-                    key={instance.slug}
-                    className="group rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow shadow-slate-950/40 transition hover:border-sky-500/50 hover:shadow-sky-900/40"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="text-xl font-semibold text-white">{instance.displayName}</h3>
-                        {instance.department && (
-                          <p className="text-sm text-sky-300/90">{instance.department}</p>
-                        )}
-                      </div>
-                      <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
-                        {instance.strategy}
-                      </span>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {spotlightStats.map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-4 backdrop-blur"
+                    >
+                      <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                        {stat.label}
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-white">{stat.value}</p>
                     </div>
+                  ))}
+                </div>
+              </div>
 
-                    {instance.description && (
-                      <p className="mt-4 text-sm text-slate-300">{instance.description}</p>
-                    )}
+              <aside className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/55 p-7 shadow-[0_24px_80px_rgba(2,6,23,0.5)] backdrop-blur-xl">
+                <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-cyan-200/80">
+                        Plattformlogik
+                      </p>
+                      <h2 className="mt-3 text-2xl font-semibold text-white">
+                        Ein sauberer Einstieg statt verstreuter Links
+                      </h2>
+                    </div>
+                    <div className="hidden h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-100 sm:flex">
+                      <FiTrendingUp className="h-5 w-5" />
+                    </div>
+                  </div>
 
-                    <dl className="mt-4 space-y-2 text-xs sm:text-sm">
-                      <div className="flex gap-2 text-slate-400">
-                        <span className="font-semibold text-slate-200">SharePoint</span>
-                        <span className="truncate text-slate-300">{instance.sharePointUrl}</span>
-                      </div>
-                      {instance.hosts.length > 0 && (
-                        <div className="flex gap-2 text-slate-400">
-                          <span className="font-semibold text-slate-200">Hosts</span>
-                          <span>{instance.hosts.join(', ')}</span>
-                        </div>
-                      )}
-                    </dl>
-
-                    <div className="mt-6 flex flex-wrap items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => openInstance(instance)}
-                        disabled={selectingSlug === instance.slug}
-                        className="flex-1 rounded-xl bg-sky-500 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  <div className="space-y-4">
+                    {workflowSteps.map((step, index) => (
+                      <div
+                        key={step.title}
+                        className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"
                       >
-                        {selectingSlug === instance.slug ? 'Öffne Roadmap …' : 'Roadmap öffnen'}
-                      </button>
-                      <div className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
-                        {instance.slug}
+                        <div className="flex items-start gap-4">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300/30 to-sky-500/20 text-sm font-semibold text-cyan-100">
+                            0{index + 1}
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-white">{step.title}</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-300">
+                              {step.description}
+                            </p>
+                          </div>
+                        </div>
                       </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-[1.5rem] border border-amber-300/15 bg-gradient-to-br from-amber-300/10 via-transparent to-cyan-300/5 p-5 text-sm leading-6 text-slate-200">
+                    Die Instanzübersicht öffnet sich bewusst separat. Dadurch bleibt diese Seite der
+                    allgemeine Einstieg für Information, Orientierung und Navigation.
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          <section className="border-b border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.96)_0%,_rgba(8,15,28,1)_100%)]">
+            <div className="mx-auto max-w-6xl px-6 py-20 sm:px-8">
+              <div className="grid gap-8 lg:grid-cols-[0.68fr_1.32fr] lg:items-end">
+                <div className="space-y-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
+                    Nutzen der Anwendung
+                  </p>
+                  <h2 className="text-3xl font-semibold text-white sm:text-4xl">
+                    Was diese Plattform im Alltag besser macht
+                  </h2>
+                </div>
+                <p className="max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
+                  Das Roadmap Center dient als gemeinsamer Zugangspunkt für verteilte Roadmap-
+                  Instanzen. Inhalte können zentral präsentiert werden, während die Datenhaltung und
+                  Berechtigungen an die vorhandene SharePoint-Landschaft angebunden bleiben.
+                </p>
+              </div>
+
+              <div className="mt-12 grid gap-6 md:grid-cols-3">
+                {valueProps.map((item) => (
+                  <article
+                    key={item.title}
+                    className="group rounded-[1.75rem] border border-white/10 bg-gradient-to-b from-slate-900/80 to-slate-950/80 p-6 shadow-[0_18px_50px_rgba(2,6,23,0.35)] transition hover:border-cyan-300/30 hover:translate-y-[-2px]"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300/15 to-amber-200/10 text-cyan-100 ring-1 ring-white/10">
+                      <item.icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+                    <p className="mt-3 text-sm leading-7 text-slate-300">{item.description}</p>
+                    <div className="mt-6 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
+                      <FiCheckCircle className="h-4 w-4" />
+                      Für den produktiven Einsatz
                     </div>
                   </article>
                 ))}
               </div>
+            </div>
+          </section>
 
-              {!visibleInstances.length && !instancesLoading && (
-                <div className="mt-12 rounded-2xl border border-dashed border-slate-700/80 bg-slate-900/70 p-8 text-center text-slate-300">
-                  <p className="text-lg font-medium text-white">
-                    {canManageInstances
-                      ? 'Noch keine Instanzen vorhanden'
-                      : 'Keine freigegebenen Instanzen'}
-                  </p>
-                  <p className="mt-2 text-sm">
-                    {canManageInstances
-                      ? 'Erstelle in der Instanzverwaltung eine neue Roadmap-Instanz und verknüpfe den passenden SharePoint-Endpunkt.'
-                      : 'Dir ist aktuell keine Roadmap-Instanz per Abteilung oder Admin-Berechtigung zugeordnet.'}
-                  </p>
+          <section className="mx-auto max-w-6xl px-6 py-20 sm:px-8">
+            <div className="grid gap-10 rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.8)_0%,_rgba(3,7,18,0.92)_100%)] p-8 shadow-[0_30px_100px_rgba(2,6,23,0.45)] lg:grid-cols-[0.88fr_1.12fr] lg:p-10">
+              <div className="space-y-5">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-300">
+                  <FiUsers className="h-4 w-4" />
+                  Für wen die Plattform gedacht ist
                 </div>
-              )}
-
-              {!visibleInstances.length && instancesLoading && (
-                <div className="mt-12 flex items-center justify-center">
-                  <JSDoITLoader sizeRem={2} message="Instanzen werden geladen …" />
-                </div>
-              )}
-            </section>
-          ) : (
-            <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
-              <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-8 shadow-lg shadow-slate-950/40">
-                <h2 className="text-2xl font-semibold text-white sm:text-3xl">Anmelden</h2>
-                <p className="mt-3 text-sm text-slate-300">
-                  Die Instanzübersicht ist erst nach Anmeldung sichtbar.
+                <h2 className="text-2xl font-semibold text-white sm:text-4xl">
+                  Geeignet für Fachbereiche, Portfoliosteuerung und Administration
+                </h2>
+                <p className="text-sm leading-7 text-slate-300 sm:text-base">
+                  Die Anwendung unterstützt reine Leserollen ebenso wie operative Pflege und
+                  übergreifende Governance. Das Design trennt Information, Navigation und Zugriff
+                  klar, damit die Oberfläche auch bei mehreren Instanzen verständlich bleibt.
                 </p>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  {entraEnabled ? (
-                    <button
-                      type="button"
-                      onClick={startSso}
-                      className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
-                    >
-                      Mit Microsoft anmelden (SSO)
-                    </button>
-                  ) : (
-                    <Link
-                      href={`/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}`}
-                      className="rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
-                    >
-                      Anmelden
-                    </Link>
-                  )}
-                  <Link
-                    href={`/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}`}
-                    className="rounded-full border border-slate-700 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
-                  >
-                    Alternative Anmeldung
-                  </Link>
-                </div>
               </div>
-            </section>
-          )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {audienceCards.map((item) => (
+                  <div
+                    key={item.title}
+                    className="rounded-[1.5rem] border border-white/10 bg-slate-950/60 p-5 transition hover:border-amber-200/20 hover:bg-slate-950/80"
+                  >
+                    <p className="text-sm font-semibold text-white">{item.title}</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-300">{item.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
         </main>
         <SiteFooter />
       </div>
     </>
   );
-};
-
-export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (ctx) => {
-  const session = extractAdminSessionFromHeaders({
-    authorization: ctx.req.headers.authorization,
-    cookie: ctx.req.headers.cookie,
-  });
-  const forwardedHeaders = {
-    authorization:
-      typeof ctx.req.headers.authorization === 'string' ? ctx.req.headers.authorization : undefined,
-    cookie: typeof ctx.req.headers.cookie === 'string' ? ctx.req.headers.cookie : undefined,
-  };
-
-  const records = await prisma.roadmapInstance.findMany({
-    include: { hosts: true },
-    orderBy: { displayName: 'asc' },
-  });
-
-  // If the caller is not authenticated, do not expose instance metadata.
-  if (!session) {
-    return {
-      props: { instances: [] },
-    };
-  }
-
-  // Superadmin sees all instances.
-  if (await isSuperAdminSessionWithSharePointFallback(session)) {
-    const instances: LandingInstance[] = records.map((record) => {
-      const hosts = record.hosts.map((host) => host.host);
-      return {
-        slug: record.slug,
-        displayName: record.displayName,
-        department: record.department ?? null,
-        description: record.description ?? null,
-        sharePointUrl: (record.sharePointSiteUrlProd || record.sharePointSiteUrlDev).replace(
-          /\/$/,
-          ''
-        ),
-        strategy: record.sharePointStrategy || 'kerberos',
-        hosts,
-        frontendTarget: resolveFrontendTarget(record.settingsJson ?? null, hosts),
-        landingPage: record.landingPage ?? null,
-      };
-    });
-
-    return {
-      props: { instances },
-    };
-  }
-
-  const checks = await Promise.all(
-    records.map(async (r) => {
-      try {
-        const allowed = await isReadSessionAllowedForInstance({
-          session,
-          instance: { slug: r.slug },
-          requestHeaders: forwardedHeaders,
-        });
-        return { record: r, allowed };
-      } catch {
-        return { record: r, allowed: false };
-      }
-    })
-  );
-
-  const filtered = checks.filter((c) => c.allowed).map((c) => c.record);
-
-  const instances: LandingInstance[] = filtered.map((record) => {
-    const hosts = record.hosts.map((host) => host.host);
-    return {
-      slug: record.slug,
-      displayName: record.displayName,
-      department: record.department ?? null,
-      description: record.description ?? null,
-      sharePointUrl: (record.sharePointSiteUrlProd || record.sharePointSiteUrlDev).replace(
-        /\/$/,
-        ''
-      ),
-      strategy: record.sharePointStrategy || 'kerberos',
-      hosts,
-      frontendTarget: resolveFrontendTarget(record.settingsJson ?? null, hosts),
-      landingPage: record.landingPage ?? null,
-    };
-  });
-
-  return {
-    props: { instances },
-  };
 };
 
 export default LandingPage;

@@ -30,7 +30,7 @@ SharePoint-backed roadmap application built with Next.js 14 (pages router), Type
    - `SP_USE_CURL` (deprecated; Kerberos proxy uses curl unconditionally)
    - `NEXT_PUBLIC_BASE_PATH_DEV` / `NEXT_PUBLIC_BASE_PATH_PROD` (reverse proxy base paths)
    - SharePoint site/web URLs and credentials for the active strategy (see `utils/sharepointEnv.ts`).
-4. **Run dev**: `npm run dev` (port 3000, Turbopack enabled).
+4. **Run dev**: `npm run dev` (port 3000, Turbo mode enabled via `next dev --turbo`).
 5. **Build**: `npm run build`; **start**: `npm run start`.
 
 ## Auth Modes

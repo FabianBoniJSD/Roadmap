@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbo",
     "prebuild": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\"",
     "build": "next build",
     "start": "next start",
