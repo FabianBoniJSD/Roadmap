@@ -21,29 +21,344 @@ jobs:
         shell: bash
     env:
       NEXT_TELEMETRY_DISABLED: '1'
+      PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
 
     steps:
+      - name: Check runner permissions
+        run: |
+          set -euo pipefail
+          echo "=== RUNNER ENVIRONMENT ==="
+          echo "User: $(id -un) (uid=$(id -u))"
+          echo "Groups: $(id -Gn)"
+          echo "Hostname: $(hostname)"
+          if [ "$(id -u)" -ne 0 ]; then
+            echo "[WARN] Runner is not root. Some cleanup or package installation may require passwordless sudo."
+          else
+            echo "[OK] Runner is running as root."
+          fi
+          echo "=========================="
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          clean: true
+          clean: false
+
+      - name: Reset workspace state
+        run: |
+          set -euo pipefail
+
+          can_sudo=0
+          if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+            can_sudo=1
+          fi
+
+          dbPath=""
+          for candidate in "prisma/dev.db" "prisma/prisma/dev.db"; do
+            if [ -f "$candidate" ]; then
+              dbPath="$candidate"
+              break
+            fi
+          done
+          dbBackup=""
+          if [ -n "$dbPath" ] && [ -f "$dbPath" ]; then
+            dbBackup="${RUNNER_TEMP:-/tmp}/dev.db.backup"
+            cp -f "$dbPath" "$dbBackup"
+            echo "Backed up local dev DB ($dbPath) to $dbBackup"
+          fi
+
+          echo "Resetting workspace to HEAD commit..."
+          git reset --hard HEAD
+
+          echo "Repairing workspace permissions (best effort)..."
+          if [ "$can_sudo" -eq 1 ]; then
+            sudo -n chown -R "$(id -un)":"$(id -gn)" "$GITHUB_WORKSPACE" || true
+          fi
+          chmod -R u+rwX . || true
+
+          echo "Removing common build artifacts before git clean..."
+          if [ "$can_sudo" -eq 1 ]; then
+            sudo -n rm -rf .next node_modules || true
+          else
+            rm -rf .next node_modules || true
+          fi
+
+          echo "Removing untracked files and folders..."
+          git clean -ffdx \
+            -e prisma/dev.db \
+            -e prisma/prisma/dev.db
+          echo "Workspace reset complete."
+
+          if [ -n "$dbPath" ] && [ -n "$dbBackup" ] && [ -f "$dbBackup" ]; then
+            mkdir -p "$(dirname "$dbPath")"
+            cp -f "$dbBackup" "$dbPath"
+            echo "Restored local dev DB to $dbPath from backup."
+          fi
+
+      - name: Configure caches/tmp (avoid small /home)
+        run: |
+          set -euo pipefail
+
+          candidates=("${GITHUB_WORKSPACE:-}" "/opt/NextJS" "/data" "/var/tmp" "/tmp")
+          best=""
+          bestAvail=0
+
+          for d in "${candidates[@]}"; do
+            [ -n "$d" ] || continue
+            [ -d "$d" ] || continue
+            avail=$(df -Pk "$d" | awk 'NR==2{print $4}')
+            avail=${avail:-0}
+            if [ "$avail" -gt "$bestAvail" ]; then
+              bestAvail="$avail"
+              best="$d"
+            fi
+          done
+
+          if [ -z "$best" ]; then
+            echo "[FAIL] Could not determine a cache root directory." >&2
+            exit 1
+          fi
+
+          cacheRoot="$best/.ci-cache"
+          echo "Selected cache root: $cacheRoot (avail_kb=$bestAvail)"
+
+          mkdir -p "$cacheRoot/yarn" "$cacheRoot/npm" "$cacheRoot/xdg" "$cacheRoot/tmp"
+
+          rm -rf "$cacheRoot/yarn" "$cacheRoot/npm" "$cacheRoot/xdg" "$cacheRoot/tmp"
+          mkdir -p "$cacheRoot/yarn" "$cacheRoot/npm" "$cacheRoot/xdg" "$cacheRoot/tmp"
+
+          echo "CI_CACHE_ROOT=$cacheRoot" >> "$GITHUB_ENV"
+          echo "YARN_CACHE_FOLDER=$cacheRoot/yarn" >> "$GITHUB_ENV"
+          echo "npm_config_cache=$cacheRoot/npm" >> "$GITHUB_ENV"
+          echo "XDG_CACHE_HOME=$cacheRoot/xdg" >> "$GITHUB_ENV"
+          echo "TMPDIR=$cacheRoot/tmp" >> "$GITHUB_ENV"
+
+          echo "Disk space at cache root:"
+          df -h "$best" || true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: yarn
-
-      - name: Prepare environment file
+ 
+      - name: Write environment file from secret
         env:
           ENV_FILE_CONTENT: ${{ secrets.env }}
+          ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
+          ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID }}
+          ENTRA_CLIENT_SECRET: ${{ secrets.ENTRA_CLIENT_SECRET }}
+          ENTRA_REDIRECT_URI: ${{ secrets.ENTRA_REDIRECT_URI }}
+          PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
+          SP_KERBEROS_SERVICE_USER: ${{ secrets.SP_KERBEROS_SERVICE_USER }}
+          SP_KERBEROS_SERVICE_PASSWORD: ${{ secrets.SP_KERBEROS_SERVICE_PASSWORD }}
         run: |
           set -euo pipefail
 
-          if [ -n "${ENV_FILE_CONTENT:-}" ]; then
-            printf "%s" "$ENV_FILE_CONTENT" > .env
+          if [ -z "${ENV_FILE_CONTENT:-}" ]; then
+            echo "Secret 'env' is not set or empty." >&2
+            exit 1
+          fi
+
+          if [ -f .env ]; then
+            echo "Removing existing .env before regeneration..."
+            rm -f .env
+          fi
+
+          echo "Writing .env file to workspace root..."
+          printf "%s" "$ENV_FILE_CONTENT" > .env
+
+          tmpEnvFile="$(mktemp)"
+          grep -v -E '^(ENTRA_[A-Z0-9_]+=|PUBLIC_PROJECTS_API_KEYS=|SP_USERNAME=|SP_PASSWORD=|SP_KERBEROS_SERVICE_USER=|SP_KERBEROS_SERVICE_PASSWORD=|# Microsoft Entra ID SSO injected from GitHub Actions secrets|# Public projects API keys injected from GH Actions|# SharePoint auth injected from GH Actions)' .env > "$tmpEnvFile" || true
+          mv "$tmpEnvFile" .env
+
+          entraLines="$(env | grep -E '^ENTRA_[A-Z0-9_]+=' || true)"
+          if [ -n "$entraLines" ]; then
+            printf "\n# Microsoft Entra ID SSO injected from GitHub Actions secrets\n" >> .env
+            printf "%s\n" "$entraLines" >> .env
+          fi
+
+          if [ -n "${PUBLIC_PROJECTS_API_KEYS:-}" ]; then
+            printf "\n# Public projects API keys injected from GH Actions\n" >> .env
+            printf "PUBLIC_PROJECTS_API_KEYS=%s\n" "$PUBLIC_PROJECTS_API_KEYS" >> .env
+          fi
+
+          read_env_value() {
+            local key="$1"
+            awk -F= -v k="$key" '
+              $0 ~ "^[[:space:]]*"k"=" {
+                sub(/^[^=]*=/, "", $0);
+                val=$0
+              }
+              END { if (val != "") print val }
+            ' .env
+          }
+
+          write_quoted_env_value() {
+            local key="$1"
+            local value="$2"
+            local escaped="$value"
+            escaped="${escaped//\"/\\\"}"
+            escaped="${escaped//$'\n'/\\n}"
+            printf '%s="%s"\n' "$key" "$escaped" >> .env
+          }
+
+          serviceUserSource="missing"
+          servicePassSource="missing"
+
+          serviceUser="${SP_KERBEROS_SERVICE_USER:-$(read_env_value SP_KERBEROS_SERVICE_USER || true)}"
+          servicePass="${SP_KERBEROS_SERVICE_PASSWORD:-$(read_env_value SP_KERBEROS_SERVICE_PASSWORD || true)}"
+
+          if [ -n "${SP_KERBEROS_SERVICE_USER:-}" ]; then
+            serviceUserSource="github-secret:SP_KERBEROS_SERVICE_USER"
+          elif [ -n "$serviceUser" ]; then
+            serviceUserSource="base-env:SP_KERBEROS_SERVICE_USER"
+          fi
+
+          if [ -n "${SP_KERBEROS_SERVICE_PASSWORD:-}" ]; then
+            servicePassSource="github-secret:SP_KERBEROS_SERVICE_PASSWORD"
+          elif [ -n "$servicePass" ]; then
+            servicePassSource="base-env:SP_KERBEROS_SERVICE_PASSWORD"
+          fi
+
+          printf "\n# SharePoint auth injected from GH Actions\n" >> .env
+          if [ -n "$serviceUser" ]; then
+            write_quoted_env_value "SP_KERBEROS_SERVICE_USER" "$serviceUser"
+          fi
+          if [ -n "$servicePass" ]; then
+            write_quoted_env_value "SP_KERBEROS_SERVICE_PASSWORD" "$servicePass"
+          fi
+
+          effectiveRedirect="$(grep -E '^ENTRA_REDIRECT_URI=' .env | tail -n 1 || true)"
+          effectiveStrategy="$(grep -E '^SP_STRATEGY=' .env | tail -n 1 || true)"
+          effectiveServiceUser="$(grep -E '^SP_KERBEROS_SERVICE_USER=' .env | tail -n 1 || true)"
+          envFingerprint="$(sha256sum .env | awk '{print $1}' | cut -c1-16)"
+          envMtime="$(stat -c '%y' .env 2>/dev/null || ls -l --time-style=full-iso .env | awk '{print $6" "$7}')"
+
+          echo "Generated .env fingerprint: ${envFingerprint:-<unavailable>}"
+          echo "Generated .env modified at: ${envMtime:-<unavailable>}"
+          echo "Effective ENTRA_REDIRECT_URI in generated .env: ${effectiveRedirect:-<not set>}"
+          echo "Effective SP_STRATEGY in generated .env: ${effectiveStrategy:-<not set>}"
+          echo "Effective SP_KERBEROS_SERVICE_USER in generated .env: ${effectiveServiceUser:-<not set>}"
+          echo "SP_KERBEROS_SERVICE_USER source: ${serviceUserSource}"
+          echo "SP_KERBEROS_SERVICE_PASSWORD source: ${servicePassSource}"
+          if grep -q -E '^SP_KERBEROS_SERVICE_USER=' .env; then
+            echo "Effective SP_KERBEROS_SERVICE_PASSWORD in generated .env: <set>"
           else
-            cp .env.example .env
+            echo "Effective SP_KERBEROS_SERVICE_PASSWORD in generated .env: <not set>"
+          fi
+
+      - name: Verify Node.js runtime
+        run: |
+          set -euo pipefail
+          node -p "process.versions.node"
+          node -e "require('async_hooks'); console.log('async_hooks module available')"
+
+      - name: Pin Yarn Classic (1.22.22)
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare yarn@1.22.22 --activate
+          yarn --version
+
+      - name: Install Linux prerequisites (RHEL)
+        run: |
+          set -euo pipefail
+
+          needPkgs=()
+          command -v curl >/dev/null 2>&1 || needPkgs+=(curl)
+          command -v lsof >/dev/null 2>&1 || needPkgs+=(lsof)
+          command -v ss   >/dev/null 2>&1 || needPkgs+=(iproute)
+
+          if [ ${#needPkgs[@]} -eq 0 ]; then
+            echo "All prerequisites already installed."
+            exit 0
+          fi
+
+          echo "Missing tools detected; will try to install: ${needPkgs[*]}"
+
+          installer=""
+          if command -v dnf >/dev/null 2>&1; then
+            installer="dnf"
+          elif command -v yum >/dev/null 2>&1; then
+            installer="yum"
+          else
+            echo "[WARN] Neither dnf nor yum found; cannot auto-install packages." >&2
+            exit 0
+          fi
+
+          if command -v sudo >/dev/null 2>&1; then
+            if ! sudo -n true 2>/dev/null; then
+              echo "[FAIL] sudo is present but not passwordless/non-interactive for this runner." >&2
+              echo "[FAIL] Configure passwordless sudo for the runner user, or run the runner as root." >&2
+              exit 1
+            fi
+            sudo -n "$installer" -y install "${needPkgs[@]}"
+          elif [ "$(id -u)" -eq 0 ]; then
+            "$installer" -y install "${needPkgs[@]}"
+          else
+            echo "[FAIL] No sudo/root available; cannot install required packages." >&2
+            echo "[FAIL] Please install manually on the runner and re-run: ${needPkgs[*]}" >&2
+            exit 1
+          fi
+
+          missingAfter=()
+          command -v curl >/dev/null 2>&1 || missingAfter+=(curl)
+          command -v lsof >/dev/null 2>&1 || missingAfter+=(lsof)
+          command -v ss   >/dev/null 2>&1 || missingAfter+=(ss)
+          if [ ${#missingAfter[@]} -ne 0 ]; then
+            echo "[FAIL] Required tools still missing after install attempt: ${missingAfter[*]}" >&2
+            exit 1
+          fi
+
+      - name: Show disk space (before)
+        run: |
+          set -euo pipefail
+
+          echo "Disk space before:"
+          df -h .
+
+      - name: Clean Yarn cache
+        run: |
+          set -euo pipefail
+          yarn cache clean || true
+
+      - name: Free up disk space (caches, logs, artifacts)
+        run: |
+          set -euo pipefail
+
+          if [ -d "$HOME/.pm2/logs" ]; then
+            rm -f "$HOME/.pm2/logs"/* || true
+          fi
+
+          rm -rf .next node_modules
+          echo "Workspace artifacts removed."
+
+      - name: Verify cleanup
+        run: |
+          set -euo pipefail
+          remaining=""
+          [ -e .next ] && remaining="$remaining .next"
+          [ -e node_modules ] && remaining="$remaining node_modules"
+          if [ -n "$remaining" ]; then
+            echo "Cleanup failed, remaining paths:$remaining" >&2
+            exit 1
+          fi
+          echo "No stale workspace artifacts detected."
+
+      - name: Show disk space (after cleanup)
+        run: |
+          set -euo pipefail
+
+          echo "Disk space after cleanup:"
+          df -h .
+
+      - name: Force remove stale node_modules directory
+        run: |
+          set -euo pipefail
+          if [ -d node_modules ]; then
+            echo "Removing existing node_modules..."
+            rm -rf node_modules
+          else
+            echo "node_modules directory not present."
           fi
 
       - name: Install dependencies
@@ -51,12 +366,84 @@ jobs:
           set -euo pipefail
           yarn install --frozen-lockfile
 
-      - name: Generate Prisma client
+      - name: Prepare Prisma database
+        env:
+          NODE_ENV: production
         run: |
           set -euo pipefail
-          yarn prisma:generate
+
+          echo "Running prisma migrate deploy..."
+
+          dbUrl="${DATABASE_URL:-}"
+          if [ -z "$dbUrl" ] && [ -f .env ]; then
+            dbUrl="$(grep -E '^\s*DATABASE_URL\s*=' .env | head -n 1 | sed -E 's/^\s*DATABASE_URL\s*=\s*//')"
+            dbUrl="${dbUrl%$'\r'}"
+            dbUrl="${dbUrl#\"}"
+            dbUrl="${dbUrl%\"}"
+            dbUrl="${dbUrl#\'}"
+            dbUrl="${dbUrl%\'}"
+          fi
+
+          isFileDb="false"
+          dbFilePath=""
+          if [[ "$dbUrl" == file:* ]]; then
+            isFileDb="true"
+            dbFilePath="${dbUrl#file:}"
+            dbFilePath="${dbFilePath#./}"
+            if [[ "$dbFilePath" != /* ]]; then
+              dbFilePath="${GITHUB_WORKSPACE:-$(pwd)}/$dbFilePath"
+            fi
+            mkdir -p "$(dirname "$dbFilePath")"
+            if [ ! -f "$dbFilePath" ]; then
+              echo "SQLite DB file not found. Creating empty DB at $dbFilePath"
+              : > "$dbFilePath"
+            fi
+          fi
+
+          deployOutput=""
+          if ! deployOutput="$(npx prisma migrate deploy 2>&1)"; then
+            echo "$deployOutput" >&2
+
+            if [ "$isFileDb" = "true" ]; then
+              if echo "$deployOutput" | grep -q "P3005"; then
+                echo "[WARN] P3005: SQLite DB exists without migration history. Aligning schema via db push and baselining migrations..." >&2
+
+                npx prisma db push --accept-data-loss
+
+                for migDir in prisma/migrations/*/; do
+                  migName="$(basename "$migDir")"
+                  npx prisma migrate resolve --applied "$migName" || true
+                done
+
+                npx prisma migrate deploy || true
+              else
+                echo "[WARN] prisma migrate deploy failed. Trying prisma db push --accept-data-loss (SQLite fallback)." >&2
+                npx prisma db push --accept-data-loss
+              fi
+            else
+              echo "prisma migrate deploy failed and no safe fallback is available." >&2
+              exit 1
+            fi
+          else
+            echo "$deployOutput"
+            echo "Prisma migrations applied successfully."
+          fi
+
+          echo "Generating Prisma client..."
+          npx prisma generate
 
       - name: Build application
+        env:
+          NODE_ENV: production
         run: |
           set -euo pipefail
           yarn build
+
+      - name: Verify Next.js build output exists
+        run: |
+          set -euo pipefail
+          if [ ! -d .next ]; then
+            echo "Error: .next build directory not found. Build likely failed." >&2
+            exit 1
+          fi
+          echo "Found .next directory."
