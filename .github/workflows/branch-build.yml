@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: branch-build-${{ github.ref }}
+  group: branch-build-shared-runner
   cancel-in-progress: true
 
 jobs:
@@ -22,6 +22,8 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
+      # Branch builds now start the app with PM2 on the shared test runner.
+      PM2_RUN_AS_USER: root
 
     steps:
       - name: Check runner permissions
@@ -447,3 +449,173 @@ jobs:
             exit 1
           fi
           echo "Found .next directory."
+
+      - name: Set PM2 HOME and environment
+        run: |
+          set -euo pipefail
+          requestedPm2User="${PM2_RUN_AS_USER:-}"
+          currentUser="$(id -un)"
+          canSudo=0
+          if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+            canSudo=1
+          fi
+
+          pm2User="$requestedPm2User"
+          if [ -z "$pm2User" ]; then
+            echo "[FAIL] PM2_RUN_AS_USER must be set for branch startup." >&2
+            exit 1
+          fi
+
+          if [ "$pm2User" = "root" ] && [ "$(id -u)" -ne 0 ] && [ "$canSudo" -ne 1 ]; then
+            echo "[FAIL] Root PM2 management requires either a root runner or passwordless sudo." >&2
+            exit 1
+          fi
+
+          if [ -n "$pm2User" ] && [ "$pm2User" != "$currentUser" ] && [ "$(id -u)" -ne 0 ] && [ "$canSudo" -ne 1 ]; then
+            echo "[FAIL] PM2_RUN_AS_USER=$pm2User requires passwordless sudo on this runner." >&2
+            exit 1
+          fi
+
+          if [ "$pm2User" = "$currentUser" ]; then
+            pm2Home="${HOME:-${GITHUB_WORKSPACE:-$(pwd)}}/.pm2"
+          elif [ "$pm2User" = "root" ]; then
+            pm2Home="/root/.pm2"
+          else
+            pm2Home="/home/$pm2User/.pm2"
+          fi
+
+          echo "PM2_RUN_AS_USER=$pm2User" >> "$GITHUB_ENV"
+          echo "Setting PM2_HOME to: $pm2Home"
+
+          if [ "$(id -u)" -eq 0 ]; then
+            mkdir -p "$pm2Home"
+            if [ "$pm2User" != "root" ]; then
+              chown -R "$pm2User":"$pm2User" "$pm2Home" || true
+            fi
+          else
+            sudo -n mkdir -p "$pm2Home"
+            if [ "$pm2User" != "root" ]; then
+              sudo -n chown -R "$pm2User":"$pm2User" "$pm2Home" || true
+            fi
+          fi
+
+          echo "PM2_HOME=$pm2Home" >> "$GITHUB_ENV"
+
+      - name: Install PM2 (process manager)
+        run: |
+          set -euo pipefail
+          npm install -g pm2
+
+          pm2Bin="$(command -v pm2 || true)"
+          if [ -z "$pm2Bin" ]; then
+            echo "[FAIL] pm2 binary not found after install." >&2
+            exit 1
+          fi
+
+          echo "PM2_BIN=$pm2Bin" >> "$GITHUB_ENV"
+
+      - name: Stop existing instance and free port 3000
+        run: |
+          set -euo pipefail
+
+          pm2cmd() {
+            pm2Bin="${PM2_BIN:-pm2}"
+            targetUser="${PM2_RUN_AS_USER:-}"
+            currentUser="$(id -un)"
+            if [ -n "$targetUser" ] && [ "$targetUser" != "$currentUser" ]; then
+              sudo -n -u "$targetUser" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" "$@"
+            else
+              "$pm2Bin" "$@"
+            fi
+          }
+
+          appName="roadmap-app"
+
+          describe_port_3000() {
+            echo "Port 3000 listeners (lsof):"
+            lsof -nP -iTCP:3000 -sTCP:LISTEN || true
+            echo "Port 3000 listeners (ss):"
+            ss -ltnp 2>/dev/null | grep ':3000' || true
+          }
+
+          if pm2cmd describe "$appName" >/dev/null 2>&1; then
+            pm2cmd stop "$appName" || true
+            pm2cmd delete "$appName" || true
+          else
+            echo "PM2 app '$appName' not found; nothing to stop."
+          fi
+
+          if ss -ltnp 2>/dev/null | grep -q ':3000'; then
+            echo "[FAIL] Port 3000 is still in use after stopping '$appName'." >&2
+            describe_port_3000
+            exit 1
+          fi
+
+      - name: Start app on port 3000 with PM2
+        env:
+          RUNNER_TRACKING_ID: ""
+          NODE_ENV: production
+          PORT: 3000
+        run: |
+          set -euo pipefail
+
+          pm2cmd() {
+            pm2Bin="${PM2_BIN:-pm2}"
+            targetUser="${PM2_RUN_AS_USER:-}"
+            currentUser="$(id -un)"
+            if [ -n "$targetUser" ] && [ "$targetUser" != "$currentUser" ]; then
+              sudo -n -u "$targetUser" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" "$@"
+            else
+              "$pm2Bin" "$@"
+            fi
+          }
+
+          pm2cmd start ecosystem.config.js --only roadmap-app --update-env
+          sleep 10
+
+      - name: Save PM2 process list
+        run: |
+          set -euo pipefail
+          currentUser="$(id -un)"
+          pm2Bin="${PM2_BIN:-pm2}"
+
+          if [ -n "${PM2_RUN_AS_USER:-}" ] && [ "${PM2_RUN_AS_USER}" != "$currentUser" ]; then
+            sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" save
+          else
+            "$pm2Bin" save
+          fi
+
+      - name: Verify PM2 status and HTTP readiness
+        run: |
+          set -euo pipefail
+
+          pm2cmd() {
+            pm2Bin="${PM2_BIN:-pm2}"
+            targetUser="${PM2_RUN_AS_USER:-}"
+            currentUser="$(id -un)"
+            if [ -n "$targetUser" ] && [ "$targetUser" != "$currentUser" ]; then
+              sudo -n -u "$targetUser" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" "$@"
+            else
+              "$pm2Bin" "$@"
+            fi
+          }
+
+          pm2cmd status
+          pm2cmd describe roadmap-app
+
+          maxAttempts=12
+          attempt=1
+          until curl -fsS http://127.0.0.1:3000 >/dev/null; do
+            if [ "$attempt" -ge "$maxAttempts" ]; then
+              echo "[FAIL] App did not become ready on http://127.0.0.1:3000." >&2
+              pm2cmd logs roadmap-app --lines 100 --nostream || true
+              ss -ltnp 2>/dev/null | grep ':3000' || true
+              exit 1
+            fi
+
+            echo "Waiting for app readiness on port 3000 (attempt $attempt/$maxAttempts)..."
+            attempt=$((attempt + 1))
+            sleep 5
+          done
+
+          echo "Branch app is reachable on http://127.0.0.1:3000"
