@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "dev": "next dev --turbo",
-    "prebuild": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\"",
+    "prebuild": "node scripts/clean-next-build.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

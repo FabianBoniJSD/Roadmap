@@ -6,9 +6,9 @@ import {
   generatePkcePair,
   generateRandomBase64Url,
   type EntraUserProfile,
-} from '../core';
-import { buildSetCookie, parseCookies, shouldUseSecureCookies } from './cookies';
-import { getEntraRedirectUri, type EntraRedirectEnv } from './redirectUri';
+} from '../core/index.js';
+import { buildSetCookie, parseCookies, shouldUseSecureCookies } from './cookies.js';
+import { getEntraRedirectUri, type EntraRedirectEnv } from './redirectUri.js';
 
 function escapeHtml(input: string): string {
   return input
@@ -278,16 +278,14 @@ export function createEntraCallbackHandler(config: {
 
       if (popup) {
         res.setHeader('Content-Type', 'text/html');
-        res
-          .status(200)
-          .send(
-            renderPopupResultHtml({
-              ok: true,
-              token: issued.token,
-              username: issued.username,
-              origin,
-            })
-          );
+        res.status(200).send(
+          renderPopupResultHtml({
+            ok: true,
+            token: issued.token,
+            username: issued.username,
+            origin,
+          })
+        );
         return;
       }
 
