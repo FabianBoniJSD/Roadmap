@@ -8,6 +8,7 @@ import {
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { Project } from '@/types';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
+import { getSampleProjectById, isSampleDataInstance } from '@/utils/sampleInstanceData';
 
 const normalizeTeamMembers = (value: unknown): Array<{ name: string; role: string }> => {
   if (!Array.isArray(value)) return [];
@@ -113,10 +114,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      // Use clientDataService directly
-      const project = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
-        clientDataService.withInstance(instance.slug, () => clientDataService.getProjectById(id))
-      );
+      const project = isSampleDataInstance(instance)
+        ? getSampleProjectById(id)
+        : await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+            clientDataService.withInstance(instance.slug, () =>
+              clientDataService.getProjectById(id)
+            )
+          );
 
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
@@ -131,6 +135,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // PUT - Update a project
   else if (req.method === 'PUT') {
     try {
+      if (isSampleDataInstance(instance)) {
+        return res.status(501).json({ error: 'Sample data instance is read-only' });
+      }
+
       const session = requireUserSession(req);
 
       if (
@@ -168,6 +176,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // DELETE - Delete a project
   else if (req.method === 'DELETE') {
     try {
+      if (isSampleDataInstance(instance)) {
+        return res.status(501).json({ error: 'Sample data instance is read-only' });
+      }
+
       const session = requireUserSession(req);
 
       if (

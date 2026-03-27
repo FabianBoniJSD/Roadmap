@@ -7,6 +7,7 @@ import {
 } from '@/utils/instanceAccessServer';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
+import { getSampleCategories, isSampleDataInstance } from '@/utils/sampleInstanceData';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const disableCache = () => {
@@ -52,10 +53,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      // Use clientDataService directly
-      const categories = await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.getAllCategories()
-      );
+      const categories = isSampleDataInstance(instance)
+        ? getSampleCategories()
+        : await clientDataService.withInstance(instance.slug, () =>
+            clientDataService.getAllCategories()
+          );
 
       res.setHeader('x-categories-instance', instance.slug);
       res.status(200).json(categories);
@@ -67,6 +69,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // POST - Create a new category
   else if (req.method === 'POST') {
     try {
+      if (isSampleDataInstance(instance)) {
+        return res.status(501).json({ error: 'Sample data instance is read-only' });
+      }
+
       const session = requireUserSession(req);
 
       if (

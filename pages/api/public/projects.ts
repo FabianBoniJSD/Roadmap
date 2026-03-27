@@ -3,6 +3,7 @@ import { clientDataService } from '@/utils/clientDataService';
 import { getInstanceConfigBySlug, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import type { Project } from '@/types';
+import { getSampleProjects, isSampleDataInstance } from '@/utils/sampleInstanceData';
 
 const RATE_LIMIT = 500; // requests per window
 const WINDOW_MS = 60_000;
@@ -151,9 +152,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(429).json({ error: 'Rate limit exceeded (500/min)' });
     }
 
-    const projects = await clientDataService.withInstance(instance.slug, () =>
-      clientDataService.getAllProjects()
-    );
+    const projects = isSampleDataInstance(instance)
+      ? getSampleProjects()
+      : await clientDataService.withInstance(instance.slug, () =>
+          clientDataService.getAllProjects()
+        );
 
     const normalized = Array.isArray(projects)
       ? projects.map((p) => ({ ...p, category: normalizeCategory(p.category) }))

@@ -12,6 +12,11 @@ import {
   resolveFirstAllowedInstanceForAdminSession,
   resolveInstanceForAdminSession,
 } from '@/utils/instanceSelection';
+import {
+  getSampleCategories,
+  getSampleProjects,
+  isSampleDataInstance,
+} from '@/utils/sampleInstanceData';
 import type { Category, Project } from '../types';
 
 type RoadmapPageProps = {
@@ -264,13 +269,13 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
       };
     }
 
-    const [projects, categories] = await clientDataService.withRequestHeaders(
-      forwardedHeaders,
-      () =>
-        clientDataService.withInstance(instance.slug, () =>
-          Promise.all([clientDataService.getAllProjects(), clientDataService.getAllCategories()])
-        )
-    );
+    const [projects, categories] = isSampleDataInstance(instance)
+      ? [getSampleProjects(), getSampleCategories()]
+      : await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+          clientDataService.withInstance(instance.slug, () =>
+            Promise.all([clientDataService.getAllProjects(), clientDataService.getAllCategories()])
+          )
+        );
 
     const safeProjects = Array.isArray(projects) ? projects : [];
     const safeCategories = Array.isArray(categories) ? categories : [];
