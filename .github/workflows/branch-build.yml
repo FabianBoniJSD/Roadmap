@@ -435,6 +435,9 @@ jobs:
           echo "Generating Prisma client..."
           npx prisma generate
 
+          echo "Seeding sample test instance..."
+          npx prisma db seed
+
       - name: Build application
         env:
           NODE_ENV: production

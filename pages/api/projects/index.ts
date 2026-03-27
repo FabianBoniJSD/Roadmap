@@ -9,6 +9,7 @@ import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { Project } from '@/types';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
+import { getSampleProjects, isSampleDataInstance } from '@/utils/sampleInstanceData';
 
 const normalizeTeamMembers = (value: unknown): Array<{ name: string; role: string }> => {
   if (!Array.isArray(value)) return [];
@@ -314,9 +315,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.setHeader('x-projects-instance', instance.slug);
       res.setHeader('x-projects-sharepoint-site', resolveSharePointSiteUrl(instance));
 
-      let projects = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
-        clientDataService.withInstance(instance.slug, () => clientDataService.getAllProjects())
-      );
+      let projects = isSampleDataInstance(instance)
+        ? getSampleProjects()
+        : await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+            clientDataService.withInstance(instance.slug, () => clientDataService.getAllProjects())
+          );
 
       if (Array.isArray(projects) && projects.length === 0) {
         const explicit = await fetchProjectsViaExplicitInstanceProxy(req, instance);
@@ -435,6 +438,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   else if (req.method === 'POST') {
     disableCache();
     try {
+      if (isSampleDataInstance(instance)) {
+        return res.status(501).json({ error: 'Sample data instance is read-only' });
+      }
+
       const forwardedHeaders = {
         authorization:
           typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
