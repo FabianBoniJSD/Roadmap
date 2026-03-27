@@ -1,4 +1,4 @@
-import type { EntraUserProfile } from './graph.js';
+import type { EntraUserProfile } from './graph';
 
 export function isUserAllowedByUpnAllowlist(args: {
   profile: EntraUserProfile;

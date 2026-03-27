@@ -6,9 +6,9 @@ import {
   generatePkcePair,
   generateRandomBase64Url,
   type EntraUserProfile,
-} from '../core/index.js';
-import { buildSetCookie, parseCookies, shouldUseSecureCookies } from './cookies.js';
-import { getEntraRedirectUri, type EntraRedirectEnv } from './redirectUri.js';
+} from '../core/index';
+import { buildSetCookie, parseCookies, shouldUseSecureCookies } from './cookies';
+import { getEntraRedirectUri, type EntraRedirectEnv } from './redirectUri';
 
 function escapeHtml(input: string): string {
   return input

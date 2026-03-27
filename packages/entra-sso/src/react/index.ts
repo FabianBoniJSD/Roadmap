@@ -1,1 +1,1 @@
-export * from './useEntraSsoPopup.js';
+export * from './useEntraSsoPopup';
