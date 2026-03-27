@@ -1127,7 +1127,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const preparedBody = prepareRequestBody(rawBodyBuffer);
     // Forward client's Accept when possible to preserve expected payload shape (nometadata vs verbose)
     const clientAccept = req.headers['accept'];
-    const wantsBinary = apiPath.startsWith('/_layouts/15/userphoto.aspx');
+    const wantsBinary =
+      apiPath.startsWith('/_layouts/15/userphoto.aspx') ||
+      /\/\$value(?:$|\?)/i.test(apiPath) ||
+      /\/AttachmentFiles\//i.test(apiPath) ||
+      /\/GetFileByServerRelativeUrl\(/i.test(apiPath) ||
+      /\/GetFileByServerRelativePath\(/i.test(apiPath);
     const headers: Record<string, string> = {
       Accept: wantsBinary
         ? '*/*'
@@ -1262,8 +1267,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const isJson = /application\/json|text\/json/i.test(ct);
     const isXml = /application\/atom\+xml|text\/xml|application\/xml/i.test(ct);
     const isText = /^text\//i.test(ct) && !isXml && !isJson;
+    const forceBinaryResponse =
+      wantsBinary ||
+      Boolean(spResp.headers.get('content-disposition')) ||
+      /\/\$value(?:$|\?)/i.test(apiPath);
 
-    if (!isJson && !isXml && !isText) {
+    if (forceBinaryResponse || (!isJson && !isXml && !isText)) {
       const disposition = spResp.headers.get('content-disposition');
       const length = spResp.headers.get('content-length');
       if (ct) res.setHeader('Content-Type', ct);
