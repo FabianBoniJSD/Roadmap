@@ -3,6 +3,7 @@ name: Branch Build
 on:
   push:
     branches:
+      - 'feature/**'
       - 'features/**'
       - 'fix/**'
       - 'refactor/**'
