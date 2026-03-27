@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const sampleInstanceSlug = 'sample';
+const testDeploymentSuperAdmin = 'fabian.boni@jsd.bs.ch';
 
 const sampleSettings = {
   features: {
@@ -49,7 +50,24 @@ async function main() {
     },
   });
 
+  await prisma.superAdmin.upsert({
+    where: { normalizedUsername: testDeploymentSuperAdmin },
+    update: {
+      username: testDeploymentSuperAdmin,
+      normalizedUsername: testDeploymentSuperAdmin,
+      isActive: true,
+      note: 'Test deployment seed default',
+    },
+    create: {
+      username: testDeploymentSuperAdmin,
+      normalizedUsername: testDeploymentSuperAdmin,
+      isActive: true,
+      note: 'Test deployment seed default',
+    },
+  });
+
   console.log(`Seeded sample roadmap instance: ${sampleInstanceSlug}`);
+  console.log(`Seeded test deployment superadmin: ${testDeploymentSuperAdmin}`);
 }
 
 main()
