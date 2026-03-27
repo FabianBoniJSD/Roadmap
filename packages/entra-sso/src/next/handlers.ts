@@ -6,7 +6,7 @@ import {
   generatePkcePair,
   generateRandomBase64Url,
   type EntraUserProfile,
-} from '../core';
+} from '../core/index';
 import { buildSetCookie, parseCookies, shouldUseSecureCookies } from './cookies';
 import { getEntraRedirectUri, type EntraRedirectEnv } from './redirectUri';
 
@@ -278,16 +278,14 @@ export function createEntraCallbackHandler(config: {
 
       if (popup) {
         res.setHeader('Content-Type', 'text/html');
-        res
-          .status(200)
-          .send(
-            renderPopupResultHtml({
-              ok: true,
-              token: issued.token,
-              username: issued.username,
-              origin,
-            })
-          );
+        res.status(200).send(
+          renderPopupResultHtml({
+            ok: true,
+            token: issued.token,
+            username: issued.username,
+            origin,
+          })
+        );
         return;
       }
 

@@ -6,13 +6,13 @@ SharePoint-backed roadmap application built with Next.js 14 (pages router), Type
 
 - Next.js 14 (pages router), React 18, TypeScript
 - Tailwind CSS for styling
-- SharePoint REST with custom fetch fallback; PnP JS only for legacy bulk ops
+- SharePoint REST with custom fetch fallback
 - Prisma (included, optional) and PM2 for process management
 
 ## Architecture
 
 - **API pattern**: Next.js API route → `utils/clientDataService` → `/api/sharepoint` proxy → SharePoint REST.
-- **Data layer**: Prefer `clientDataService` (OData nometadata → verbose → Atom XML cascade, field probing, caching). Legacy `dataService` (PnP JS) remains for existing bulk flows.
+- **Data layer**: `clientDataService` handles SharePoint access (OData nometadata → verbose → Atom XML cascade, field probing, caching).
 - **SharePoint lists**: `Roadmap Projects`, `Roadmap Categories`, `Roadmap Settings`, `Roadmap Team Members`, `Roadmap Project Links`.
 - **Category normalization**: trim and collapse values like `7.0` → `7` across API and client data service.
 - **Quarter → date derivation**: shared helper maps Q1–Q4 to start/end ISO dates; do not change logic.
@@ -30,7 +30,7 @@ SharePoint-backed roadmap application built with Next.js 14 (pages router), Type
    - `SP_USE_CURL` (deprecated; Kerberos proxy uses curl unconditionally)
    - `NEXT_PUBLIC_BASE_PATH_DEV` / `NEXT_PUBLIC_BASE_PATH_PROD` (reverse proxy base paths)
    - SharePoint site/web URLs and credentials for the active strategy (see `utils/sharepointEnv.ts`).
-4. **Run dev**: `npm run dev` (port 3000, Turbopack enabled).
+4. **Run dev**: `npm run dev` (port 3000, Turbo mode enabled via `next dev --turbo`).
 5. **Build**: `npm run build`; **start**: `npm run start`.
 
 ## Auth Modes
@@ -71,4 +71,3 @@ SharePoint-backed roadmap application built with Next.js 14 (pages router), Type
 ## Security
 
 - Never commit real secrets. `.env` and `.env.*.local` are git-ignored; keep example values non-sensitive.
-- Use the secrets scripts to manage encrypted config (`npm run secrets:*`).

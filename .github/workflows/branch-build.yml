@@ -1,0 +1,622 @@
+name: Branch Build
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'features/**'
+      - 'fix/**'
+      - 'refactor/**'
+  workflow_dispatch:
+
+concurrency:
+  group: branch-build-shared-runner
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build on branch runner
+    runs-on: ${{ fromJson(vars.NON_MAIN_RUNNER_LABELS_JSON != '' && vars.NON_MAIN_RUNNER_LABELS_JSON || '["self-hosted","linux","roadmap-test"]') }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
+      # Branch builds now start the app with PM2 on the shared test runner.
+      PM2_RUN_AS_USER: root
+
+    steps:
+      - name: Check runner permissions
+        run: |
+          set -euo pipefail
+          echo "=== RUNNER ENVIRONMENT ==="
+          echo "User: $(id -un) (uid=$(id -u))"
+          echo "Groups: $(id -Gn)"
+          echo "Hostname: $(hostname)"
+          if [ "$(id -u)" -ne 0 ]; then
+            echo "[WARN] Runner is not root. Some cleanup or package installation may require passwordless sudo."
+          else
+            echo "[OK] Runner is running as root."
+          fi
+          echo "=========================="
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Reset workspace state
+        run: |
+          set -euo pipefail
+
+          can_sudo=0
+          if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+            can_sudo=1
+          fi
+
+          dbPath=""
+          for candidate in "prisma/dev.db" "prisma/prisma/dev.db"; do
+            if [ -f "$candidate" ]; then
+              dbPath="$candidate"
+              break
+            fi
+          done
+          dbBackup=""
+          if [ -n "$dbPath" ] && [ -f "$dbPath" ]; then
+            dbBackup="${RUNNER_TEMP:-/tmp}/dev.db.backup"
+            cp -f "$dbPath" "$dbBackup"
+            echo "Backed up local dev DB ($dbPath) to $dbBackup"
+          fi
+
+          echo "Resetting workspace to HEAD commit..."
+          git reset --hard HEAD
+
+          echo "Repairing workspace permissions (best effort)..."
+          if [ "$can_sudo" -eq 1 ]; then
+            sudo -n chown -R "$(id -un)":"$(id -gn)" "$GITHUB_WORKSPACE" || true
+          fi
+          chmod -R u+rwX . || true
+
+          echo "Removing common build artifacts before git clean..."
+          if [ "$can_sudo" -eq 1 ]; then
+            sudo -n rm -rf .next node_modules || true
+          else
+            rm -rf .next node_modules || true
+          fi
+
+          echo "Removing untracked files and folders..."
+          git clean -ffdx \
+            -e prisma/dev.db \
+            -e prisma/prisma/dev.db
+          echo "Workspace reset complete."
+
+          if [ -n "$dbPath" ] && [ -n "$dbBackup" ] && [ -f "$dbBackup" ]; then
+            mkdir -p "$(dirname "$dbPath")"
+            cp -f "$dbBackup" "$dbPath"
+            echo "Restored local dev DB to $dbPath from backup."
+          fi
+
+      - name: Configure caches/tmp (avoid small /home)
+        run: |
+          set -euo pipefail
+
+          candidates=("${GITHUB_WORKSPACE:-}" "/opt/NextJS" "/data" "/var/tmp" "/tmp")
+          best=""
+          bestAvail=0
+
+          for d in "${candidates[@]}"; do
+            [ -n "$d" ] || continue
+            [ -d "$d" ] || continue
+            avail=$(df -Pk "$d" | awk 'NR==2{print $4}')
+            avail=${avail:-0}
+            if [ "$avail" -gt "$bestAvail" ]; then
+              bestAvail="$avail"
+              best="$d"
+            fi
+          done
+
+          if [ -z "$best" ]; then
+            echo "[FAIL] Could not determine a cache root directory." >&2
+            exit 1
+          fi
+
+          cacheRoot="$best/.ci-cache"
+          echo "Selected cache root: $cacheRoot (avail_kb=$bestAvail)"
+
+          mkdir -p "$cacheRoot/yarn" "$cacheRoot/npm" "$cacheRoot/xdg" "$cacheRoot/tmp"
+
+          rm -rf "$cacheRoot/yarn" "$cacheRoot/npm" "$cacheRoot/xdg" "$cacheRoot/tmp"
+          mkdir -p "$cacheRoot/yarn" "$cacheRoot/npm" "$cacheRoot/xdg" "$cacheRoot/tmp"
+
+          echo "CI_CACHE_ROOT=$cacheRoot" >> "$GITHUB_ENV"
+          echo "YARN_CACHE_FOLDER=$cacheRoot/yarn" >> "$GITHUB_ENV"
+          echo "npm_config_cache=$cacheRoot/npm" >> "$GITHUB_ENV"
+          echo "XDG_CACHE_HOME=$cacheRoot/xdg" >> "$GITHUB_ENV"
+          echo "TMPDIR=$cacheRoot/tmp" >> "$GITHUB_ENV"
+
+          echo "Disk space at cache root:"
+          df -h "$best" || true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+ 
+      - name: Write environment file from secret
+        env:
+          ENV_FILE_CONTENT: ${{ secrets.env }}
+          ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
+          ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID }}
+          ENTRA_CLIENT_SECRET: ${{ secrets.ENTRA_CLIENT_SECRET }}
+          ENTRA_REDIRECT_URI: ${{ secrets.TEST_ENTRA_REDIRECT_URI }}
+          PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
+          SP_KERBEROS_SERVICE_USER: ${{ secrets.SP_KERBEROS_SERVICE_USER }}
+          SP_KERBEROS_SERVICE_PASSWORD: ${{ secrets.SP_KERBEROS_SERVICE_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${ENV_FILE_CONTENT:-}" ]; then
+            echo "Secret 'env' is not set or empty." >&2
+            exit 1
+          fi
+
+          if [ -f .env ]; then
+            echo "Removing existing .env before regeneration..."
+            rm -f .env
+          fi
+
+          echo "Writing .env file to workspace root..."
+          printf "%s" "$ENV_FILE_CONTENT" > .env
+
+          tmpEnvFile="$(mktemp)"
+          grep -v -E '^(ENTRA_[A-Z0-9_]+=|PUBLIC_PROJECTS_API_KEYS=|SP_USERNAME=|SP_PASSWORD=|SP_KERBEROS_SERVICE_USER=|SP_KERBEROS_SERVICE_PASSWORD=|# Microsoft Entra ID SSO injected from GitHub Actions secrets|# Public projects API keys injected from GH Actions|# SharePoint auth injected from GH Actions)' .env > "$tmpEnvFile" || true
+          mv "$tmpEnvFile" .env
+
+          entraLines="$(env | grep -E '^ENTRA_[A-Z0-9_]+=' || true)"
+          if [ -n "$entraLines" ]; then
+            printf "\n# Microsoft Entra ID SSO injected from GitHub Actions secrets\n" >> .env
+            printf "%s\n" "$entraLines" >> .env
+          fi
+
+          if [ -n "${PUBLIC_PROJECTS_API_KEYS:-}" ]; then
+            printf "\n# Public projects API keys injected from GH Actions\n" >> .env
+            printf "PUBLIC_PROJECTS_API_KEYS=%s\n" "$PUBLIC_PROJECTS_API_KEYS" >> .env
+          fi
+
+          read_env_value() {
+            local key="$1"
+            awk -F= -v k="$key" '
+              $0 ~ "^[[:space:]]*"k"=" {
+                sub(/^[^=]*=/, "", $0);
+                val=$0
+              }
+              END { if (val != "") print val }
+            ' .env
+          }
+
+          write_quoted_env_value() {
+            local key="$1"
+            local value="$2"
+            local escaped="$value"
+            escaped="${escaped//\"/\\\"}"
+            escaped="${escaped//$'\n'/\\n}"
+            printf '%s="%s"\n' "$key" "$escaped" >> .env
+          }
+
+          serviceUserSource="missing"
+          servicePassSource="missing"
+
+          serviceUser="${SP_KERBEROS_SERVICE_USER:-$(read_env_value SP_KERBEROS_SERVICE_USER || true)}"
+          servicePass="${SP_KERBEROS_SERVICE_PASSWORD:-$(read_env_value SP_KERBEROS_SERVICE_PASSWORD || true)}"
+
+          if [ -n "${SP_KERBEROS_SERVICE_USER:-}" ]; then
+            serviceUserSource="github-secret:SP_KERBEROS_SERVICE_USER"
+          elif [ -n "$serviceUser" ]; then
+            serviceUserSource="base-env:SP_KERBEROS_SERVICE_USER"
+          fi
+
+          if [ -n "${SP_KERBEROS_SERVICE_PASSWORD:-}" ]; then
+            servicePassSource="github-secret:SP_KERBEROS_SERVICE_PASSWORD"
+          elif [ -n "$servicePass" ]; then
+            servicePassSource="base-env:SP_KERBEROS_SERVICE_PASSWORD"
+          fi
+
+          printf "\n# SharePoint auth injected from GH Actions\n" >> .env
+          if [ -n "$serviceUser" ]; then
+            write_quoted_env_value "SP_KERBEROS_SERVICE_USER" "$serviceUser"
+          fi
+          if [ -n "$servicePass" ]; then
+            write_quoted_env_value "SP_KERBEROS_SERVICE_PASSWORD" "$servicePass"
+          fi
+
+          effectiveRedirect="$(grep -E '^ENTRA_REDIRECT_URI=' .env | tail -n 1 || true)"
+          effectiveStrategy="$(grep -E '^SP_STRATEGY=' .env | tail -n 1 || true)"
+          effectiveServiceUser="$(grep -E '^SP_KERBEROS_SERVICE_USER=' .env | tail -n 1 || true)"
+          envFingerprint="$(sha256sum .env | awk '{print $1}' | cut -c1-16)"
+          envMtime="$(stat -c '%y' .env 2>/dev/null || ls -l --time-style=full-iso .env | awk '{print $6" "$7}')"
+
+          echo "Generated .env fingerprint: ${envFingerprint:-<unavailable>}"
+          echo "Generated .env modified at: ${envMtime:-<unavailable>}"
+          echo "Effective ENTRA_REDIRECT_URI in generated .env: ${effectiveRedirect:-<not set>}"
+          echo "Effective SP_STRATEGY in generated .env: ${effectiveStrategy:-<not set>}"
+          echo "Effective SP_KERBEROS_SERVICE_USER in generated .env: ${effectiveServiceUser:-<not set>}"
+          echo "SP_KERBEROS_SERVICE_USER source: ${serviceUserSource}"
+          echo "SP_KERBEROS_SERVICE_PASSWORD source: ${servicePassSource}"
+          if grep -q -E '^SP_KERBEROS_SERVICE_USER=' .env; then
+            echo "Effective SP_KERBEROS_SERVICE_PASSWORD in generated .env: <set>"
+          else
+            echo "Effective SP_KERBEROS_SERVICE_PASSWORD in generated .env: <not set>"
+          fi
+
+      - name: Verify Node.js runtime
+        run: |
+          set -euo pipefail
+          node -p "process.versions.node"
+          node -e "require('async_hooks'); console.log('async_hooks module available')"
+
+      - name: Pin Yarn Classic (1.22.22)
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare yarn@1.22.22 --activate
+          yarn --version
+
+      - name: Install Linux prerequisites (RHEL)
+        run: |
+          set -euo pipefail
+
+          needPkgs=()
+          command -v curl >/dev/null 2>&1 || needPkgs+=(curl)
+          command -v lsof >/dev/null 2>&1 || needPkgs+=(lsof)
+          command -v ss   >/dev/null 2>&1 || needPkgs+=(iproute)
+
+          if [ ${#needPkgs[@]} -eq 0 ]; then
+            echo "All prerequisites already installed."
+            exit 0
+          fi
+
+          echo "Missing tools detected; will try to install: ${needPkgs[*]}"
+
+          installer=""
+          if command -v dnf >/dev/null 2>&1; then
+            installer="dnf"
+          elif command -v yum >/dev/null 2>&1; then
+            installer="yum"
+          else
+            echo "[WARN] Neither dnf nor yum found; cannot auto-install packages." >&2
+            exit 0
+          fi
+
+          if command -v sudo >/dev/null 2>&1; then
+            if ! sudo -n true 2>/dev/null; then
+              echo "[FAIL] sudo is present but not passwordless/non-interactive for this runner." >&2
+              echo "[FAIL] Configure passwordless sudo for the runner user, or run the runner as root." >&2
+              exit 1
+            fi
+            sudo -n "$installer" -y install "${needPkgs[@]}"
+          elif [ "$(id -u)" -eq 0 ]; then
+            "$installer" -y install "${needPkgs[@]}"
+          else
+            echo "[FAIL] No sudo/root available; cannot install required packages." >&2
+            echo "[FAIL] Please install manually on the runner and re-run: ${needPkgs[*]}" >&2
+            exit 1
+          fi
+
+          missingAfter=()
+          command -v curl >/dev/null 2>&1 || missingAfter+=(curl)
+          command -v lsof >/dev/null 2>&1 || missingAfter+=(lsof)
+          command -v ss   >/dev/null 2>&1 || missingAfter+=(ss)
+          if [ ${#missingAfter[@]} -ne 0 ]; then
+            echo "[FAIL] Required tools still missing after install attempt: ${missingAfter[*]}" >&2
+            exit 1
+          fi
+
+      - name: Show disk space (before)
+        run: |
+          set -euo pipefail
+
+          echo "Disk space before:"
+          df -h .
+
+      - name: Clean Yarn cache
+        run: |
+          set -euo pipefail
+          yarn cache clean || true
+
+      - name: Free up disk space (caches, logs, artifacts)
+        run: |
+          set -euo pipefail
+
+          if [ -d "$HOME/.pm2/logs" ]; then
+            rm -f "$HOME/.pm2/logs"/* || true
+          fi
+
+          rm -rf .next node_modules
+          echo "Workspace artifacts removed."
+
+      - name: Verify cleanup
+        run: |
+          set -euo pipefail
+          remaining=""
+          [ -e .next ] && remaining="$remaining .next"
+          [ -e node_modules ] && remaining="$remaining node_modules"
+          if [ -n "$remaining" ]; then
+            echo "Cleanup failed, remaining paths:$remaining" >&2
+            exit 1
+          fi
+          echo "No stale workspace artifacts detected."
+
+      - name: Show disk space (after cleanup)
+        run: |
+          set -euo pipefail
+
+          echo "Disk space after cleanup:"
+          df -h .
+
+      - name: Force remove stale node_modules directory
+        run: |
+          set -euo pipefail
+          if [ -d node_modules ]; then
+            echo "Removing existing node_modules..."
+            rm -rf node_modules
+          else
+            echo "node_modules directory not present."
+          fi
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          yarn install --frozen-lockfile
+
+      - name: Prepare Prisma database
+        env:
+          NODE_ENV: production
+        run: |
+          set -euo pipefail
+
+          echo "Running prisma migrate deploy..."
+
+          dbUrl="${DATABASE_URL:-}"
+          if [ -z "$dbUrl" ] && [ -f .env ]; then
+            dbUrl="$(grep -E '^\s*DATABASE_URL\s*=' .env | head -n 1 | sed -E 's/^\s*DATABASE_URL\s*=\s*//')"
+            dbUrl="${dbUrl%$'\r'}"
+            dbUrl="${dbUrl#\"}"
+            dbUrl="${dbUrl%\"}"
+            dbUrl="${dbUrl#\'}"
+            dbUrl="${dbUrl%\'}"
+          fi
+
+          isFileDb="false"
+          dbFilePath=""
+          if [[ "$dbUrl" == file:* ]]; then
+            isFileDb="true"
+            dbFilePath="${dbUrl#file:}"
+            dbFilePath="${dbFilePath#./}"
+            if [[ "$dbFilePath" != /* ]]; then
+              dbFilePath="${GITHUB_WORKSPACE:-$(pwd)}/$dbFilePath"
+            fi
+            mkdir -p "$(dirname "$dbFilePath")"
+            if [ ! -f "$dbFilePath" ]; then
+              echo "SQLite DB file not found. Creating empty DB at $dbFilePath"
+              : > "$dbFilePath"
+            fi
+          fi
+
+          deployOutput=""
+          if ! deployOutput="$(npx prisma migrate deploy 2>&1)"; then
+            echo "$deployOutput" >&2
+
+            if [ "$isFileDb" = "true" ]; then
+              if echo "$deployOutput" | grep -q "P3005"; then
+                echo "[WARN] P3005: SQLite DB exists without migration history. Aligning schema via db push and baselining migrations..." >&2
+
+                npx prisma db push --accept-data-loss
+
+                for migDir in prisma/migrations/*/; do
+                  migName="$(basename "$migDir")"
+                  npx prisma migrate resolve --applied "$migName" || true
+                done
+
+                npx prisma migrate deploy || true
+              else
+                echo "[WARN] prisma migrate deploy failed. Trying prisma db push --accept-data-loss (SQLite fallback)." >&2
+                npx prisma db push --accept-data-loss
+              fi
+            else
+              echo "prisma migrate deploy failed and no safe fallback is available." >&2
+              exit 1
+            fi
+          else
+            echo "$deployOutput"
+            echo "Prisma migrations applied successfully."
+          fi
+
+          echo "Generating Prisma client..."
+          npx prisma generate
+
+      - name: Build application
+        env:
+          NODE_ENV: production
+        run: |
+          set -euo pipefail
+          yarn build
+
+      - name: Verify Next.js build output exists
+        run: |
+          set -euo pipefail
+          if [ ! -d .next ]; then
+            echo "Error: .next build directory not found. Build likely failed." >&2
+            exit 1
+          fi
+          echo "Found .next directory."
+
+      - name: Set PM2 HOME and environment
+        run: |
+          set -euo pipefail
+          requestedPm2User="${PM2_RUN_AS_USER:-}"
+          currentUser="$(id -un)"
+          canSudo=0
+          if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+            canSudo=1
+          fi
+
+          pm2User="$requestedPm2User"
+          if [ -z "$pm2User" ]; then
+            echo "[FAIL] PM2_RUN_AS_USER must be set for branch startup." >&2
+            exit 1
+          fi
+
+          if [ "$pm2User" = "root" ] && [ "$(id -u)" -ne 0 ] && [ "$canSudo" -ne 1 ]; then
+            echo "[FAIL] Root PM2 management requires either a root runner or passwordless sudo." >&2
+            exit 1
+          fi
+
+          if [ -n "$pm2User" ] && [ "$pm2User" != "$currentUser" ] && [ "$(id -u)" -ne 0 ] && [ "$canSudo" -ne 1 ]; then
+            echo "[FAIL] PM2_RUN_AS_USER=$pm2User requires passwordless sudo on this runner." >&2
+            exit 1
+          fi
+
+          if [ "$pm2User" = "$currentUser" ]; then
+            pm2Home="${HOME:-${GITHUB_WORKSPACE:-$(pwd)}}/.pm2"
+          elif [ "$pm2User" = "root" ]; then
+            pm2Home="/root/.pm2"
+          else
+            pm2Home="/home/$pm2User/.pm2"
+          fi
+
+          echo "PM2_RUN_AS_USER=$pm2User" >> "$GITHUB_ENV"
+          echo "Setting PM2_HOME to: $pm2Home"
+
+          if [ "$(id -u)" -eq 0 ]; then
+            mkdir -p "$pm2Home"
+            if [ "$pm2User" != "root" ]; then
+              chown -R "$pm2User":"$pm2User" "$pm2Home" || true
+            fi
+          else
+            sudo -n mkdir -p "$pm2Home"
+            if [ "$pm2User" != "root" ]; then
+              sudo -n chown -R "$pm2User":"$pm2User" "$pm2Home" || true
+            fi
+          fi
+
+          echo "PM2_HOME=$pm2Home" >> "$GITHUB_ENV"
+
+      - name: Install PM2 (process manager)
+        run: |
+          set -euo pipefail
+          npm install -g pm2
+
+          pm2Bin="$(command -v pm2 || true)"
+          if [ -z "$pm2Bin" ]; then
+            echo "[FAIL] pm2 binary not found after install." >&2
+            exit 1
+          fi
+
+          echo "PM2_BIN=$pm2Bin" >> "$GITHUB_ENV"
+
+      - name: Stop existing instance and free port 3000
+        run: |
+          set -euo pipefail
+
+          pm2cmd() {
+            pm2Bin="${PM2_BIN:-pm2}"
+            targetUser="${PM2_RUN_AS_USER:-}"
+            currentUser="$(id -un)"
+            if [ -n "$targetUser" ] && [ "$targetUser" != "$currentUser" ]; then
+              sudo -n -u "$targetUser" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" "$@"
+            else
+              "$pm2Bin" "$@"
+            fi
+          }
+
+          appName="roadmap-app"
+
+          describe_port_3000() {
+            echo "Port 3000 listeners (lsof):"
+            lsof -nP -iTCP:3000 -sTCP:LISTEN || true
+            echo "Port 3000 listeners (ss):"
+            ss -ltnp 2>/dev/null | grep ':3000' || true
+          }
+
+          if pm2cmd describe "$appName" >/dev/null 2>&1; then
+            pm2cmd stop "$appName" || true
+            pm2cmd delete "$appName" || true
+          else
+            echo "PM2 app '$appName' not found; nothing to stop."
+          fi
+
+          if ss -ltnp 2>/dev/null | grep -q ':3000'; then
+            echo "[FAIL] Port 3000 is still in use after stopping '$appName'." >&2
+            describe_port_3000
+            exit 1
+          fi
+
+      - name: Start app on port 3000 with PM2
+        env:
+          RUNNER_TRACKING_ID: ""
+          NODE_ENV: production
+          PORT: 3000
+        run: |
+          set -euo pipefail
+
+          pm2cmd() {
+            pm2Bin="${PM2_BIN:-pm2}"
+            targetUser="${PM2_RUN_AS_USER:-}"
+            currentUser="$(id -un)"
+            if [ -n "$targetUser" ] && [ "$targetUser" != "$currentUser" ]; then
+              sudo -n -u "$targetUser" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" "$@"
+            else
+              "$pm2Bin" "$@"
+            fi
+          }
+
+          pm2cmd start ecosystem.config.js --only roadmap-app --update-env
+          sleep 10
+
+      - name: Save PM2 process list
+        run: |
+          set -euo pipefail
+          currentUser="$(id -un)"
+          pm2Bin="${PM2_BIN:-pm2}"
+
+          if [ -n "${PM2_RUN_AS_USER:-}" ] && [ "${PM2_RUN_AS_USER}" != "$currentUser" ]; then
+            sudo -n -u "$PM2_RUN_AS_USER" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" save
+          else
+            "$pm2Bin" save
+          fi
+
+      - name: Verify PM2 status and HTTP readiness
+        run: |
+          set -euo pipefail
+
+          pm2cmd() {
+            pm2Bin="${PM2_BIN:-pm2}"
+            targetUser="${PM2_RUN_AS_USER:-}"
+            currentUser="$(id -un)"
+            if [ -n "$targetUser" ] && [ "$targetUser" != "$currentUser" ]; then
+              sudo -n -u "$targetUser" -H env PM2_HOME="$PM2_HOME" "$pm2Bin" "$@"
+            else
+              "$pm2Bin" "$@"
+            fi
+          }
+
+          pm2cmd status
+          pm2cmd describe roadmap-app
+
+          maxAttempts=12
+          attempt=1
+          until curl -fsS http://127.0.0.1:3000 >/dev/null; do
+            if [ "$attempt" -ge "$maxAttempts" ]; then
+              echo "[FAIL] App did not become ready on http://127.0.0.1:3000." >&2
+              pm2cmd logs roadmap-app --lines 100 --nostream || true
+              ss -ltnp 2>/dev/null | grep ':3000' || true
+              exit 1
+            fi
+
+            echo "Waiting for app readiness on port 3000 (attempt $attempt/$maxAttempts)..."
+            attempt=$((attempt + 1))
+            sleep 5
+          done
+
+          echo "Branch app is reachable on http://127.0.0.1:3000"

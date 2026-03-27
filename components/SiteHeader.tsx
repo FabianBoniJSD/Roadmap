@@ -5,20 +5,34 @@ import { useMemo, useEffect, useState } from 'react';
 import { hasAdminAccessToCurrentInstance, hasValidAdminSession } from '@/utils/auth';
 import { INSTANCE_QUERY_PARAM, INSTANCE_COOKIE_NAME } from '@/utils/instanceConfig';
 
-type RouteKey = 'home' | 'roadmap' | 'help' | 'docs' | 'admin';
+type RouteKey = 'home' | 'instances' | 'roadmap' | 'help' | 'docs' | 'admin';
 
 type SiteHeaderProps = {
   activeRoute?: RouteKey;
   brandLabel?: string;
 };
 
-const NAV_ITEMS: Array<{ key: RouteKey; href: string; label: string }> = [
+const NAV_ITEMS: Array<{
+  key: RouteKey;
+  href: string;
+  label: string;
+  target?: '_blank';
+  rel?: string;
+}> = [
   { key: 'home', href: '/', label: 'Start' },
+  {
+    key: 'instances',
+    href: '/instances',
+    label: 'Instanzübersicht',
+    target: '_blank',
+    rel: 'noopener noreferrer',
+  },
   { key: 'help', href: '/help', label: 'Hilfe' },
   { key: 'docs', href: '/docs', label: 'Dokumentation' },
 ];
 
 const deriveRouteKey = (pathname: string): RouteKey => {
+  if (pathname.startsWith('/instances')) return 'instances';
   if (pathname.startsWith('/roadmap')) return 'roadmap';
   if (pathname.startsWith('/help')) return 'help';
   if (pathname.startsWith('/docs')) return 'docs';
@@ -108,6 +122,8 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
               <Link
                 key={item.href}
                 href={maybeQuery ? { pathname: item.href, query: maybeQuery } : item.href}
+                target={item.target}
+                rel={item.rel}
                 className={clsx(
                   'rounded-full px-4 py-2 transition',
                   isActive

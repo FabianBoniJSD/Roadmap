@@ -1,12 +1,12 @@
 # GitHub Copilot Instructions
 
 **Project**: SharePoint-backed Next.js 14 (pages router) roadmap application  
-**Stack**: Next.js 14, TypeScript, Tailwind CSS, PnP JS, PM2  
+**Stack**: Next.js 14, TypeScript, Tailwind CSS, PM2  
 **Goal**: Enable immediate contributions to a legacy SharePoint integration without breaking resilience patterns
 
 ## Architecture
 
-### Data Layer (Two Services)
+### Data Layer
 
 **1. `utils/clientDataService.ts`** (Primary - use for all new features)
 
@@ -15,11 +15,6 @@
 - Dynamic field probing, list title resolution (spaces vs no-spaces)
 - Auto-discovers alternate category field names via field metadata
 - **Use for**: All API routes, server components, cross-version compatibility
-
-**2. `utils/dataService.ts`** (Legacy PnP JS)
-
-- Server-side `@pnp/sp` wrapper (assumes modern REST)
-- **Use for**: Bulk operations where PnP already works; avoid new fallback logic
 
 **Pattern**: API route → `clientDataService` → proxy → SharePoint REST
 
@@ -68,11 +63,11 @@ const normalized = /^\d+\.0$/.test(trimmed) ? String(parseInt(trimmed, 10)) : tr
 
 Preserves "7.0" → "7" collapse. Apply to all category fields.
 
-### Quarter → Date Derivation (exact implementation in both services)
+### Quarter → Date Derivation
 
-```typescript
-const derive = (q: string, end = false): string => {
-  const year = new Date().getFullYear();
+}
+
+```
   const mapping = {
     Q1: [0, 1, 0, 0, 0, 0],
     Q2: [3, 1, 0, 0, 0, 0],
@@ -212,14 +207,14 @@ Redirects to `/admin/login` if `hasAdminAccess()` returns false (see `components
 
 ## Quick Reference
 
-| Task                     | Solution                                                                |
-| ------------------------ | ----------------------------------------------------------------------- |
-| Fetch projects           | `await clientDataService.getAllProjects()`                              |
-| Check admin              | `await clientDataService.isCurrentUserAdmin()`                          |
-| Add new field            | Append to `candidateFields` array (~line 344 in `clientDataService.ts`) |
-| Normalize category       | Trim + collapse "X.0" → "X" (see pattern above)                         |
-| Derive date from quarter | Copy `derive()` from `dataService.ts` line ~108                         |
-| Resolve list title       | `await clientDataService.resolveListTitle('Roadmap Projects')`          |
-| Auth mode                | `normalizeSharePointStrategy()` in `utils/sharePointStrategy.ts`        |
+| Task                     | Solution                                                                               |
+| ------------------------ | -------------------------------------------------------------------------------------- |
+| Fetch projects           | `await clientDataService.getAllProjects()`                                             |
+| Check admin              | `await clientDataService.isCurrentUserAdmin()`                                         |
+| Add new field            | Append to `candidateFields` array (~line 344 in `clientDataService.ts`)                |
+| Normalize category       | Trim + collapse "X.0" → "X" (see pattern above)                                        |
+| Derive date from quarter | Reuse the canonical `derive()` implementation already present in the active data layer |
+| Resolve list title       | `await clientDataService.resolveListTitle('Roadmap Projects')`                         |
+| Auth mode                | `normalizeSharePointStrategy()` in `utils/sharePointStrategy.ts`                       |
 
 **Reference**: See `docs/ADMIN_AUTH_CHANGES.md` for admin migration details, `README.md` Kerberos section for auth setup.

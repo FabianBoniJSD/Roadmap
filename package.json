@@ -6,8 +6,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "next dev --turbopack",
-    "prebuild": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\"",
+    "dev": "next dev --turbo",
+    "prebuild": "node scripts/clean-next-build.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -16,10 +16,6 @@
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md,mjs}\"",
     "security:audit": "npm audit --audit-level=moderate",
     "pre-commit": "lint-staged",
-    "secrets:generate-key": "node scripts/encrypt-secrets.mjs generate-key",
-    "secrets:encrypt": "node scripts/encrypt-secrets.mjs encrypt",
-    "secrets:decrypt": "node scripts/encrypt-secrets.mjs decrypt",
-    "secrets:verify": "node scripts/encrypt-secrets.mjs verify",
     "pm2:restart": "powershell -ExecutionPolicy Bypass -File scripts/restart-pm2.ps1",
     "pm2:stop": "pm2 delete roadmap-app",
     "pm2:logs": "pm2 logs roadmap-app",
@@ -32,7 +28,6 @@
   },
   "dependencies": {
     "@fluentui/react": "^8.121.2",
-    "@pnp/sp": "^3.20.0",
     "@prisma/client": "^5.20.0",
     "@roadmap/entra-sso": "0.1.0",
     "@types/node": "20.11.30",

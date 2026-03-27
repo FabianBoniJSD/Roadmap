@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const deploymentEnv =
   process.env.NEXT_PUBLIC_DEPLOYMENT_ENV || process.env.NODE_ENV || 'development';
 const rawBasePath =
@@ -6,12 +9,28 @@ const rawBasePath =
     : process.env.NEXT_PUBLIC_BASE_PATH_DEV || '';
 // Normalize: remove trailing slash EXCEPT keep single leading slash when non-empty
 const resolvedBasePath = (rawBasePath || '').replace(/\/$/, '');
+const workspaceRoot = path.dirname(fileURLToPath(import.meta.url));
+
+if (!process.env.SUPPRESS_CONFIG_LOG) {
+  console.log(
+    '[next.config] Using basePath=%s trailingSlash=%s env=%s turbopackRoot=%s',
+    resolvedBasePath || '(none)',
+    false,
+    deploymentEnv,
+    workspaceRoot
+  );
+}
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   images: { unoptimized: true },
   transpilePackages: ['@roadmap/entra-sso'],
+  experimental: {
+    turbo: {
+      root: workspaceRoot,
+    },
+  },
   // trailingSlash false avoids 308 redirects that can break API & chunk URLs on some reverse proxies / SharePoint
   trailingSlash: false,
   basePath: resolvedBasePath,
@@ -27,19 +46,6 @@ const nextConfig = {
       ];
     }
     return [];
-  },
-  webpack(config) {
-    // Lightweight runtime debug to confirm which config file got applied (printed at build time)
-    if (!process.env.SUPPRESS_CONFIG_LOG) {
-      console.log(
-        '[next.config] Using basePath=%s assetPrefix=%s trailingSlash=%s env=%s',
-        resolvedBasePath || '(none)',
-        resolvedBasePath || '(none)',
-        false,
-        deploymentEnv
-      );
-    }
-    return config;
   },
 };
 

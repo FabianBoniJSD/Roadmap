@@ -1,6 +1,6 @@
 # Secrets & Environment Guide
 
-This project uses environment variables for SharePoint auth, app config, and deployment. Keep real secrets out of git and prefer the provided tooling for encryption/rotation.
+This project uses environment variables for SharePoint auth, app config, and deployment. Keep real secrets out of git and manage them through your CI or server secret store.
 
 ## Files & Git Hygiene
 
@@ -23,14 +23,6 @@ This project uses environment variables for SharePoint auth, app config, and dep
 1. Copy `.env.example` → `.env` (or `.env.local`).
 2. Fill required vars; keep the file local only.
 3. Run the app: `npm run dev`.
-
-## Encryption & Rotation
-
-- Use the secrets helper scripts in `scripts/encrypt-secrets.mjs`:
-  - Generate key: `npm run secrets:generate-key` (store safely, not in git).
-  - Encrypt: `npm run secrets:encrypt` → creates `.env.vault.json`.
-  - Decrypt/verify: `npm run secrets:decrypt` / `npm run secrets:verify`.
-- Store the master key in your deployment environment (e.g., CI secret), never in the repo.
 
 ## CI/CD & Deployment
 
