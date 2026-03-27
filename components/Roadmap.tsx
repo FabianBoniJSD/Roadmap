@@ -11,6 +11,18 @@ import { loadThemeSettings } from '../utils/theme';
 import RoadmapFilters from './RoadmapFilters';
 import CompactProjectCard from './CompactProjectCard';
 
+type ProgressBucket = 'all' | 'not-started' | 'active' | 'almost-done' | 'completed';
+
+const PHASE_ORDER = [
+  'initialisierung',
+  'konzept',
+  'realisierung',
+  'einfuehrung',
+  'abschluss',
+] as const;
+
+const STATUS_ORDER = ['planned', 'in-progress', 'paused', 'completed', 'cancelled'] as const;
+
 const getYearFromISOString = (isoString: string, fallbackYear: number): number => {
   const date = new Date(isoString);
   return Number.isNaN(date.getTime()) ? fallbackYear : date.getFullYear();
@@ -18,6 +30,20 @@ const getYearFromISOString = (isoString: string, fallbackYear: number): number =
 
 const getQuarterFromDate = (date: Date): number => {
   return Math.floor(date.getMonth() / 3) + 1;
+};
+
+const normalizePhaseValue = (value?: string | null): string => {
+  const normalized = (value || '').trim().toLowerCase();
+  if (normalized === 'einführung') return 'einfuehrung';
+  return normalized;
+};
+
+const getProgressBucket = (progress?: number): Exclude<ProgressBucket, 'all'> => {
+  const numericProgress = Number.isFinite(progress) ? Number(progress) : 0;
+  if (numericProgress >= 100) return 'completed';
+  if (numericProgress >= 75) return 'almost-done';
+  if (numericProgress > 0) return 'active';
+  return 'not-started';
 };
 
 interface RoadmapProps {
@@ -48,6 +74,11 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
   const [filterText, setFilterText] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [tagFilters, setTagFilters] = useState<string[]>([]);
+  const [projectTypeFilters, setProjectTypeFilters] = useState<string[]>([]);
+  const [phaseFilters, setPhaseFilters] = useState<string[]>([]);
+  const [leadFilters, setLeadFilters] = useState<string[]>([]);
+  const [attributeFilters, setAttributeFilters] = useState<string[]>([]);
+  const [progressBucket, setProgressBucket] = useState<ProgressBucket>('all');
   const [monthRange, setMonthRange] = useState<{ start: number; end: number }>({
     start: 1,
     end: 12,
@@ -107,10 +138,21 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
       document.cookie = `${INSTANCE_COOKIE_NAME}=${encodeURIComponent(slug)}; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`;
     }
 
-    const { q, status, tags, start, end, running, cats, view } = router.query as Record<
-      string,
-      string | string[]
-    >;
+    const {
+      q,
+      status,
+      tags,
+      ptype,
+      phase,
+      lead,
+      attrs,
+      progress,
+      start,
+      end,
+      running,
+      cats,
+      view,
+    } = router.query as Record<string, string | string[]>;
     if (q && typeof q === 'string') setFilterText(q);
     if (status) {
       const list = Array.isArray(status) ? status : status.split(',');
@@ -119,6 +161,28 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     if (tags) {
       const list = Array.isArray(tags) ? tags : tags.split(',');
       setTagFilters(list.filter(Boolean));
+    }
+    if (ptype) {
+      const list = Array.isArray(ptype) ? ptype : ptype.split(',');
+      setProjectTypeFilters(list.filter(Boolean).map((entry) => entry.toLowerCase()));
+    }
+    if (phase) {
+      const list = Array.isArray(phase) ? phase : phase.split(',');
+      setPhaseFilters(list.filter(Boolean).map((entry) => normalizePhaseValue(entry)));
+    }
+    if (lead) {
+      const list = Array.isArray(lead) ? lead : lead.split(',');
+      setLeadFilters(list.filter(Boolean));
+    }
+    if (attrs) {
+      const list = Array.isArray(attrs) ? attrs : attrs.split(',');
+      setAttributeFilters(list.filter(Boolean).map((entry) => entry.toLowerCase()));
+    }
+    if (
+      typeof progress === 'string' &&
+      ['all', 'not-started', 'active', 'almost-done', 'completed'].includes(progress)
+    ) {
+      setProgressBucket(progress as ProgressBucket);
     }
     const sNum = Number(start);
     const eNum = Number(end);
@@ -143,12 +207,18 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     const readQuery = (q: ParsedUrlQuery) => {
       const rawStatus = q['status'];
       const rawTags = q['tags'];
+      const rawTypes = q['ptype'];
+      const rawPhases = q['phase'];
+      const rawLeads = q['lead'];
+      const rawAttrs = q['attrs'];
+      const rawProgress = q['progress'];
       const rawCats = q['cats'];
       const rawStart = q['start'];
       const rawEnd = q['end'];
       const rawRunning = q['running'];
       const rawQ = q['q'];
       const rawInstance = q['roadmapInstance'];
+      const rawView = q['view'];
       const toScalar = (value: string | string[] | undefined): string =>
         Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
       const status = (rawStatus ? (Array.isArray(rawStatus) ? rawStatus.join(',') : rawStatus) : '')
@@ -158,6 +228,21 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
       const tags = (rawTags ? (Array.isArray(rawTags) ? rawTags.join(',') : rawTags) : '')
         .split(',')
         .filter(Boolean);
+      const ptype = (rawTypes ? (Array.isArray(rawTypes) ? rawTypes.join(',') : rawTypes) : '')
+        .split(',')
+        .filter(Boolean)
+        .map((entry: string) => entry.toLowerCase());
+      const phase = (rawPhases ? (Array.isArray(rawPhases) ? rawPhases.join(',') : rawPhases) : '')
+        .split(',')
+        .filter(Boolean)
+        .map((entry: string) => normalizePhaseValue(entry));
+      const lead = (rawLeads ? (Array.isArray(rawLeads) ? rawLeads.join(',') : rawLeads) : '')
+        .split(',')
+        .filter(Boolean);
+      const attrs = (rawAttrs ? (Array.isArray(rawAttrs) ? rawAttrs.join(',') : rawAttrs) : '')
+        .split(',')
+        .filter(Boolean)
+        .map((entry: string) => entry.toLowerCase());
       const cats = (rawCats ? (Array.isArray(rawCats) ? rawCats.join(',') : rawCats) : '')
         .split(',')
         .filter(Boolean);
@@ -165,10 +250,16 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
         q: toScalar(rawQ),
         status,
         tags,
+        ptype,
+        phase,
+        lead,
+        attrs,
+        progress: toScalar(rawProgress) || 'all',
         start: Number(toScalar(rawStart)) || 1,
         end: Number(toScalar(rawEnd)) || 12,
         running: toScalar(rawRunning) === '1',
         cats,
+        view: toScalar(rawView) || 'timeline',
         instance: toScalar(rawInstance),
       };
     };
@@ -187,6 +278,11 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
       q: filterText || '',
       status: [...statusFilters].map((s) => s.toLowerCase()),
       tags: [...tagFilters],
+      ptype: [...projectTypeFilters].map((entry) => entry.toLowerCase()),
+      phase: [...phaseFilters].map((entry) => normalizePhaseValue(entry)),
+      lead: [...leadFilters],
+      attrs: [...attributeFilters].map((entry) => entry.toLowerCase()),
+      progress: progressBucket,
       start: monthRange.start,
       end: monthRange.end,
       running: onlyRunning,
@@ -208,6 +304,11 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
       if (next.q) query.q = next.q;
       if (next.status.length) query.status = next.status.join(',');
       if (next.tags.length) query.tags = next.tags.join(',');
+      if (next.ptype.length) query.ptype = next.ptype.join(',');
+      if (next.phase.length) query.phase = next.phase.join(',');
+      if (next.lead.length) query.lead = next.lead.join(',');
+      if (next.attrs.length) query.attrs = next.attrs.join(',');
+      if (next.progress !== 'all') query.progress = next.progress;
       if (next.start !== 1) query.start = String(next.start);
       if (next.end !== 12) query.end = String(next.end);
       if (next.running) query.running = '1';
@@ -224,11 +325,17 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     filterText,
     statusFilters,
     tagFilters,
+    projectTypeFilters,
+    phaseFilters,
+    leadFilters,
+    attributeFilters,
+    progressBucket,
     monthRange.start,
     monthRange.end,
     onlyRunning,
     activeCategories,
     categories.length,
+    viewMode,
   ]);
 
   // Fetch categories and filter projects based on the selected year
@@ -321,6 +428,10 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
   // Derive filter options from displayed projects
   const allStatuses = Array.from(
     new Set(displayedProjects.map((p) => (p.status || '').toLowerCase()).filter(Boolean))
+  ).sort(
+    (left, right) =>
+      STATUS_ORDER.indexOf(left as (typeof STATUS_ORDER)[number]) -
+      STATUS_ORDER.indexOf(right as (typeof STATUS_ORDER)[number])
   );
   const allTags = Array.from(
     new Set(
@@ -328,6 +439,12 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
         .flatMap((project) => project.ProjectFields ?? [])
         .filter((value): value is string => Boolean(value))
     )
+  ).sort((left, right) => left.localeCompare(right, 'de'));
+  const allLeads = Array.from(
+    new Set(displayedProjects.map((p) => (p.projektleitung || '').trim()).filter(Boolean))
+  ).sort((left, right) => left.localeCompare(right, 'de'));
+  const allPhases = PHASE_ORDER.filter((phase) =>
+    displayedProjects.some((project) => normalizePhaseValue(project.projektphase) === phase)
   );
 
   // Filter projects by active categories + advanced filters
@@ -335,12 +452,18 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     const catId = normalizeCategoryId(project.category, categories);
     if (!activeCategories.includes(catId)) return false;
 
-    // Text filter (title/description)
+    // Text filter across central metadata
     if (filterText.trim()) {
       const q = filterText.toLowerCase();
       const inTitle = project.title?.toLowerCase().includes(q);
       const inDesc = (project.description || '').toLowerCase().includes(q);
-      if (!inTitle && !inDesc) return false;
+      const inLead = (project.projektleitung || '').toLowerCase().includes(q);
+      const inMilestone = (project.naechster_meilenstein || '').toLowerCase().includes(q);
+      const inTags = (project.ProjectFields ?? []).some((value) => value.toLowerCase().includes(q));
+      const inTeam = (project.teamMembers ?? []).some((member) =>
+        (member.name || '').toLowerCase().includes(q)
+      );
+      if (!inTitle && !inDesc && !inLead && !inMilestone && !inTags && !inTeam) return false;
     }
 
     // Status filter (if any selected)
@@ -349,11 +472,48 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
       if (!statusFilters.includes(s)) return false;
     }
 
+    // Project type filter
+    if (projectTypeFilters.length > 0) {
+      const projectType = (project.projectType || 'long').toLowerCase();
+      if (!projectTypeFilters.includes(projectType)) return false;
+    }
+
+    // Phase filter
+    if (phaseFilters.length > 0) {
+      const phase = normalizePhaseValue(project.projektphase);
+      if (!phaseFilters.includes(phase)) return false;
+    }
+
+    // Progress bucket filter
+    if (progressBucket !== 'all') {
+      if (getProgressBucket(project.fortschritt) !== progressBucket) return false;
+    }
+
+    // Lead filter
+    if (leadFilters.length > 0) {
+      const lead = (project.projektleitung || '').trim();
+      if (!leadFilters.includes(lead)) return false;
+    }
+
     // Tag filter (ProjectFields contains any of selected)
     if (tagFilters.length > 0) {
       const pf: string[] = (project.ProjectFields ?? []).map((t) => (t || '').toLowerCase());
       const hasAny = tagFilters.some((t) => pf.includes(t.toLowerCase()));
       if (!hasAny) return false;
+    }
+
+    if (attributeFilters.length > 0) {
+      const attributeChecks: Record<string, boolean> = {
+        'with-team': Boolean(project.teamMembers && project.teamMembers.length > 0),
+        'with-links': Boolean(project.links && project.links.length > 0),
+        'with-owner': Boolean(project.projektleitung && project.projektleitung.trim()),
+        'with-milestone': Boolean(
+          project.naechster_meilenstein && project.naechster_meilenstein.trim()
+        ),
+      };
+
+      const matchesAttributes = attributeFilters.every((attribute) => attributeChecks[attribute]);
+      if (!matchesAttributes) return false;
     }
 
     // Zeitraum Month filter (if not default 1-12): intersect project with selected months of currentYear
@@ -761,10 +921,53 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                         prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
                       )
                     }
+                    availableLeads={allLeads}
+                    selectedLeads={leadFilters}
+                    onToggleLead={(lead) =>
+                      setLeadFilters((prev) =>
+                        prev.includes(lead)
+                          ? prev.filter((entry) => entry !== lead)
+                          : [...prev, lead]
+                      )
+                    }
+                    availablePhases={allPhases}
+                    selectedPhases={phaseFilters}
+                    onTogglePhase={(phase) =>
+                      setPhaseFilters((prev) =>
+                        prev.includes(phase)
+                          ? prev.filter((entry) => entry !== phase)
+                          : [...prev, phase]
+                      )
+                    }
+                    selectedProjectTypes={projectTypeFilters}
+                    onToggleProjectType={(projectType) =>
+                      setProjectTypeFilters((prev) =>
+                        prev.includes(projectType)
+                          ? prev.filter((entry) => entry !== projectType)
+                          : [...prev, projectType]
+                      )
+                    }
+                    progressBucket={progressBucket}
+                    onProgressBucketChange={setProgressBucket}
+                    selectedAttributes={attributeFilters}
+                    onToggleAttribute={(attribute) =>
+                      setAttributeFilters((prev) =>
+                        prev.includes(attribute)
+                          ? prev.filter((entry) => entry !== attribute)
+                          : [...prev, attribute]
+                      )
+                    }
+                    resultCount={filteredProjects.length}
+                    totalCount={displayedProjects.length}
                     onClearAll={() => {
                       setFilterText('');
                       setStatusFilters([]);
                       setTagFilters([]);
+                      setProjectTypeFilters([]);
+                      setPhaseFilters([]);
+                      setLeadFilters([]);
+                      setAttributeFilters([]);
+                      setProgressBucket('all');
                       setMonthRange({ start: 1, end: 12 });
                       setOnlyRunning(false);
                     }}
