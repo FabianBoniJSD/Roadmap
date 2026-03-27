@@ -52,6 +52,57 @@ const mimeByExtension: Record<string, string> = {
   '.zip': 'application/zip',
 };
 
+const GENERIC_CONTENT_TYPES = new Set([
+  'application/octet-stream',
+  'text/plain',
+  'text/html',
+  'application/json',
+  'text/json',
+  'application/xml',
+  'text/xml',
+]);
+
+const normalizeContentType = (value: string): string => value.split(';', 1)[0].trim().toLowerCase();
+
+const shouldPreferExtensionMime = (
+  contentType: string,
+  extensionMime: string | undefined
+): boolean => {
+  if (!extensionMime) return !contentType;
+  if (!contentType) return true;
+
+  const normalizedCurrent = normalizeContentType(contentType);
+  const normalizedExtension = normalizeContentType(extensionMime);
+
+  if (normalizedCurrent === normalizedExtension) return false;
+  if (GENERIC_CONTENT_TYPES.has(normalizedCurrent)) return true;
+
+  if (normalizedExtension.startsWith('image/') && !normalizedCurrent.startsWith('image/')) {
+    return true;
+  }
+
+  if (normalizedExtension === 'application/pdf' && normalizedCurrent !== 'application/pdf') {
+    return true;
+  }
+
+  return false;
+};
+
+const isInlinePreviewType = (contentType: string): boolean => {
+  const normalized = normalizeContentType(contentType);
+  return (
+    normalized.startsWith('image/') ||
+    normalized === 'application/pdf' ||
+    normalized === 'text/plain' ||
+    normalized === 'text/csv'
+  );
+};
+
+const buildContentDisposition = (fileName: string, inline: boolean): string => {
+  const escaped = fileName.replace(/"/g, '');
+  return `${inline ? 'inline' : 'attachment'}; filename="${escaped}"`;
+};
+
 export const config = {
   api: {
     bodyParser: false,
@@ -196,19 +247,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
     let contentType = response.headers.get('content-type') || '';
-    const originalDisposition = response.headers.get('content-disposition') || '';
-    const inlineDisposition = originalDisposition
-      ? originalDisposition.replace(/^attachment/i, 'inline')
-      : `inline; filename="${name}"`;
+    const ext = extname(name).toLowerCase();
+    const extensionMime = ext ? mimeByExtension[ext] : undefined;
 
-    if (!contentType || /application\/octet-stream/i.test(contentType)) {
-      const ext = extname(name).toLowerCase();
-      if (ext && mimeByExtension[ext]) {
-        contentType = mimeByExtension[ext];
-      } else {
-        contentType = 'application/octet-stream';
-      }
+    if (shouldPreferExtensionMime(contentType, extensionMime)) {
+      contentType = extensionMime || 'application/octet-stream';
+    } else if (!contentType) {
+      contentType = 'application/octet-stream';
     }
+
+    const contentDisposition = buildContentDisposition(name, isInlinePreviewType(contentType));
 
     const buffer = Buffer.from(await response.arrayBuffer());
 
@@ -255,7 +303,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(response.status);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', inlineDisposition);
+    res.setHeader('Content-Disposition', contentDisposition);
     const length = response.headers.get('content-length');
     const etag = response.headers.get('etag');
     const lastModified = response.headers.get('last-modified');
