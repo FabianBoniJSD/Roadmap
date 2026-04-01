@@ -27,7 +27,7 @@ import {
   persistAdminSession,
 } from '@/utils/auth';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
-import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { isSessionExplicitlyAllowedByDepartmentForInstance } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 const HTTP_URL_REGEX = /^https?:\/\//i;
@@ -675,7 +675,7 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
                   <p className="mt-2 text-sm">
                     {canManageInstances
                       ? 'Erstelle in der Instanzverwaltung eine neue Roadmap-Instanz und verknüpfe den passenden SharePoint-Endpunkt.'
-                      : 'Dir ist aktuell keine Roadmap-Instanz per Abteilung oder Admin-Berechtigung zugeordnet.'}
+                      : 'Dir ist aktuell keine Roadmap-Instanz über die explizit freigegebenen Abteilungen zugeordnet.'}
                   </p>
                 </div>
               )}
@@ -783,7 +783,7 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
   const checks = await Promise.all(
     records.map(async (r) => {
       try {
-        const allowed = await isReadSessionAllowedForInstance({
+        const allowed = await isSessionExplicitlyAllowedByDepartmentForInstance({
           session,
           instance: { slug: r.slug },
           requestHeaders: forwardedHeaders,

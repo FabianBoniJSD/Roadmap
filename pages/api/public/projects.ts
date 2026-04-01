@@ -78,6 +78,16 @@ const filterProjects = (list: Project[], query: NextApiRequest['query']): Projec
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
+  const badgeFilterRaw =
+    typeof query.badges === 'string'
+      ? query.badges
+      : Array.isArray(query.badges)
+        ? query.badges.join(',')
+        : '';
+  const badgeFilters = badgeFilterRaw
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
   const q = typeof query.q === 'string' ? query.q.trim().toLowerCase() : '';
 
   return list.filter((p) => {
@@ -89,8 +99,19 @@ const filterProjects = (list: Project[], query: NextApiRequest['query']): Projec
       const status = toLower(p.status);
       if (!statusFilters.includes(status)) return false;
     }
+    if (badgeFilters.length) {
+      const badges = (p.badges || []).map((badge) => String(badge).trim().toLowerCase());
+      if (!badgeFilters.some((badge) => badges.includes(badge))) return false;
+    }
     if (q) {
-      const haystack = [p.title, p.description, p.bisher, p.zukunft, p.geplante_umsetzung]
+      const haystack = [
+        p.title,
+        p.description,
+        p.bisher,
+        p.zukunft,
+        p.geplante_umsetzung,
+        ...(p.badges || []),
+      ]
         .filter(Boolean)
         .map((s) => s!.toLowerCase())
         .join(' \n ');
