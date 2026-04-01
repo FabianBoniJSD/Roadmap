@@ -94,6 +94,11 @@ export const SHAREPOINT_LIST_DEFINITIONS: SharePointListDefinition[] = [
           '<Field DisplayName="ProjectFields" Name="ProjectFields" Type="Note" NumLines="6" RichText="FALSE" />',
       },
       {
+        name: 'Badges',
+        schemaXml:
+          '<Field DisplayName="Badges" Name="Badges" Type="Note" NumLines="6" RichText="FALSE" />',
+      },
+      {
         name: 'Projektphase',
         schemaXml:
           '<Field DisplayName="Projektphase" Name="Projektphase" Type="Text" MaxLength="60" />',

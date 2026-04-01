@@ -154,6 +154,16 @@ const mapMinimalSharePointItem = (item: Record<string, unknown>): Project => {
         ? (String(item.Status).toLowerCase() as Project['status'])
         : 'planned',
     ProjectFields: [],
+    badges:
+      typeof item.Badges === 'string'
+        ? item.Badges.split(/[;,\n]/)
+            .map((entry) => entry.trim())
+            .filter(Boolean)
+        : typeof item.ProjectBadges === 'string'
+          ? item.ProjectBadges.split(/[;,\n]/)
+              .map((entry) => entry.trim())
+              .filter(Boolean)
+          : [],
     projektleitung: typeof item.Projektleitung === 'string' ? item.Projektleitung : '',
     teamMembers: [],
     bisher: typeof item.Bisher === 'string' ? item.Bisher : '',
@@ -201,7 +211,7 @@ const fetchProjectsViaExplicitInstanceProxy = async (
   const encodedInstance = encodeURIComponent(instance.slug);
   const candidateLists = ['Roadmap Projects'];
   const select = encodeURIComponent(
-    'Id,Title,ProjectType,Category,Bereich,Bereiche,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate'
+    'Id,Title,ProjectType,Category,Bereich,Bereiche,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,Badges,ProjectBadges'
   );
   const probe: string[] = [];
 
