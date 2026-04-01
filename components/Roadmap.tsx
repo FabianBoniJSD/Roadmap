@@ -73,6 +73,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
   });
   const [filterText, setFilterText] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [badgeFilters, setBadgeFilters] = useState<string[]>([]);
   const [tagFilters, setTagFilters] = useState<string[]>([]);
   const [projectTypeFilters, setProjectTypeFilters] = useState<string[]>([]);
   const [phaseFilters, setPhaseFilters] = useState<string[]>([]);
@@ -141,6 +142,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     const {
       q,
       status,
+      badges,
       tags,
       ptype,
       phase,
@@ -157,6 +159,10 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     if (status) {
       const list = Array.isArray(status) ? status : status.split(',');
       setStatusFilters(list.filter(Boolean).map((s) => s.toLowerCase()));
+    }
+    if (badges) {
+      const list = Array.isArray(badges) ? badges : badges.split(',');
+      setBadgeFilters(list.filter(Boolean));
     }
     if (tags) {
       const list = Array.isArray(tags) ? tags : tags.split(',');
@@ -206,6 +212,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
   useEffect(() => {
     const readQuery = (q: ParsedUrlQuery) => {
       const rawStatus = q['status'];
+      const rawBadges = q['badges'];
       const rawTags = q['tags'];
       const rawTypes = q['ptype'];
       const rawPhases = q['phase'];
@@ -225,6 +232,9 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
         .split(',')
         .filter(Boolean)
         .map((s: string) => s.toLowerCase());
+      const badges = (rawBadges ? (Array.isArray(rawBadges) ? rawBadges.join(',') : rawBadges) : '')
+        .split(',')
+        .filter(Boolean);
       const tags = (rawTags ? (Array.isArray(rawTags) ? rawTags.join(',') : rawTags) : '')
         .split(',')
         .filter(Boolean);
@@ -249,6 +259,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
       return {
         q: toScalar(rawQ),
         status,
+        badges,
         tags,
         ptype,
         phase,
@@ -277,6 +288,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     const next = {
       q: filterText || '',
       status: [...statusFilters].map((s) => s.toLowerCase()),
+      badges: [...badgeFilters],
       tags: [...tagFilters],
       ptype: [...projectTypeFilters].map((entry) => entry.toLowerCase()),
       phase: [...phaseFilters].map((entry) => normalizePhaseValue(entry)),
@@ -303,6 +315,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
       const query: Record<string, string> = {};
       if (next.q) query.q = next.q;
       if (next.status.length) query.status = next.status.join(',');
+      if (next.badges.length) query.badges = next.badges.join(',');
       if (next.tags.length) query.tags = next.tags.join(',');
       if (next.ptype.length) query.ptype = next.ptype.join(',');
       if (next.phase.length) query.phase = next.phase.join(',');
@@ -324,6 +337,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
   }, [
     filterText,
     statusFilters,
+    badgeFilters,
     tagFilters,
     projectTypeFilters,
     phaseFilters,
@@ -440,6 +454,13 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
         .filter((value): value is string => Boolean(value))
     )
   ).sort((left, right) => left.localeCompare(right, 'de'));
+  const allBadges = Array.from(
+    new Set(
+      displayedProjects
+        .flatMap((project) => project.badges ?? [])
+        .filter((value): value is string => Boolean(value))
+    )
+  ).sort((left, right) => left.localeCompare(right, 'de'));
   const allLeads = Array.from(
     new Set(displayedProjects.map((p) => (p.projektleitung || '').trim()).filter(Boolean))
   ).sort((left, right) => left.localeCompare(right, 'de'));
@@ -459,11 +480,13 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
       const inDesc = (project.description || '').toLowerCase().includes(q);
       const inLead = (project.projektleitung || '').toLowerCase().includes(q);
       const inMilestone = (project.naechster_meilenstein || '').toLowerCase().includes(q);
+      const inBadges = (project.badges ?? []).some((value) => value.toLowerCase().includes(q));
       const inTags = (project.ProjectFields ?? []).some((value) => value.toLowerCase().includes(q));
       const inTeam = (project.teamMembers ?? []).some((member) =>
         (member.name || '').toLowerCase().includes(q)
       );
-      if (!inTitle && !inDesc && !inLead && !inMilestone && !inTags && !inTeam) return false;
+      if (!inTitle && !inDesc && !inLead && !inMilestone && !inBadges && !inTags && !inTeam)
+        return false;
     }
 
     // Status filter (if any selected)
@@ -493,6 +516,12 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     if (leadFilters.length > 0) {
       const lead = (project.projektleitung || '').trim();
       if (!leadFilters.includes(lead)) return false;
+    }
+
+    if (badgeFilters.length > 0) {
+      const projectBadges = (project.badges ?? []).map((badge) => badge.toLowerCase());
+      const hasAnyBadge = badgeFilters.some((badge) => projectBadges.includes(badge.toLowerCase()));
+      if (!hasAnyBadge) return false;
     }
 
     // Tag filter (ProjectFields contains any of selected)
@@ -914,6 +943,15 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                         prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
                       )
                     }
+                    availableBadges={allBadges}
+                    selectedBadges={badgeFilters}
+                    onToggleBadge={(badge) =>
+                      setBadgeFilters((prev) =>
+                        prev.includes(badge)
+                          ? prev.filter((entry) => entry !== badge)
+                          : [...prev, badge]
+                      )
+                    }
                     availableTags={allTags}
                     selectedTags={tagFilters}
                     onToggleTag={(t) =>
@@ -962,6 +1000,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                     onClearAll={() => {
                       setFilterText('');
                       setStatusFilters([]);
+                      setBadgeFilters([]);
                       setTagFilters([]);
                       setProjectTypeFilters([]);
                       setPhaseFilters([]);

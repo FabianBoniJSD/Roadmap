@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getInstanceConfigBySlug, setInstanceCookieHeader } from '@/utils/instanceConfig';
 import { requireUserSession } from '@/utils/apiAuth';
-import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { sanitizeSlug } from './helpers';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -35,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   };
 
   if (
-    !(await isAdminSessionAllowedForInstance({
+    !(await isReadSessionAllowedForInstance({
       session,
       instance,
       requestHeaders: forwardedHeaders,

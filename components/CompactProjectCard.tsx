@@ -40,6 +40,19 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({
         {formatDate(project.startDate)} – {formatDate(project.endDate)}
       </div>
 
+      {project.badges && project.badges.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {project.badges.map((badge) => (
+            <span
+              key={badge}
+              className="rounded-full border border-amber-300/25 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-100"
+            >
+              {badge}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Fortschritt */}
       {typeof project.fortschritt === 'number' && (
         <div className="w-full h-2 bg-gray-700/60 rounded overflow-hidden">

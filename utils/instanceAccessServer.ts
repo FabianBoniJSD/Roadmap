@@ -142,6 +142,54 @@ async function isSessionAllowedForInstance(opts: {
   }
 }
 
+export async function isSessionExplicitlyAllowedByDepartmentForInstance(opts: {
+  session: AdminSessionPayload;
+  instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
+  requestHeaders?: ForwardedRequestHeaders;
+}): Promise<boolean> {
+  const effectiveInstance =
+    opts.instance.metadata !== undefined
+      ? opts.instance
+      : ((await getInstanceConfigBySlug(String(opts.instance.slug || ''))) ?? opts.instance);
+
+  if (
+    await isSuperAdminSessionWithSharePointFallback(opts.session, {
+      requestHeaders: opts.requestHeaders,
+    })
+  ) {
+    return true;
+  }
+
+  const ids = extractIdentifiers(opts.session);
+  if (!ids.department) {
+    const resolvedOnPremDepartment = await clientDataService.withRequestHeaders(
+      opts.requestHeaders,
+      () =>
+        clientDataService.withInstance(String(effectiveInstance.slug || ''), () =>
+          clientDataService.resolveUserDepartmentFromSharePoint({
+            username: ids.username,
+            upn: ids.upn,
+            mail: ids.mail,
+            displayName: ids.displayName,
+          })
+        )
+    );
+    if (resolvedOnPremDepartment) {
+      ids.department = resolvedOnPremDepartment;
+    }
+  }
+
+  const departmentCandidates = Array.from(
+    new Set([ids.department].map((value) => normalizeDepartment(value)).filter(Boolean))
+  );
+  if (departmentCandidates.length === 0) return false;
+
+  return isAnyDepartmentCandidateAllowedForInstance({
+    instanceSlug: String(effectiveInstance.slug || ''),
+    candidates: departmentCandidates,
+  });
+}
+
 export async function isAdminSessionAllowedForInstance(opts: {
   session: AdminSessionPayload;
   instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;

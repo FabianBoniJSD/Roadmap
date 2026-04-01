@@ -594,6 +594,8 @@ class ClientDataService {
       'StartDate',
       'EndDate',
       'ProjectFields',
+      'Badges',
+      'ProjectBadges',
       'Projektphase',
       'NaechsterMeilenstein',
     ];
@@ -770,7 +772,7 @@ class ClientDataService {
       try {
         const minimal = await this.fetchFromSharePoint(
           resolvedProjects,
-          'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein'
+          'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Badges,ProjectBadges,Projektphase,NaechsterMeilenstein'
         );
         initialResult = Array.isArray(minimal) ? minimal : [];
       } catch (e) {
@@ -806,7 +808,7 @@ class ClientDataService {
       try {
         const alt = await this.fetchFromSharePoint(
           resolvedProjects,
-          'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Projektphase,NaechsterMeilenstein'
+          'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Badges,ProjectBadges,Projektphase,NaechsterMeilenstein'
         );
         if (Array.isArray(alt) && alt.length > 0) items = alt;
       } catch {
@@ -836,6 +838,7 @@ class ClientDataService {
             StartDate: '',
             EndDate: '',
             ProjectFields: [],
+            Badges: [],
           }));
         }
       } catch {
@@ -987,6 +990,24 @@ class ClientDataService {
           else projectFields = [raw.trim()];
         }
       }
+      let badges: string[] = [];
+      const rawBadges = item.Badges ?? item.ProjectBadges;
+      if (rawBadges) {
+        if (Array.isArray(rawBadges)) badges = rawBadges;
+        else if (typeof rawBadges === 'string') {
+          if (rawBadges.includes('\n'))
+            badges = rawBadges
+              .split('\n')
+              .map((s: string) => s.trim())
+              .filter(Boolean);
+          else if (rawBadges.includes(';') || rawBadges.includes(','))
+            badges = rawBadges
+              .split(/[;,]/)
+              .map((s: string) => s.trim())
+              .filter(Boolean);
+          else badges = [rawBadges.trim()];
+        }
+      }
       const normalizedCategory = getNormalizedCategoryFromEntity(item);
       if (normalizedCategory) item.Category = normalizedCategory;
 
@@ -1011,6 +1032,7 @@ class ClientDataService {
         description: item.Description || '',
         status: String(item.Status || 'planned').toLowerCase() as any,
         ProjectFields: projectFields,
+        badges,
         projektleitung: item.Projektleitung || '',
         bisher: item.Bisher || '',
         zukunft: item.Zukunft || '',
@@ -1155,6 +1177,8 @@ class ClientDataService {
         'ProjectFields',
       ];
       if (listFields?.has('ProjectType')) baseSelectFields.push('ProjectType');
+      if (listFields?.has('Badges')) baseSelectFields.push('Badges');
+      if (listFields?.has('ProjectBadges')) baseSelectFields.push('ProjectBadges');
       if (listFields?.has('Projektphase')) baseSelectFields.push('Projektphase');
       if (listFields?.has('NaechsterMeilenstein')) baseSelectFields.push('NaechsterMeilenstein');
 
@@ -1248,6 +1272,7 @@ class ClientDataService {
             built.budget = built.budget || fromList.budget;
             if (!built.ProjectFields?.length && fromList.ProjectFields?.length)
               built.ProjectFields = fromList.ProjectFields;
+            if (!built.badges?.length && fromList.badges?.length) built.badges = fromList.badges;
             if (!built.projektphase && fromList.projektphase)
               built.projektphase = fromList.projektphase;
             if (!built.naechster_meilenstein && fromList.naechster_meilenstein)
@@ -1285,6 +1310,24 @@ class ClientDataService {
         else projectFields = [raw.trim()];
       }
     }
+    let badges: string[] = [];
+    const rawBadges = item.Badges ?? item.ProjectBadges;
+    if (rawBadges) {
+      if (Array.isArray(rawBadges)) badges = rawBadges;
+      else if (typeof rawBadges === 'string') {
+        if (rawBadges.includes('\n'))
+          badges = rawBadges
+            .split('\n')
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+        else if (rawBadges.includes(';') || rawBadges.includes(','))
+          badges = rawBadges
+            .split(/[;,]/)
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+        else badges = [rawBadges.trim()];
+      }
+    }
 
     const teamMembers = await this.getTeamMembersForProject(id);
     const links = await this.getProjectLinks(id);
@@ -1303,6 +1346,7 @@ class ClientDataService {
       description: item.Description || '',
       status: (item.Status?.toLowerCase?.() || 'planned') as any,
       ProjectFields: projectFields,
+      badges,
       projektleitung: item.Projektleitung || '',
       projektleitungImageUrl: null,
       teamMembers: teamMembers,
@@ -1421,6 +1465,7 @@ class ClientDataService {
 
       // Process ProjectFields value
       let projectFieldsValue = '';
+      let badgesValue = '';
 
       if (projectData.ProjectFields !== undefined) {
         if (Array.isArray(projectData.ProjectFields)) {
@@ -1436,6 +1481,22 @@ class ClientDataService {
           projectFieldsValue = existingProject.ProjectFields.join('; ');
         } else {
           projectFieldsValue = String(existingProject.ProjectFields);
+        }
+      }
+
+      if (projectData.badges !== undefined) {
+        if (Array.isArray(projectData.badges)) {
+          badgesValue = projectData.badges.join('; ');
+        } else if (typeof projectData.badges === 'string') {
+          badgesValue = projectData.badges;
+        } else if (projectData.badges) {
+          badgesValue = String(projectData.badges);
+        }
+      } else if (existingProject.badges) {
+        if (Array.isArray(existingProject.badges)) {
+          badgesValue = existingProject.badges.join('; ');
+        } else {
+          badgesValue = String(existingProject.badges);
         }
       }
 
@@ -1470,6 +1531,11 @@ class ClientDataService {
           const nextType = (projectData as any).projectType || (existingProject as any).projectType;
           if (nextType)
             body['ProjectType'] = String(nextType).toLowerCase() === 'short' ? 'short' : 'long';
+        }
+        if (fields.has('Badges')) {
+          body['Badges'] = badgesValue;
+        } else if (fields.has('ProjectBadges')) {
+          body['ProjectBadges'] = badgesValue;
         }
         if (fields.has('Projektphase')) {
           const phaseRaw =
@@ -2240,6 +2306,11 @@ class ClientDataService {
         if (fields.has('ProjectType')) {
           const pt = (projectData as any).projectType;
           if (pt) body['ProjectType'] = String(pt).toLowerCase() === 'short' ? 'short' : 'long';
+        }
+        if (fields.has('Badges')) {
+          body['Badges'] = cleanFields((projectData as any).badges);
+        } else if (fields.has('ProjectBadges')) {
+          body['ProjectBadges'] = cleanFields((projectData as any).badges);
         }
         if (fields.has('Projektphase')) {
           const phaseRaw = (projectData as any).projektphase || '';
