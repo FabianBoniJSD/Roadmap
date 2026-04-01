@@ -194,6 +194,7 @@ const EditProjectPage: FC = () => {
         endQuarter: updatedProject.endQuarter || '',
         description: updatedProject.description || '',
         status: updatedProject.status || 'planned',
+        badges: updatedProject.badges || [],
         projektleitung: updatedProject.projektleitung || '',
         bisher: updatedProject.bisher || '',
         zukunft: updatedProject.zukunft || '',

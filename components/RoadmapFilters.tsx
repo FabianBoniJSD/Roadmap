@@ -8,6 +8,9 @@ interface RoadmapFiltersProps {
   availableStatuses: string[];
   selectedStatuses: string[];
   onToggleStatus: (status: string) => void;
+  availableBadges: string[];
+  selectedBadges: string[];
+  onToggleBadge: (badge: string) => void;
   availableTags: string[];
   selectedTags: string[];
   onToggleTag: (tag: string) => void;
@@ -89,6 +92,9 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
   availableStatuses,
   selectedStatuses,
   onToggleStatus,
+  availableBadges,
+  selectedBadges,
+  onToggleBadge,
   availableTags,
   selectedTags,
   onToggleTag,
@@ -160,6 +166,11 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
       label: lead,
       onRemove: () => onToggleLead(lead),
     })),
+    ...selectedBadges.map((badge) => ({
+      key: `badge:${badge}`,
+      label: `Badge: ${badge}`,
+      onRemove: () => onToggleBadge(badge),
+    })),
     ...selectedTags.map((tag) => ({
       key: `tag:${tag}`,
       label: `Tag: ${tag}`,
@@ -215,7 +226,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
             )}
           </div>
           <p className="text-sm text-slate-300">
-            Verfeinere die Timeline nach Inhalt, Verantwortlichkeit, Fortschritt und Datenlage.
+            Verfeinere die Timeline nach Inhalt, Badges, Verantwortlichkeit, Fortschritt und Datenlage.
           </p>
         </div>
 
@@ -405,7 +416,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
 
             <div className={panelClass}>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                Zeitraum und Tags
+                Zeitraum, Badges und Tags
               </label>
               <div className="rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-3">
                 <div className="mb-3 flex items-center gap-2 text-xs text-slate-300">
@@ -478,7 +489,33 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                 </div>
               </div>
 
-              <div className="mt-4 max-h-48 overflow-auto pr-1">
+              <div className="mt-4 max-h-36 overflow-auto pr-1">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                  Badges
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {availableBadges.length === 0 ? (
+                    <span className="text-xs text-slate-500">Keine Badges vorhanden</span>
+                  ) : (
+                    availableBadges.map((badge) => (
+                      <button
+                        key={badge}
+                        type="button"
+                        onClick={() => onToggleBadge(badge)}
+                        className={chipClass(selectedBadges.includes(badge))}
+                        title={badge}
+                      >
+                        {badge}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 max-h-40 overflow-auto pr-1">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                  Tags
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {availableTags.length === 0 ? (
                     <span className="text-xs text-slate-500">Keine Tags vorhanden</span>

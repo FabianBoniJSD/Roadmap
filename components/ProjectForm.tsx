@@ -33,6 +33,32 @@ const normalizePhase = (val?: string): ProjectPhase => {
   return allowed.includes(lowered as ProjectPhase) ? (lowered as ProjectPhase) : 'initialisierung';
 };
 
+const normalizeBadgeList = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .map((entry) => String(entry || '').trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  if (typeof value === 'string') {
+    return Array.from(
+      new Set(
+        value
+          .split(/[\n,;]+/)
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  return [];
+};
+
 const ProjectForm: React.FC<ProjectFormProps> = ({
   initialProject,
   categories,
@@ -57,6 +83,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>(() =>
     normalizeCategoryId(initialProject?.category || '', categories)
   );
+  const [badges, setBadges] = useState<string[]>(() => normalizeBadgeList(initialProject?.badges));
+  const [newBadge, setNewBadge] = useState('');
 
   // Zusätzliche Felder aus dem SharePoint-Schema
   const [projektleitung, setProjektleitung] = useState(initialProject?.projektleitung || '');
@@ -191,6 +219,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     setStartDate(initialProject.startDate ? new Date(initialProject.startDate) : null);
     setEndDate(initialProject.endDate ? new Date(initialProject.endDate) : null);
     setSelectedCategory(normalizeCategoryId(initialProject.category || '', categories));
+    setBadges(normalizeBadgeList(initialProject.badges));
     setProjektleitung(initialProject.projektleitung || '');
     setBisher(initialProject.bisher || '');
     setZukunft(initialProject.zukunft || '');
@@ -268,6 +297,21 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   // Function to remove a team member from the project
   const handleRemoveTeamMember = (memberId: string) => {
     setTeamMembers((prevMembers) => prevMembers.filter((member) => member.id !== memberId));
+  };
+
+  const addBadge = () => {
+    const normalized = newBadge.trim();
+    if (!normalized) return;
+
+    setBadges((prev) => {
+      const exists = prev.some((badge) => badge.toLowerCase() === normalized.toLowerCase());
+      return exists ? prev : [...prev, normalized];
+    });
+    setNewBadge('');
+  };
+
+  const removeBadge = (badgeToRemove: string) => {
+    setBadges((prev) => prev.filter((badge) => badge !== badgeToRemove));
   };
 
   // Kategorie auswählen
@@ -404,6 +448,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       startDate: startDate ? startDate.toISOString() : '',
       endDate: endDate ? endDate.toISOString() : '',
       projektleitung,
+      badges,
       bisher,
       zukunft,
       fortschritt,
@@ -427,6 +472,68 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     { id: 'security', name: 'Sicherheit', description: 'Sicherheitsaspekte' },
     { id: 'infrastructure', name: 'Infrastruktur', description: 'Infrastrukturaspekte' },
   ];
+
+  const badgesEditor = (
+    <div className="mt-2">
+      <h3 className="text-lg font-medium mb-2">Badges (optional)</h3>
+      <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
+        <p className="mb-4 text-sm text-slate-300">
+          Badges werden nur in der Kachelansicht angezeigt und können dort zusätzlich gefiltert werden.
+        </p>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-7">
+          <div className="md:col-span-6">
+            <input
+              type="text"
+              value={newBadge}
+              onChange={(e) => setNewBadge(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault();
+                  addBadge();
+                }
+              }}
+              placeholder="Badge eingeben, z.B. Pilot, Priorität, KI"
+              className="w-full rounded-2xl border border-slate-800/70 bg-slate-950 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+            />
+          </div>
+          <div className="md:col-span-1">
+            <button
+              type="button"
+              onClick={addBadge}
+              className="flex w-full items-center justify-center rounded-full bg-sky-500 px-4 py-2 text-white transition hover:bg-sky-400 disabled:opacity-60"
+              disabled={!newBadge.trim()}
+            >
+              <FaPlus />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {badges.length > 0 ? (
+            badges.map((badge) => (
+              <span
+                key={badge}
+                className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-100"
+              >
+                {badge}
+                <button
+                  type="button"
+                  onClick={() => removeBadge(badge)}
+                  className="rounded-full border border-amber-300/20 px-1 text-[10px] leading-none text-amber-100 transition hover:bg-amber-400/10"
+                  aria-label={`${badge} entfernen`}
+                >
+                  ×
+                </button>
+              </span>
+            ))
+          ) : (
+            <p className="text-sm text-slate-400">Keine Badges angelegt</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -664,6 +771,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                 placeholder="z.B. Go-Live Q3 2025"
               />
             </div>
+
+            {badgesEditor}
 
             {/* Bisher */}
             <div>
@@ -997,6 +1106,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
               placeholder="z.B. Go-Live Q3 2025"
             />
           </div>
+
+          {badgesEditor}
 
           {/* Bisher */}
           <div>

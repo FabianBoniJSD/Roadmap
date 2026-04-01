@@ -9,6 +9,7 @@ export interface Project {
   description: string;
   status: 'planned' | 'in-progress' | 'completed' | 'paused' | 'cancelled';
   ProjectFields: string[];
+  badges?: string[];
   projektleitung: string;
   projektleitungImageUrl?: string | null;
   teamMembers?: TeamMember[];
