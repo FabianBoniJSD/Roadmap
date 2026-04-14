@@ -208,13 +208,41 @@ class ClientDataService {
     return null;
   }
 
-  private withClientInstanceQuery(url: string): string {
-    const slug = this.getClientInstanceSlugHint();
-    if (!slug) return url;
-    if (url.includes(`${INSTANCE_QUERY_PARAM}=`)) return url;
+  private withInstanceQuery(url: string, slug: string | null): string {
+    if (!slug || url.includes(`${INSTANCE_QUERY_PARAM}=`)) return url;
     return url.includes('?')
       ? `${url}&${INSTANCE_QUERY_PARAM}=${encodeURIComponent(slug)}`
       : `${url}?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(slug)}`;
+  }
+
+  private withClientInstanceQuery(url: string): string {
+    return this.withInstanceQuery(url, this.getClientInstanceSlugHint());
+  }
+
+  private buildPublicSharePointProxyUrl(path: string): string {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const proxyPath = `${prefixBasePath('/api/sharepoint')}${normalizedPath}`;
+    return this.withInstanceQuery(proxyPath, this.getEffectiveInstanceSlug());
+  }
+
+  private buildUserPhotoProxyUrl(userNameOrEmail: string, pictureUrl?: string | null): string {
+    let accountName = userNameOrEmail;
+
+    if (pictureUrl) {
+      try {
+        const parsed = new URL(pictureUrl, 'http://placeholder.local');
+        const fromQuery = parsed.searchParams.get('accountname');
+        if (fromQuery) {
+          accountName = fromQuery;
+        }
+      } catch {
+        /* ignore malformed picture urls */
+      }
+    }
+
+    return this.buildPublicSharePointProxyUrl(
+      `/_layouts/15/userphoto.aspx?size=L&accountname=${encodeURIComponent(accountName)}`
+    );
   }
 
   async withInstance<T>(slug: string | null | undefined, fn: () => Promise<T> | T): Promise<T> {
@@ -2450,6 +2478,8 @@ class ClientDataService {
   // TEAM MEMBERS OPERATIONS
   // Get user profile picture URL from SharePoint
   async getUserProfilePictureUrl(userNameOrEmail: string): Promise<string | null> {
+    const fallbackPictureUrl = this.buildUserPhotoProxyUrl(userNameOrEmail);
+
     try {
       const webUrl = this.getWebUrl();
 
@@ -2483,22 +2513,24 @@ class ClientDataService {
 
       if (!response.ok) {
         console.warn(`Could not find user profile for ${userNameOrEmail}: ${response.statusText}`);
-        return null;
+        return fallbackPictureUrl;
       }
 
       const userData = await response.json();
 
-      // Get the picture URL from user profile properties
-      if (userData && userData.d && userData.d.PictureUrl) {
-        return userData.d.PictureUrl;
+      const pictureUrl =
+        userData && userData.d && typeof userData.d.PictureUrl === 'string'
+          ? userData.d.PictureUrl
+          : null;
+
+      if (pictureUrl) {
+        return this.buildUserPhotoProxyUrl(userNameOrEmail, pictureUrl);
       }
 
-      // Alternative: Return the userphoto handler URL directly; avoid extra HEAD probe
-      const pictureUrl = `${webUrl}/_layouts/15/userphoto.aspx?size=L&accountname=${encodeURIComponent(userNameOrEmail)}`;
-      return pictureUrl;
+      return fallbackPictureUrl;
     } catch (error) {
       console.warn(`Error getting profile picture for ${userNameOrEmail}:`, error);
-      return null;
+      return fallbackPictureUrl;
     }
   }
 

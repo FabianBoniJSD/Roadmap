@@ -2,6 +2,10 @@
 
 This project uses environment variables for SharePoint auth, app config, and deployment. Keep real secrets out of git and manage them through your CI or server secret store.
 
+Additional auth documentation:
+
+- `docs/ENTRA_SSO_IMPLEMENTATION.md`: end-to-end description of the Entra SSO flow in this repo and how to reproduce it in other repos.
+
 ## Files & Git Hygiene
 
 - Use `.env.example` as the authoritative variable list. Copy to `.env` (or `.env.local`) and fill locally; never commit real values.
