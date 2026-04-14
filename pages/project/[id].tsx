@@ -584,6 +584,7 @@ const TeamCard: FC<TeamCardProps> = ({ name, role, imageUrl, fallbackInitial, on
         alt={name}
         width={48}
         height={48}
+        loading="eager"
         className="h-12 w-12 flex-shrink-0 rounded-full border border-slate-700 object-cover"
         onError={onImageError}
         unoptimized
