@@ -225,6 +225,22 @@ class ClientDataService {
     return this.withInstanceQuery(proxyPath, this.getEffectiveInstanceSlug());
   }
 
+  private buildPublicUserPhotoUrl(params: {
+    accountName?: string | null;
+    path?: string | null;
+  }): string {
+    const query = new URLSearchParams();
+    if (typeof params.accountName === 'string' && params.accountName.trim()) {
+      query.set('accountname', params.accountName.trim());
+      query.set('size', 'L');
+    }
+    if (typeof params.path === 'string' && params.path.trim()) {
+      query.set('path', params.path.trim());
+    }
+    const photoPath = `${prefixBasePath('/api/user-photo')}${query.toString() ? `?${query.toString()}` : ''}`;
+    return this.withInstanceQuery(photoPath, this.getEffectiveInstanceSlug());
+  }
+
   private extractProxyablePicturePath(pictureUrl?: string | null): string | null {
     if (!pictureUrl) return null;
     if (pictureUrl) {
@@ -252,15 +268,13 @@ class ClientDataService {
   ): string {
     const proxyablePicturePath = this.extractProxyablePicturePath(pictureUrl);
     if (proxyablePicturePath) {
-      return this.buildPublicSharePointProxyUrl(proxyablePicturePath);
+      return this.buildPublicUserPhotoUrl({ path: proxyablePicturePath });
     }
 
     const effectiveAccountName =
       typeof accountName === 'string' && accountName.trim() ? accountName.trim() : userNameOrEmail;
 
-    return this.buildPublicSharePointProxyUrl(
-      `/_layouts/15/userphoto.aspx?size=L&accountname=${encodeURIComponent(effectiveAccountName)}`
-    );
+    return this.buildPublicUserPhotoUrl({ accountName: effectiveAccountName });
   }
 
   private buildUserPhotoAccountCandidates(userNameOrEmail: string): string[] {
