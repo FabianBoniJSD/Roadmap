@@ -225,23 +225,41 @@ class ClientDataService {
     return this.withInstanceQuery(proxyPath, this.getEffectiveInstanceSlug());
   }
 
-  private buildUserPhotoProxyUrl(userNameOrEmail: string, pictureUrl?: string | null): string {
-    let accountName = userNameOrEmail;
-
+  private extractProxyablePicturePath(pictureUrl?: string | null): string | null {
+    if (!pictureUrl) return null;
     if (pictureUrl) {
       try {
         const parsed = new URL(pictureUrl, 'http://placeholder.local');
-        const fromQuery = parsed.searchParams.get('accountname');
-        if (fromQuery) {
-          accountName = fromQuery;
+        const decodedPathname = decodeURIComponent(parsed.pathname || '');
+        const isUserPhotoHandler = /\/_layouts\/15\/userphoto\.aspx$/i.test(parsed.pathname);
+        const isProfilePictureLibrary = /\/User Photos\/Profile Pictures\//i.test(decodedPathname);
+        if (!isUserPhotoHandler && !isProfilePictureLibrary) {
+          return null;
         }
+        return `${parsed.pathname}${parsed.search}`;
       } catch {
         /* ignore malformed picture urls */
       }
     }
 
+    return null;
+  }
+
+  private buildUserPhotoProxyUrl(
+    userNameOrEmail: string,
+    pictureUrl?: string | null,
+    accountName?: string | null
+  ): string {
+    const proxyablePicturePath = this.extractProxyablePicturePath(pictureUrl);
+    if (proxyablePicturePath) {
+      return this.buildPublicSharePointProxyUrl(proxyablePicturePath);
+    }
+
+    const effectiveAccountName =
+      typeof accountName === 'string' && accountName.trim() ? accountName.trim() : userNameOrEmail;
+
     return this.buildPublicSharePointProxyUrl(
-      `/_layouts/15/userphoto.aspx?size=L&accountname=${encodeURIComponent(accountName)}`
+      `/_layouts/15/userphoto.aspx?size=L&accountname=${encodeURIComponent(effectiveAccountName)}`
     );
   }
 
@@ -2478,8 +2496,6 @@ class ClientDataService {
   // TEAM MEMBERS OPERATIONS
   // Get user profile picture URL from SharePoint
   async getUserProfilePictureUrl(userNameOrEmail: string): Promise<string | null> {
-    const fallbackPictureUrl = this.buildUserPhotoProxyUrl(userNameOrEmail);
-
     try {
       const webUrl = this.getWebUrl();
 
@@ -2496,6 +2512,12 @@ class ClientDataService {
         // You may need to adjust this based on your SharePoint configuration
         accountName = `i:0#.w|${userNameOrEmail}`;
       }
+
+      const fallbackPictureUrl = this.buildUserPhotoProxyUrl(
+        userNameOrEmail,
+        undefined,
+        accountName
+      );
 
       // URL encode the account name
       const encodedAccount = encodeURIComponent(`'${accountName}'`);
@@ -2524,7 +2546,7 @@ class ClientDataService {
           : null;
 
       if (pictureUrl) {
-        return this.buildUserPhotoProxyUrl(userNameOrEmail, pictureUrl);
+        return this.buildUserPhotoProxyUrl(userNameOrEmail, pictureUrl, accountName);
       }
 
       return fallbackPictureUrl;

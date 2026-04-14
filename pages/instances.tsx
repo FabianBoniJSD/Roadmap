@@ -84,23 +84,67 @@ const parseMetadata = (settingsJson?: string | null): MetadataRecord | undefined
   }
 };
 
+const joinNormalizedPaths = (basePath: string, extraPath?: string | null): string => {
+  const baseSegments = String(basePath || '')
+    .split('/')
+    .filter(Boolean);
+  const extraSegments = String(extraPath || '')
+    .split('/')
+    .filter(Boolean);
+
+  if (!extraSegments.length) {
+    return baseSegments.length ? `/${baseSegments.join('/')}` : '';
+  }
+
+  let overlap = 0;
+  for (let size = Math.min(baseSegments.length, extraSegments.length); size > 0; size -= 1) {
+    const baseTail = baseSegments.slice(-size).map((segment) => segment.toLowerCase());
+    const extraHead = extraSegments.slice(0, size).map((segment) => segment.toLowerCase());
+    if (baseTail.every((segment, index) => segment === extraHead[index])) {
+      overlap = size;
+      break;
+    }
+  }
+
+  const joinedSegments = [...baseSegments, ...extraSegments.slice(overlap)];
+  return joinedSegments.length ? `/${joinedSegments.join('/')}` : '';
+};
+
 const buildTargetFromHost = (hostValue: string | null, path?: string | null): string | null => {
   if (!hostValue) return null;
   const trimmed = hostValue.trim();
   if (!trimmed) return null;
-  const normalizedPath = path ? `/${path.replace(/^\/+/, '')}` : '';
   if (HTTP_URL_REGEX.test(trimmed)) {
-    return `${trimmed.replace(/\/$/, '')}${normalizedPath}`;
+    try {
+      const parsed = new URL(trimmed);
+      const joinedPath = joinNormalizedPaths(parsed.pathname, path);
+      return `${parsed.origin}${joinedPath}${parsed.search}${parsed.hash}`;
+    } catch {
+      const sanitized = trimmed.replace(/\/+$/, '');
+      return `${sanitized}${joinNormalizedPaths('', path)}`;
+    }
   }
   if (trimmed.startsWith('//')) {
-    return `${trimmed.replace(/\/$/, '')}${normalizedPath}`;
+    try {
+      const parsed = new URL(`https:${trimmed}`);
+      const joinedPath = joinNormalizedPaths(parsed.pathname, path);
+      return `//${parsed.host}${joinedPath}${parsed.search}${parsed.hash}`;
+    } catch {
+      const sanitized = trimmed.replace(/\/+$/, '');
+      return `${sanitized}${joinNormalizedPaths('', path)}`;
+    }
   }
   if (trimmed.startsWith('/')) {
-    const base = trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
-    return `${base}${normalizedPath}`;
+    return joinNormalizedPaths(trimmed, path);
   }
-  const sanitizedHost = trimmed.replace(/\/+$/, '');
-  return `//${sanitizedHost}${normalizedPath}`;
+  try {
+    const parsed = new URL(`https://${trimmed}`);
+    const joinedPath = joinNormalizedPaths(parsed.pathname, path);
+    return `//${parsed.host}${joinedPath}${parsed.search}${parsed.hash}`;
+  } catch {
+    const sanitizedHost = trimmed.replace(/\/+$/, '');
+    return `//${sanitizedHost}${joinNormalizedPaths('', path)}`;
+  }
 };
 
 const resolveFrontendTarget = (settingsJson: string | null, hosts: string[]): string | null => {

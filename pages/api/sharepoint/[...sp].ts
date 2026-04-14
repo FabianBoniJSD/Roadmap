@@ -172,6 +172,8 @@ function isAllowedPath(path: string) {
   if (/^\/_api\/SP\.UserProfiles\.PeopleManager\/GetPropertiesFor\(/i.test(cleaned)) return true;
   // Allow userphoto handler for profile images
   if (/^\/_layouts\/15\/userphoto\.aspx/i.test(cleaned)) return true;
+  // Allow direct profile picture library URLs returned by SharePoint user profiles
+  if (/\/User(?:%20| )Photos\/Profile(?:%20| )Pictures\//i.test(cleaned)) return true;
   // Allow People Picker API used by admin user search
   if (
     /^\/_api\/SP\.UI\.ApplicationPages\.ClientPeoplePickerWebServiceInterface\.clientPeoplePickerSearchUser$/i.test(
@@ -272,6 +274,32 @@ async function readRawBodyBuffer(req: NextApiRequest): Promise<Buffer> {
   }
   return Buffer.concat(chunks as unknown as readonly Uint8Array[]);
 }
+
+const buildSharePointTargetUrl = (site: string, fullPath: string): string => {
+  const normalizedSite = site.replace(/\/+$/, '');
+  if (/^https?:\/\//i.test(fullPath)) return fullPath;
+
+  try {
+    const siteUrl = new URL(normalizedSite);
+    const sitePath = siteUrl.pathname.replace(/\/+$/, '');
+    const encodedSitePath = encodeURI(sitePath);
+    const requestPath = fullPath.split('?')[0] || '';
+    const hasSitePrefix =
+      Boolean(sitePath) &&
+      (requestPath === sitePath ||
+        requestPath.startsWith(`${sitePath}/`) ||
+        requestPath === encodedSitePath ||
+        requestPath.startsWith(`${encodedSitePath}/`));
+
+    if (hasSitePrefix) {
+      return `${siteUrl.origin}${fullPath}`;
+    }
+  } catch {
+    /* ignore malformed site URLs */
+  }
+
+  return normalizedSite + fullPath;
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   let instance: RoadmapInstanceConfig | null = null;
@@ -391,7 +419,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
       const cred = serviceUser ? `${serviceUser}:${servicePass}` : ':';
-      const targetUrl = site.replace(/\/$/, '') + fullPath;
+      const targetUrl = buildSharePointTargetUrl(site, fullPath);
       const clientAccept =
         typeof req.headers['accept'] === 'string'
           ? req.headers['accept']
@@ -1090,7 +1118,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       authHeaders = authContext.headers;
     }
 
-    const targetUrl = site.replace(/\/$/, '') + fullPath;
+    const targetUrl = buildSharePointTargetUrl(site, fullPath);
 
     const method = req.method || 'GET';
     const isWrite = ['POST', 'PATCH', 'MERGE', 'PUT', 'DELETE'].includes(method);
@@ -1321,7 +1349,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       code: (err as any).code,
       causeMessage: cause.message,
       causeCode: cause.code,
-      targetUrl: site.replace(/\/$/, '') + fullPath,
+      targetUrl: buildSharePointTargetUrl(site, fullPath),
     };
     // eslint-disable-next-line no-console
     console.error('[sharepoint proxy] error stack:', err?.stack);
