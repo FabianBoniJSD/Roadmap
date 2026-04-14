@@ -303,6 +303,109 @@ class ClientDataService {
     return candidates;
   }
 
+  private extractUserProfilePropertyValue(raw: unknown, propertyKey: string): string | null {
+    const normalizedKey = propertyKey.trim().toLowerCase();
+    const directValue =
+      (raw as { [key: string]: unknown } | null | undefined)?.[propertyKey] ??
+      (raw as { d?: Record<string, unknown> } | null | undefined)?.d?.[propertyKey];
+    if (typeof directValue === 'string' && directValue.trim()) {
+      return directValue.trim();
+    }
+
+    const values =
+      (raw as { UserProfileProperties?: { value?: unknown[] } } | null | undefined)
+        ?.UserProfileProperties?.value ||
+      (raw as { d?: { UserProfileProperties?: { results?: unknown[] } } } | null | undefined)?.d
+        ?.UserProfileProperties?.results ||
+      [];
+
+    if (!Array.isArray(values)) return null;
+
+    const match = values.find((entry) => {
+      const key = String((entry as { Key?: unknown } | null | undefined)?.Key || '')
+        .trim()
+        .toLowerCase();
+      return key === normalizedKey;
+    }) as { Value?: unknown } | undefined;
+
+    if (typeof match?.Value === 'string' && match.Value.trim()) {
+      return match.Value.trim();
+    }
+
+    return null;
+  }
+
+  private extractResolvedUserAccountName(raw: unknown): string | null {
+    return (
+      this.extractUserProfilePropertyValue(raw, 'AccountName') ||
+      this.extractUserProfilePropertyValue(raw, 'SPS-ClaimID') ||
+      this.extractUserProfilePropertyValue(raw, 'SPS-UserPrincipalName')
+    );
+  }
+
+  private extractResolvedUserPictureUrl(raw: unknown): string | null {
+    return (
+      this.extractUserProfilePropertyValue(raw, 'PictureUrl') ||
+      this.extractUserProfilePropertyValue(raw, 'PictureURL')
+    );
+  }
+
+  private async resolveSiteUserLoginNameByEmail(email: string): Promise<string | null> {
+    const trimmedEmail = String(email || '').trim();
+    if (!trimmedEmail || !trimmedEmail.includes('@')) return null;
+
+    const webUrl = this.getWebUrl();
+    const escapedEmail = this.escapeODataStringLiteral(trimmedEmail);
+    const endpoint = `${webUrl}/_api/web/siteusers/getByEmail('${escapedEmail}')?$select=LoginName`;
+
+    const fetchPayload = async (accept: string): Promise<unknown> => {
+      const response = await this.spFetch(endpoint, {
+        method: 'GET',
+        headers: { Accept: accept },
+        credentials: 'same-origin',
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        if (/InvalidClientQuery|Invalid argument/i.test(text)) {
+          throw new Error('invalid-query');
+        }
+        return null;
+      }
+
+      const text = await response.text().catch(() => '');
+      if (!text) return null;
+
+      try {
+        return JSON.parse(text);
+      } catch {
+        return null;
+      }
+    };
+
+    try {
+      const raw = await fetchPayload('application/json;odata=nometadata');
+      const loginName =
+        (raw as { LoginName?: unknown } | null | undefined)?.LoginName ??
+        (raw as { d?: { LoginName?: unknown } } | null | undefined)?.d?.LoginName;
+      return typeof loginName === 'string' && loginName.trim() ? loginName.trim() : null;
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== 'invalid-query') {
+        return null;
+      }
+    }
+
+    try {
+      const raw = await fetchPayload('application/json;odata=verbose');
+      const loginName =
+        (raw as { LoginName?: unknown } | null | undefined)?.LoginName ??
+        (raw as { d?: { LoginName?: unknown } } | null | undefined)?.d?.LoginName;
+      return typeof loginName === 'string' && loginName.trim() ? loginName.trim() : null;
+    } catch {
+      return null;
+    }
+  }
+
   async withInstance<T>(slug: string | null | undefined, fn: () => Promise<T> | T): Promise<T> {
     const storage = getInstanceContextStorage();
     const callback = () => Promise.resolve(fn());
@@ -2545,9 +2648,18 @@ class ClientDataService {
 
     try {
       const webUrl = this.getWebUrl();
+      const orderedCandidates = [...accountCandidates];
+
+      if (userNameOrEmail.includes('@')) {
+        const resolvedLoginName = await this.resolveSiteUserLoginNameByEmail(userNameOrEmail);
+        if (resolvedLoginName && !orderedCandidates.includes(resolvedLoginName)) {
+          orderedCandidates.unshift(resolvedLoginName);
+        }
+      }
+
       let preferredFallbackPictureUrl = fallbackPictureUrl;
 
-      for (const accountName of accountCandidates.length ? accountCandidates : [userNameOrEmail]) {
+      for (const accountName of orderedCandidates.length ? orderedCandidates : [userNameOrEmail]) {
         const fallbackPictureUrlForAccount = this.buildUserPhotoProxyUrl(
           userNameOrEmail,
           undefined,
@@ -2571,13 +2683,17 @@ class ClientDataService {
 
         preferredFallbackPictureUrl = fallbackPictureUrlForAccount;
         const userData = await response.json();
-        const pictureUrl =
-          userData && userData.d && typeof userData.d.PictureUrl === 'string'
-            ? userData.d.PictureUrl
-            : null;
+        const resolvedAccountName = this.extractResolvedUserAccountName(userData) || accountName;
+        const pictureUrl = this.extractResolvedUserPictureUrl(userData);
+
+        preferredFallbackPictureUrl = this.buildUserPhotoProxyUrl(
+          userNameOrEmail,
+          undefined,
+          resolvedAccountName
+        );
 
         if (pictureUrl) {
-          return this.buildUserPhotoProxyUrl(userNameOrEmail, pictureUrl, accountName);
+          return this.buildUserPhotoProxyUrl(userNameOrEmail, pictureUrl, resolvedAccountName);
         }
       }
 
