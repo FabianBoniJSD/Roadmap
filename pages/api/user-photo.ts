@@ -117,8 +117,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     `/_layouts/15/userphoto.aspx?size=${encodeURIComponent(size)}&accountname=${encodeURIComponent(rawAccountName.trim())}`;
 
   const baseUrl =
-    (process.env.INTERNAL_API_BASE_URL || '').replace(/\/$/, '') ||
-    `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+    (process.env.INTERNAL_API_BASE_URL || '').replace(/\/$/, '') || 'http://localhost:3000';
   const internalUrl = withInstanceSlug(
     `${baseUrl}${prefixBasePath('/api/sharepoint')}${proxyPath}`,
     instance.slug
