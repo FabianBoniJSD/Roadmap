@@ -263,6 +263,46 @@ class ClientDataService {
     );
   }
 
+  private buildUserPhotoAccountCandidates(userNameOrEmail: string): string[] {
+    const rawIdentifier = String(userNameOrEmail || '').trim();
+    if (!rawIdentifier) return [];
+
+    const onPremDomainRaw =
+      typeof process.env.SP_ONPREM_DOMAIN === 'string' ? process.env.SP_ONPREM_DOMAIN : '';
+    const onPremDomain = onPremDomainRaw.trim();
+    const candidates: string[] = [];
+    const pushCandidate = (candidate?: string | null) => {
+      const trimmed = String(candidate || '').trim();
+      if (!trimmed || candidates.includes(trimmed)) return;
+      candidates.push(trimmed);
+    };
+
+    if (rawIdentifier.includes('@')) {
+      const localPart = rawIdentifier.split('@')[0]?.trim() || '';
+      if (onPremDomain && localPart) {
+        pushCandidate(`i:0#.w|${onPremDomain}\\${localPart}`);
+        pushCandidate(`${onPremDomain}\\${localPart}`);
+      }
+      pushCandidate(`i:0#.f|membership|${rawIdentifier}`);
+      pushCandidate(rawIdentifier);
+      return candidates;
+    }
+
+    if (rawIdentifier.includes('\\')) {
+      pushCandidate(`i:0#.w|${rawIdentifier}`);
+      pushCandidate(rawIdentifier);
+      return candidates;
+    }
+
+    if (onPremDomain) {
+      pushCandidate(`i:0#.w|${onPremDomain}\\${rawIdentifier}`);
+      pushCandidate(`${onPremDomain}\\${rawIdentifier}`);
+    }
+    pushCandidate(`i:0#.w|${rawIdentifier}`);
+    pushCandidate(rawIdentifier);
+    return candidates;
+  }
+
   async withInstance<T>(slug: string | null | undefined, fn: () => Promise<T> | T): Promise<T> {
     const storage = getInstanceContextStorage();
     const callback = () => Promise.resolve(fn());
@@ -2496,62 +2536,52 @@ class ClientDataService {
   // TEAM MEMBERS OPERATIONS
   // Get user profile picture URL from SharePoint
   async getUserProfilePictureUrl(userNameOrEmail: string): Promise<string | null> {
-    const fallbackPictureUrl = this.buildUserPhotoProxyUrl(userNameOrEmail);
+    const accountCandidates = this.buildUserPhotoAccountCandidates(userNameOrEmail);
+    const fallbackPictureUrl = this.buildUserPhotoProxyUrl(
+      userNameOrEmail,
+      undefined,
+      accountCandidates[0] || userNameOrEmail
+    );
 
     try {
       const webUrl = this.getWebUrl();
+      let preferredFallbackPictureUrl = fallbackPictureUrl;
 
-      // First, try to find the user account in SharePoint
-      // Remove domain part if username contains it
-      let accountName = userNameOrEmail;
+      for (const accountName of accountCandidates.length ? accountCandidates : [userNameOrEmail]) {
+        const fallbackPictureUrlForAccount = this.buildUserPhotoProxyUrl(
+          userNameOrEmail,
+          undefined,
+          accountName
+        );
 
-      // If it's an email, try to format it for SharePoint
-      if (userNameOrEmail.includes('@')) {
-        // For SharePoint Online format (example: i:0#.f|membership|user@domain.com)
-        accountName = `i:0#.f|membership|${userNameOrEmail}`;
-      } else {
-        // For on-premises SharePoint format (example: domain\\username)
-        // You may need to adjust this based on your SharePoint configuration
-        accountName = `i:0#.w|${userNameOrEmail}`;
+        const encodedAccount = encodeURIComponent(`'${accountName}'`);
+        const endpoint = `${webUrl}/_api/SP.UserProfiles.PeopleManager/GetPropertiesFor(accountName=@v)?@v=${encodedAccount}`;
+
+        const response = await this.spFetch(endpoint, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json;odata=verbose',
+          },
+          credentials: 'same-origin',
+        });
+
+        if (!response.ok) {
+          continue;
+        }
+
+        preferredFallbackPictureUrl = fallbackPictureUrlForAccount;
+        const userData = await response.json();
+        const pictureUrl =
+          userData && userData.d && typeof userData.d.PictureUrl === 'string'
+            ? userData.d.PictureUrl
+            : null;
+
+        if (pictureUrl) {
+          return this.buildUserPhotoProxyUrl(userNameOrEmail, pictureUrl, accountName);
+        }
       }
 
-      const fallbackPictureUrlForAccount = this.buildUserPhotoProxyUrl(
-        userNameOrEmail,
-        undefined,
-        accountName
-      );
-
-      // URL encode the account name
-      const encodedAccount = encodeURIComponent(`'${accountName}'`);
-
-      // Call the SharePoint API to get user profile
-      const endpoint = `${webUrl}/_api/SP.UserProfiles.PeopleManager/GetPropertiesFor(accountName=@v)?@v=${encodedAccount}`;
-
-      const response = await this.spFetch(endpoint, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json;odata=verbose',
-        },
-        credentials: 'same-origin',
-      });
-
-      if (!response.ok) {
-        console.warn(`Could not find user profile for ${userNameOrEmail}: ${response.statusText}`);
-        return fallbackPictureUrlForAccount;
-      }
-
-      const userData = await response.json();
-
-      const pictureUrl =
-        userData && userData.d && typeof userData.d.PictureUrl === 'string'
-          ? userData.d.PictureUrl
-          : null;
-
-      if (pictureUrl) {
-        return this.buildUserPhotoProxyUrl(userNameOrEmail, pictureUrl, accountName);
-      }
-
-      return fallbackPictureUrlForAccount;
+      return preferredFallbackPictureUrl;
     } catch (error) {
       console.warn(`Error getting profile picture for ${userNameOrEmail}:`, error);
       return fallbackPictureUrl;
