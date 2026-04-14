@@ -39,6 +39,32 @@ function runCurl(
   });
 }
 
+function runCurlBuffer(
+  args: string[],
+  options: { timeout?: number; input?: Buffer | string; maxBuffer?: number } = {}
+): Promise<{ stdout: Buffer; stderr: string }> {
+  const { timeout = 20000, input, maxBuffer = 50 * 1024 * 1024 } = options;
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      'curl',
+      args,
+      { timeout, maxBuffer, encoding: 'buffer' as BufferEncoding },
+      (err: any, stdout: Buffer | string, stderr: Buffer | string) => {
+        const stdoutBuffer = Buffer.isBuffer(stdout) ? stdout : Buffer.from(String(stdout || ''));
+        const stderrText = Buffer.isBuffer(stderr) ? stderr.toString('utf8') : String(stderr || '');
+        if (err) return reject(Object.assign(err, { stderr: stderrText }));
+        resolve({ stdout: stdoutBuffer, stderr: stderrText });
+      }
+    );
+    if (input !== undefined && input !== null && child && child.stdin) {
+      child.stdin.on('error', () => {
+        /* ignore broken pipe */
+      });
+      child.stdin.end(input);
+    }
+  });
+}
+
 // Simple in-memory cache for curl mode GET responses
 interface CurlCacheEntry {
   expires: number;
@@ -762,6 +788,65 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return args;
       };
 
+      const wantsBinaryRequest =
+        apiPath.startsWith('/_layouts/15/userphoto.aspx') ||
+        /\/\$value(?:$|\?)/i.test(apiPath) ||
+        /\/AttachmentFiles\//i.test(apiPath) ||
+        /\/GetFileByServerRelativeUrl\(/i.test(apiPath) ||
+        /\/GetFileByServerRelativePath\(/i.test(apiPath);
+
+      const curlBinaryStatusMarker = '\n__SP_HTTP_STATUS__:';
+      const curlBinaryContentTypeMarker = '\n__SP_CONTENT_TYPE__:';
+      const curlBinaryContentLengthMarker = '\n__SP_CONTENT_LENGTH__:';
+
+      const extractCurlBinaryStatusAndBody = (rawOutput: Buffer) => {
+        const statusIdx = rawOutput.lastIndexOf(curlBinaryStatusMarker);
+        const contentTypeIdx = rawOutput.lastIndexOf(curlBinaryContentTypeMarker);
+        const contentLengthIdx = rawOutput.lastIndexOf(curlBinaryContentLengthMarker);
+
+        if (
+          statusIdx < 0 ||
+          contentTypeIdx < 0 ||
+          contentLengthIdx < 0 ||
+          !(statusIdx < contentTypeIdx && contentTypeIdx < contentLengthIdx)
+        ) {
+          return {
+            statusCode: 0,
+            payloadBuffer: rawOutput,
+            payloadText: rawOutput.toString('utf8'),
+            contentType: '',
+            contentLength: null as number | null,
+          };
+        }
+
+        const payloadBuffer = rawOutput.subarray(0, statusIdx);
+        const statusCodeRaw = rawOutput
+          .subarray(statusIdx + Buffer.byteLength(curlBinaryStatusMarker), contentTypeIdx)
+          .toString('utf8')
+          .trim();
+        const contentType = rawOutput
+          .subarray(
+            contentTypeIdx + Buffer.byteLength(curlBinaryContentTypeMarker),
+            contentLengthIdx
+          )
+          .toString('utf8')
+          .trim();
+        const contentLengthRaw = rawOutput
+          .subarray(contentLengthIdx + Buffer.byteLength(curlBinaryContentLengthMarker))
+          .toString('utf8')
+          .trim();
+        const parsedStatusCode = Number.parseInt(statusCodeRaw, 10);
+        const parsedContentLength = Number.parseInt(contentLengthRaw, 10);
+
+        return {
+          statusCode: Number.isFinite(parsedStatusCode) ? parsedStatusCode : 0,
+          payloadBuffer,
+          payloadText: payloadBuffer.toString('utf8'),
+          contentType,
+          contentLength: Number.isFinite(parsedContentLength) ? parsedContentLength : null,
+        };
+      };
+
       const parseCurlPayload = (rawOutput: string): any => {
         const rawTrimmed = String(rawOutput || '')
           .replace(/^\uFEFF/, '')
@@ -885,6 +970,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       };
 
       const executeReadCurl = async (authScheme: CurlAuthScheme) => {
+        if (wantsBinaryRequest) {
+          const args = makeReadCurlArgs(authScheme);
+          const writeMarkerIndex = args.indexOf('\n__SP_HTTP_STATUS__:%{http_code}');
+          if (writeMarkerIndex >= 0) {
+            args[writeMarkerIndex] =
+              '\n__SP_HTTP_STATUS__:%{http_code}\n__SP_CONTENT_TYPE__:%{content_type}\n__SP_CONTENT_LENGTH__:%{size_download}';
+          }
+
+          const output = await runCurlBuffer(args, { timeout: 15000 });
+          const status = extractCurlBinaryStatusAndBody(output.stdout);
+          return {
+            authScheme,
+            output,
+            status,
+            payload: status.payloadBuffer,
+            authFailure: detectCurlAuthFailure(status.payloadText, status.statusCode),
+          };
+        }
+
         const output = await runCurl(makeReadCurlArgs(authScheme), { timeout: 15000 });
         const status = extractCurlStatusAndBody(output.stdout);
         const payload = parseCurlPayload(status.payloadText);
@@ -1037,7 +1141,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const duration = Date.now() - start;
 
-      const finalAuthFailure = detectCurlAuthFailure(normalized, negotiatedStatus.statusCode);
+      const finalAuthFailure = detectCurlAuthFailure(
+        wantsBinaryRequest && Buffer.isBuffer(normalized)
+          ? negotiatedStatus.payloadText
+          : normalized,
+        negotiatedStatus.statusCode
+      );
       if (finalAuthFailure) {
         const status = finalAuthFailure.status;
         if (status === 401 && allowCurlFallbackToFetch) {
@@ -1070,6 +1179,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (res.getHeader('x-sp-proxy-mode') === 'curl-fallback-to-fetch') {
         // Continue below into fetch-based auth path.
       } else {
+        if (wantsBinaryRequest && Buffer.isBuffer(normalized)) {
+          const negotiatedContentType =
+            'contentType' in negotiatedStatus ? negotiatedStatus.contentType : undefined;
+          const negotiatedContentLength =
+            'contentLength' in negotiatedStatus ? negotiatedStatus.contentLength : undefined;
+          const contentType =
+            typeof negotiatedContentType === 'string' && negotiatedContentType.trim()
+              ? negotiatedContentType.trim()
+              : 'application/octet-stream';
+          const contentLength =
+            typeof negotiatedContentLength === 'number' && negotiatedContentLength >= 0
+              ? String(negotiatedContentLength)
+              : null;
+
+          res.setHeader('x-sp-proxy-mode', 'curl');
+          res.setHeader('x-sp-proxy-ms', String(duration));
+          res.setHeader('Content-Type', contentType);
+          if (contentLength) {
+            res.setHeader('Content-Length', contentLength);
+          }
+          return res.status(200).send(normalized);
+        }
+
         // Shape response to look like native SharePoint depending on Accept header
         const wantsNoMeta = /odata=nometadata/i.test(clientAccept);
         let bodyToSend: any = normalized;
