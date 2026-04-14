@@ -2496,6 +2496,8 @@ class ClientDataService {
   // TEAM MEMBERS OPERATIONS
   // Get user profile picture URL from SharePoint
   async getUserProfilePictureUrl(userNameOrEmail: string): Promise<string | null> {
+    const fallbackPictureUrl = this.buildUserPhotoProxyUrl(userNameOrEmail);
+
     try {
       const webUrl = this.getWebUrl();
 
@@ -2513,7 +2515,7 @@ class ClientDataService {
         accountName = `i:0#.w|${userNameOrEmail}`;
       }
 
-      const fallbackPictureUrl = this.buildUserPhotoProxyUrl(
+      const fallbackPictureUrlForAccount = this.buildUserPhotoProxyUrl(
         userNameOrEmail,
         undefined,
         accountName
@@ -2535,7 +2537,7 @@ class ClientDataService {
 
       if (!response.ok) {
         console.warn(`Could not find user profile for ${userNameOrEmail}: ${response.statusText}`);
-        return fallbackPictureUrl;
+        return fallbackPictureUrlForAccount;
       }
 
       const userData = await response.json();
@@ -2549,7 +2551,7 @@ class ClientDataService {
         return this.buildUserPhotoProxyUrl(userNameOrEmail, pictureUrl, accountName);
       }
 
-      return fallbackPictureUrl;
+      return fallbackPictureUrlForAccount;
     } catch (error) {
       console.warn(`Error getting profile picture for ${userNameOrEmail}:`, error);
       return fallbackPictureUrl;
