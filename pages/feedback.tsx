@@ -6,7 +6,7 @@ const FeedbackPage = () => {
   return (
     <>
       <Head>
-        <title>Feedback | JSDoIT Roadmap Center</title>
+        <title>Feedback | JSDoIT Roadmap</title>
       </Head>
       <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
         <SiteHeader />
@@ -29,13 +29,10 @@ const FeedbackPage = () => {
                 <div className="relative w-full overflow-hidden rounded-2xl bg-slate-900/70">
                   <iframe
                     title="Feedbackformular"
-                    src="https://forms.office.com/Pages/ResponsePage.aspx?id=lS8XEZqje0-SJMahHR5cJNwo2HJojXNPjRfBAiK7kcBUNlEzQlZSQVdTMFlNWFBMTE85Q045UVRWTCQlQCN0PWcu&embed=true"
-                    width="640"
-                    height="480"
-                    className="h-[480px] w-full"
-                    frameBorder="0"
-                    marginWidth={0}
-                    marginHeight={0}
+                    src="https://forms.office.com/Pages/ResponsePage.aspx?id=lS8XEZqje0-SJMahHR5cJL2UzqXerYdMm7YMzlM_I3dUOTRJQzJVV05JWUNOSjU0RlFRVE03VlQyQi4u"
+                    width="1920"
+                    height="1080"
+                    className="h-[1080px] w-[1920px]"
                     allowFullScreen
                     style={{ border: 'none', maxWidth: '100%', maxHeight: '100vh' }}
                   />
@@ -43,7 +40,7 @@ const FeedbackPage = () => {
                 <p className="text-xs text-slate-400">
                   Hinweis: Falls das Formular nicht angezeigt wird, öffnen Sie es{' '}
                   <a
-                    href="https://forms.office.com/Pages/ResponsePage.aspx?id=lS8XEZqje0-SJMahHR5cJNwo2HJojXNPjRfBAiK7kcBUNlEzQlZSQVdTMFlNWFBMTE85Q045UVRWTCQlQCN0PWcu"
+                    href="https://forms.office.com/Pages/ResponsePage.aspx?id=lS8XEZqje0-SJMahHR5cJL2UzqXerYdMm7YMzlM_I3dUOTRJQzJVV05JWUNOSjU0RlFRVE03VlQyQi4u"
                     target="_blank"
                     rel="noreferrer"
                     className="font-semibold text-sky-300 underline decoration-dotted underline-offset-4 transition hover:text-white"

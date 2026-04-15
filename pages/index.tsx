@@ -51,9 +51,9 @@ const workflowSteps = [
 ];
 
 const spotlightStats = [
-  { label: 'Mehrinstanzfähig', value: '1 Plattform' },
-  { label: 'Datenhaltung', value: 'SharePoint-basiert' },
-  { label: 'Zugriffsmodell', value: 'rollenbasiert' },
+  { label: 'Mehrinstanzfähig', value: 'Polizei, Feuerwehr, Rettungsdienste' },
+  { label: 'Datenhaltung', value: 'SharePoint' },
+  { label: 'Zugriffsmodell', value: 'Rollenbasiert' },
 ];
 
 const audienceCards = [
@@ -80,7 +80,7 @@ const LandingPage = () => {
   return (
     <>
       <Head>
-        <title>JSDoIT Roadmap Center</title>
+        <title>JSDoIT Roadmap</title>
       </Head>
       <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
         <SiteHeader activeRoute="home" />

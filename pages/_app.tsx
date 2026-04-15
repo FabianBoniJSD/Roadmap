@@ -1,11 +1,15 @@
-import { JSX, useEffect } from 'react';
+import { JSX, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { clientDataService } from '@/utils/clientDataService';
 import { initializeIcons } from '@fluentui/react/lib/Icons';
 import type { AppProps } from 'next/app';
 import type { Category, Project } from '@/types';
-import './globals.css';
+import './css/globals.css';
 import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
+import SiteFooter from '@/components/SiteFooter';
+import SiteHeader from '@/components/SiteHeader';
+import Head from 'next/head';
+import { prefixBasePath } from '@/utils/nextBasePath';
 
 // Define a type for the window with our custom property
 interface CustomWindow extends Window {
@@ -21,12 +25,13 @@ interface CustomWindow extends Window {
   __projects?: Project[];
 }
 
-function MyApp({ Component, pageProps }: AppProps): JSX.Element {
+function RoadmapApp({ Component, pageProps }: AppProps): JSX.Element {
   const router = useRouter();
   const maintenanceModeEnabled = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true';
   const maintenanceMessage =
     process.env.NEXT_PUBLIC_MAINTENANCE_MESSAGE ||
-    'Die Website ist derzeit im Wartungsmodus und in Kürze wieder verfügbar.';
+    'Undefined maintenance message. Please set NEXT_PUBLIC_MAINTENANCE_MESSAGE in your environment variables.';
+  const maintenanceTime = process.env.NEXT_PUBLIC_MAINTENANCE_TIME || 'Undetermined time';
 
   // Keep instance cookie in sync with query parameter on any route
   useEffect(() => {
@@ -78,45 +83,74 @@ function MyApp({ Component, pageProps }: AppProps): JSX.Element {
           return originalFetch(input, init);
         };
       }
-
-      // Optional debug exposure (development / analysis only)
-      if (process.env.NEXT_PUBLIC_DEBUG_EXPOSE === '1') {
-        customWindow.clientDataService = clientDataService;
-        customWindow.fetchCategoriesAndProjects = async () => {
-          const [cats, projs] = await Promise.all([
-            clientDataService.getAllCategories(),
-            clientDataService.getAllProjects(),
-          ]);
-          customWindow.__categories = cats;
-          customWindow.__projects = projs;
-          const catIds = new Set(cats.map((c) => c.id));
-          const unmapped = projs.filter((p) => !catIds.has(String(p.category || '')));
-          console.log('[debug] categories:', cats);
-          console.log('[debug] projects (first 5):', projs.slice(0, 5));
-          console.log(
-            '[debug] unmapped project categories count:',
-            unmapped.length,
-            unmapped.slice(0, 10).map((p) => ({ id: p.id, cat: p.category, title: p.title }))
-          );
-          return { cats, projs, unmapped };
-        };
-      }
     }
   }, []);
 
   if (maintenanceModeEnabled) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-gray-900 text-white">
-        <div className="max-w-xl w-full text-center space-y-4">
-          <h1 className="text-3xl sm:text-4xl font-semibold">Wartungsmodus</h1>
-          <p className="text-base sm:text-lg text-gray-200">{maintenanceMessage}</p>
-          <p className="text-sm text-gray-400">Bitte versuche es später erneut.</p>
-        </div>
-      </main>
+      <>
+        <Head>
+          <link rel="stylesheet" href={prefixBasePath('/maintenance.css')} />
+        </Head>
+        <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-gray-900 text-white">
+          {/* Backgrounds */}
+          <div className="grid-bg" />
+          <div className="radial-glow" />
+          <div className="corner-glow-tl" />
+          <div className="corner-glow-br" />
+          <div className="deco-line-left" />
+          <div className="deco-line-right" />
+
+          <div className="fixed top-0 w-full">
+            <SiteHeader />
+          </div>
+
+          {/* Main content */}
+          <div className="container">
+            <div className="card">
+              <div className="eyebrow">
+                <div className="eyebrow-line" />
+                <span className="eyebrow-text">Systemwartung</span>
+              </div>
+
+              <h1 className="title">
+                Gleich wieder
+                <br />
+                <span>zurück.</span>
+              </h1>
+
+              <p className="subtitle">{maintenanceMessage}</p>
+
+              {/* Info chips */}
+              <div className="chips">
+                <div className="chip">
+                  <span className="chip-icon">⏱</span>
+                  Geschätzte Zeit: {maintenanceTime}.
+                </div>
+              </div>
+
+              <div className="divider" />
+
+              <div className="status-row">
+                <div className="status-text">
+                  <div className="spinner" />
+                  System wird konfiguriert.
+                </div>
+                <a href="mailto:fabian.boni@jsd.bs.ch" className="contact-link">
+                  SUPPORT KONTAKTIEREN ↗
+                </a>
+              </div>
+            </div>
+          </div>
+          <div className="fixed bottom-0 w-full">
+            <SiteFooter />
+          </div>
+        </main>
+      </>
     );
   }
 
   return <Component {...pageProps} />;
 }
 
-export default MyApp;
+export default RoadmapApp;

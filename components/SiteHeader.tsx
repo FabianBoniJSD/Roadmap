@@ -5,7 +5,7 @@ import { useMemo, useEffect, useState } from 'react';
 import { hasAdminAccessToCurrentInstance, hasValidAdminSession } from '@/utils/auth';
 import { INSTANCE_QUERY_PARAM, INSTANCE_COOKIE_NAME } from '@/utils/instanceConfig';
 
-type RouteKey = 'home' | 'instances' | 'roadmap' | 'help' | 'docs' | 'admin';
+type RouteKey = 'home' | 'instances' | 'roadmap' | 'help' | 'docs' | 'admin' | 'feedback';
 
 type SiteHeaderProps = {
   activeRoute?: RouteKey;
@@ -28,14 +28,14 @@ const NAV_ITEMS: Array<{
     rel: 'noopener noreferrer',
   },
   { key: 'help', href: '/help', label: 'Hilfe' },
-  { key: 'docs', href: '/docs', label: 'Dokumentation' },
+  { key: 'feedback', href: '/feedback', label: 'Feedback' },
 ];
 
 const deriveRouteKey = (pathname: string): RouteKey => {
   if (pathname.startsWith('/instances')) return 'instances';
   if (pathname.startsWith('/roadmap')) return 'roadmap';
   if (pathname.startsWith('/help')) return 'help';
-  if (pathname.startsWith('/docs')) return 'docs';
+  if (pathname.startsWith('/feedback')) return 'feedback';
   if (pathname.startsWith('/admin')) return 'admin';
   return 'home';
 };
