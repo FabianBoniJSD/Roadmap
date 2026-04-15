@@ -1,4 +1,4 @@
-import { JSX, useEffect, useState } from 'react';
+import { JSX, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { clientDataService } from '@/utils/clientDataService';
 import { initializeIcons } from '@fluentui/react/lib/Icons';

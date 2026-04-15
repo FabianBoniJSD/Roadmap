@@ -1,7 +1,7 @@
 import React, { ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import Footer from './Footer';
+import SiteFooter from '@/components/SiteFooter';
 
 interface DocsLayoutProps {
   children: ReactNode;
@@ -11,7 +11,9 @@ const DocsLayout: React.FC<DocsLayoutProps> = ({ children }) => {
   const router = useRouter();
 
   const isActive = (path: string) => {
-    return router.pathname.startsWith(path) ? 'text-blue-400 font-medium' : 'text-gray-300 hover:text-white';
+    return router.pathname.startsWith(path)
+      ? 'text-blue-400 font-medium'
+      : 'text-gray-300 hover:text-white';
   };
 
   return (
@@ -38,9 +40,7 @@ const DocsLayout: React.FC<DocsLayoutProps> = ({ children }) => {
               <ul className="space-y-2">
                 <li>
                   <Link href="/docs/erste-schritte">
-                    <span className={`block py-1 ${isActive('/docs/pages')}`}>
-                      Übersicht
-                    </span>
+                    <span className={`block py-1 ${isActive('/docs/pages')}`}>Übersicht</span>
                   </Link>
                 </li>
                 <li>
@@ -52,7 +52,9 @@ const DocsLayout: React.FC<DocsLayoutProps> = ({ children }) => {
                 </li>
                 <li>
                   <Link href="/docs/erste-schritte/konfiguration">
-                    <span className={`block py-1 ${isActive('/docs/erste-schritte/konfiguration')}`}>
+                    <span
+                      className={`block py-1 ${isActive('/docs/erste-schritte/konfiguration')}`}
+                    >
                       Konfiguration
                     </span>
                   </Link>
@@ -103,9 +105,7 @@ const DocsLayout: React.FC<DocsLayoutProps> = ({ children }) => {
               <ul className="space-y-2">
                 <li>
                   <Link href="/docs/api">
-                    <span className={`block py-1 ${isActive('/docs/api/index')}`}>
-                      Übersicht
-                    </span>
+                    <span className={`block py-1 ${isActive('/docs/api/index')}`}>Übersicht</span>
                   </Link>
                 </li>
                 <li>
@@ -139,9 +139,7 @@ const DocsLayout: React.FC<DocsLayoutProps> = ({ children }) => {
               <ul className="space-y-2">
                 <li>
                   <Link href="/docs/admin">
-                    <span className={`block py-1 ${isActive('/docs/admin/index')}`}>
-                      Übersicht
-                    </span>
+                    <span className={`block py-1 ${isActive('/docs/admin/index')}`}>Übersicht</span>
                   </Link>
                 </li>
                 <li>
@@ -158,12 +156,10 @@ const DocsLayout: React.FC<DocsLayoutProps> = ({ children }) => {
 
         {/* Main Content */}
         <div className="flex-1 pl-8">
-          <div className="prose prose-invert max-w-none">
-            {children}
-          </div>
+          <div className="prose prose-invert max-w-none">{children}</div>
         </div>
       </div>
-      <Footer />
+      <SiteFooter />
     </div>
   );
 };
