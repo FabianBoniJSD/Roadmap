@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { extractAdminSession } from '@/utils/apiAuth';
 import {
-  isSessionExplicitlyAllowedByDepartmentForInstance,
+  isReadSessionAllowedForInstance,
   resolveSessionDepartmentAcrossInstances,
 } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
@@ -179,7 +179,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const checks = await Promise.all(
       allRecords.map(async (r) => ({
         record: r,
-        allowed: await isSessionExplicitlyAllowedByDepartmentForInstance({
+        allowed: await isReadSessionAllowedForInstance({
           session,
           instance: { slug: r.slug },
           requestHeaders: forwardedHeaders,

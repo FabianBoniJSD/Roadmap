@@ -27,7 +27,7 @@ import {
 } from '@/utils/auth';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import {
-  isSessionExplicitlyAllowedByDepartmentForInstance,
+  isReadSessionAllowedForInstance,
   resolveSessionDepartmentAcrossInstances,
 } from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
@@ -832,7 +832,7 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
   const checks = await Promise.all(
     records.map(async (r) => {
       try {
-        const allowed = await isSessionExplicitlyAllowedByDepartmentForInstance({
+        const allowed = await isReadSessionAllowedForInstance({
           session,
           instance: { slug: r.slug },
           requestHeaders: forwardedHeaders,
