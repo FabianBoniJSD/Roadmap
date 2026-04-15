@@ -16,7 +16,7 @@
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md,mjs}\"",
     "security:audit": "npm audit --audit-level=moderate",
     "pre-commit": "lint-staged",
-    "pm2:restart": "powershell -ExecutionPolicy Bypass -File scripts/restart-pm2.ps1",
+    "pm2:restart": "pm2 startOrRestart ecosystem.config.js --only roadmap-app --update-env",
     "pm2:stop": "pm2 delete roadmap-app",
     "pm2:logs": "pm2 logs roadmap-app",
     "pm2:status": "pm2 status",
