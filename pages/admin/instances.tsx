@@ -10,8 +10,7 @@ import SiteHeader from '@/components/SiteHeader';
 import {
   ADMIN_SESSION_CHANGED_EVENT,
   buildInstanceAwareUrl,
-  getAdminSessionToken,
-  hasValidAdminSession,
+  getAdminSessionState,
   persistAdminSession,
 } from '@/utils/auth';
 import type { RoadmapInstanceSummary } from '@/types/roadmapInstance';
@@ -1863,26 +1862,10 @@ const AdminInstancesGate = () => {
           // ignore
         }
 
-        const ok = await hasValidAdminSession();
-        if (!cancelled) setAuthed(ok);
-
-        if (ok) {
-          const token = getAdminSessionToken();
-          if (!token) {
-            if (!cancelled) setSuperAdmin(false);
-          } else {
-            try {
-              const resp = await fetch(buildInstanceAwareUrl('/api/auth/check-admin-session'), {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              const data = await resp.json().catch(() => null);
-              if (!cancelled) setSuperAdmin(Boolean(data && data.isSuperAdmin));
-            } catch {
-              if (!cancelled) setSuperAdmin(false);
-            }
-          }
-        } else {
-          if (!cancelled) setSuperAdmin(false);
+        const sessionState = await getAdminSessionState();
+        if (!cancelled) {
+          setAuthed(Boolean(sessionState?.isAdmin));
+          setSuperAdmin(Boolean(sessionState?.isSuperAdmin));
         }
       } finally {
         if (!cancelled) setChecking(false);

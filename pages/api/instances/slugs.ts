@@ -1,7 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { extractAdminSession } from '@/utils/apiAuth';
-import { isSessionExplicitlyAllowedByDepartmentForInstance } from '@/utils/instanceAccessServer';
+import {
+  isSessionExplicitlyAllowedByDepartmentForInstance,
+  resolveSessionDepartmentAcrossInstances,
+} from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 const HTTP_URL_REGEX = /^https?:\/\//i;
@@ -167,6 +170,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ instances });
     }
 
+    const resolvedDepartment = await resolveSessionDepartmentAcrossInstances({
+      session,
+      instanceSlugs: allRecords.map((record) => record.slug),
+      requestHeaders: forwardedHeaders,
+    });
+
     const checks = await Promise.all(
       allRecords.map(async (r) => ({
         record: r,
@@ -174,6 +183,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           session,
           instance: { slug: r.slug },
           requestHeaders: forwardedHeaders,
+          knownSuperAdmin: false,
+          resolvedDepartment,
         }),
       }))
     );

@@ -22,12 +22,14 @@ import {
   ADMIN_SESSION_CHANGED_EVENT,
   buildInstanceAwareUrl,
   getAdminSessionToken,
-  hasValidSuperAdminSession,
-  hasValidUserSession,
+  getAdminSessionState,
   persistAdminSession,
 } from '@/utils/auth';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
-import { isSessionExplicitlyAllowedByDepartmentForInstance } from '@/utils/instanceAccessServer';
+import {
+  isSessionExplicitlyAllowedByDepartmentForInstance,
+  resolveSessionDepartmentAcrossInstances,
+} from '@/utils/instanceAccessServer';
 import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAccessServer';
 
 const HTTP_URL_REGEX = /^https?:\/\//i;
@@ -280,13 +282,10 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
           // ignore
         }
 
-        const [hasSession, hasSuperAdmin] = await Promise.all([
-          hasValidUserSession(),
-          hasValidSuperAdminSession(),
-        ]);
+        const sessionState = await getAdminSessionState();
         if (!cancelled) {
-          setAuthed(hasSession);
-          setCanManageInstances(hasSuperAdmin);
+          setAuthed(Boolean(sessionState?.authenticated));
+          setCanManageInstances(Boolean(sessionState?.isSuperAdmin));
         }
       } finally {
         if (!cancelled) setAuthChecked(true);
@@ -824,6 +823,12 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
     };
   }
 
+  const resolvedDepartment = await resolveSessionDepartmentAcrossInstances({
+    session,
+    instanceSlugs: records.map((record) => record.slug),
+    requestHeaders: forwardedHeaders,
+  });
+
   const checks = await Promise.all(
     records.map(async (r) => {
       try {
@@ -831,6 +836,8 @@ export const getServerSideProps: GetServerSideProps<LandingPageProps> = async (c
           session,
           instance: { slug: r.slug },
           requestHeaders: forwardedHeaders,
+          knownSuperAdmin: false,
+          resolvedDepartment,
         });
         return { record: r, allowed };
       } catch {

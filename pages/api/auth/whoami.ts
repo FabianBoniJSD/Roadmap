@@ -43,6 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             session,
             instance: { slug },
             requestHeaders,
+            knownSuperAdmin: false,
           })
         ) {
           isAdmin = true;

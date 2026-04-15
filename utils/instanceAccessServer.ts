@@ -14,6 +14,10 @@ import { isSuperAdminSessionWithSharePointFallback } from '@/utils/superAdminAcc
 
 type Principal = { username: string | null; groups?: unknown };
 type ForwardedRequestHeaders = { authorization?: string; cookie?: string };
+type InstanceAccessHints = {
+  knownSuperAdmin?: boolean;
+  resolvedDepartment?: string | null;
+};
 
 type InstanceAccessMode = 'read' | 'admin';
 
@@ -40,11 +44,58 @@ const extractIdentifiers = (session: AdminSessionPayload | null | undefined) => 
   return { username, upn, mail, displayName, department, groups };
 };
 
+async function resolveDepartmentForIdentifiers(opts: {
+  identifiers: ReturnType<typeof extractIdentifiers>;
+  instanceSlug: string;
+  requestHeaders?: ForwardedRequestHeaders;
+}): Promise<string | null> {
+  return clientDataService.withRequestHeaders(opts.requestHeaders, () =>
+    clientDataService.withInstance(opts.instanceSlug, () =>
+      clientDataService.resolveUserDepartmentFromSharePoint({
+        username: opts.identifiers.username,
+        upn: opts.identifiers.upn,
+        mail: opts.identifiers.mail,
+        displayName: opts.identifiers.displayName,
+      })
+    )
+  );
+}
+
+export async function resolveSessionDepartmentAcrossInstances(opts: {
+  session: AdminSessionPayload;
+  instanceSlugs: string[];
+  requestHeaders?: ForwardedRequestHeaders;
+}): Promise<string | null> {
+  const identifiers = extractIdentifiers(opts.session);
+  if (identifiers.department) {
+    return identifiers.department;
+  }
+
+  const candidateSlugs = Array.from(
+    new Set(opts.instanceSlugs.map((slug) => String(slug || '').trim()).filter(Boolean))
+  );
+
+  for (const slug of candidateSlugs) {
+    const resolvedDepartment = await resolveDepartmentForIdentifiers({
+      identifiers,
+      instanceSlug: slug,
+      requestHeaders: opts.requestHeaders,
+    });
+    if (resolvedDepartment) {
+      return resolvedDepartment;
+    }
+  }
+
+  return null;
+}
+
 async function isSessionAllowedForInstance(opts: {
   session: AdminSessionPayload;
   instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
   requestHeaders?: ForwardedRequestHeaders;
   mode: InstanceAccessMode;
+  knownSuperAdmin?: boolean;
+  resolvedDepartment?: string | null;
 }): Promise<boolean> {
   const { session, instance } = opts;
 
@@ -53,10 +104,15 @@ async function isSessionAllowedForInstance(opts: {
       ? instance
       : ((await getInstanceConfigBySlug(String(instance.slug || ''))) ?? instance);
 
+  if (opts.knownSuperAdmin === true) {
+    return true;
+  }
+
   if (
-    await isSuperAdminSessionWithSharePointFallback(session, {
+    opts.knownSuperAdmin !== false &&
+    (await isSuperAdminSessionWithSharePointFallback(session, {
       requestHeaders: opts.requestHeaders,
-    })
+    }))
   ) {
     return true;
   }
@@ -87,19 +143,19 @@ async function isSessionAllowedForInstance(opts: {
 
   if (opts.mode === 'read') {
     // Department-linked users may view an instance but never gain admin rights from that alone.
-    if (!ids.department) {
-      const resolvedOnPremDepartment = await clientDataService.withRequestHeaders(
-        opts.requestHeaders,
-        () =>
-          clientDataService.withInstance(String(effectiveInstance.slug || ''), () =>
-            clientDataService.resolveUserDepartmentFromSharePoint({
-              username: ids.username,
-              upn: ids.upn,
-              mail: ids.mail,
-              displayName: ids.displayName,
-            })
-          )
-      );
+    const hasResolvedDepartmentHint = Object.prototype.hasOwnProperty.call(
+      opts,
+      'resolvedDepartment'
+    );
+
+    if (hasResolvedDepartmentHint) {
+      ids.department = opts.resolvedDepartment ?? null;
+    } else if (!ids.department) {
+      const resolvedOnPremDepartment = await resolveDepartmentForIdentifiers({
+        identifiers: ids,
+        instanceSlug: String(effectiveInstance.slug || ''),
+        requestHeaders: opts.requestHeaders,
+      });
       if (resolvedOnPremDepartment) {
         ids.department = resolvedOnPremDepartment;
       }
@@ -146,34 +202,40 @@ export async function isSessionExplicitlyAllowedByDepartmentForInstance(opts: {
   session: AdminSessionPayload;
   instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
   requestHeaders?: ForwardedRequestHeaders;
+  knownSuperAdmin?: boolean;
+  resolvedDepartment?: string | null;
 }): Promise<boolean> {
   const effectiveInstance =
     opts.instance.metadata !== undefined
       ? opts.instance
       : ((await getInstanceConfigBySlug(String(opts.instance.slug || ''))) ?? opts.instance);
 
+  if (opts.knownSuperAdmin === true) {
+    return true;
+  }
+
   if (
-    await isSuperAdminSessionWithSharePointFallback(opts.session, {
+    opts.knownSuperAdmin !== false &&
+    (await isSuperAdminSessionWithSharePointFallback(opts.session, {
       requestHeaders: opts.requestHeaders,
-    })
+    }))
   ) {
     return true;
   }
 
   const ids = extractIdentifiers(opts.session);
-  if (!ids.department) {
-    const resolvedOnPremDepartment = await clientDataService.withRequestHeaders(
-      opts.requestHeaders,
-      () =>
-        clientDataService.withInstance(String(effectiveInstance.slug || ''), () =>
-          clientDataService.resolveUserDepartmentFromSharePoint({
-            username: ids.username,
-            upn: ids.upn,
-            mail: ids.mail,
-            displayName: ids.displayName,
-          })
-        )
-    );
+  const hasResolvedDepartmentHint = Object.prototype.hasOwnProperty.call(
+    opts,
+    'resolvedDepartment'
+  );
+  if (hasResolvedDepartmentHint) {
+    ids.department = opts.resolvedDepartment ?? null;
+  } else if (!ids.department) {
+    const resolvedOnPremDepartment = await resolveDepartmentForIdentifiers({
+      identifiers: ids,
+      instanceSlug: String(effectiveInstance.slug || ''),
+      requestHeaders: opts.requestHeaders,
+    });
     if (resolvedOnPremDepartment) {
       ids.department = resolvedOnPremDepartment;
     }

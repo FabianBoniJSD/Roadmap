@@ -64,6 +64,7 @@ export async function resolveInstanceForAdminSession(
       session,
       instance,
       requestHeaders: forwardedHeaders,
+      knownSuperAdmin: false,
     });
     if (allowed) return instance;
   }
@@ -100,6 +101,7 @@ export async function resolveFirstAllowedInstanceForAdminSession(
       session,
       instance,
       requestHeaders: forwardedHeaders,
+      knownSuperAdmin: false,
     });
     if (allowed) return instance;
   }

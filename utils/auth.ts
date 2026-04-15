@@ -9,6 +9,32 @@ const INSTANCE_COOKIE_KEY = 'roadmap-instance';
 const ADMIN_TOKEN_COOKIE_KEY = 'roadmap-admin-token';
 export const ADMIN_SESSION_CHANGED_EVENT = 'roadmap-admin-session-changed';
 
+type AdminSessionState = {
+  authenticated: boolean;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  username?: string;
+  department?: string | null;
+  groups: string[];
+};
+
+const ADMIN_SESSION_STATE_TTL_MS = 1500;
+
+let adminSessionStateCache: {
+  token: string;
+  expiresAt: number;
+  value: AdminSessionState | null;
+} | null = null;
+let adminSessionStateInFlight: {
+  token: string;
+  promise: Promise<AdminSessionState | null>;
+} | null = null;
+
+function clearAdminSessionStateCache() {
+  adminSessionStateCache = null;
+  adminSessionStateInFlight = null;
+}
+
 function dispatchAdminSessionChanged() {
   if (typeof window === 'undefined') return;
   try {
@@ -137,6 +163,7 @@ function getStoredToken(): string | null {
 }
 
 function clearStoredSession() {
+  clearAdminSessionStateCache();
   const storage = getSessionStorage();
   if (storage) {
     try {
@@ -162,6 +189,7 @@ function setStoredSession(token: string, username: string) {
 }
 
 export function persistAdminSession(token: string, username: string) {
+  clearAdminSessionStateCache();
   setStoredSession(token, username);
   setAdminTokenCookie(token);
   dispatchAdminSessionChanged();
@@ -265,26 +293,92 @@ export function getAdminSessionToken(): string | null {
   return getStoredToken();
 }
 
-export async function hasValidUserSession(): Promise<boolean> {
+function normalizeAdminSessionState(raw: unknown): AdminSessionState | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+
+  const record = raw as Record<string, unknown>;
+  const groups = Array.isArray(record.groups)
+    ? record.groups.filter((group): group is string => typeof group === 'string')
+    : [];
+
+  return {
+    authenticated:
+      typeof record.authenticated === 'boolean' ? record.authenticated : Boolean(record),
+    isAdmin: Boolean(record.isAdmin),
+    isSuperAdmin: Boolean(record.isSuperAdmin),
+    username: typeof record.username === 'string' ? record.username : undefined,
+    department:
+      typeof record.department === 'string'
+        ? record.department
+        : record.department === null
+          ? null
+          : undefined,
+    groups,
+  };
+}
+
+export async function getAdminSessionState(
+  forceRefresh = false
+): Promise<AdminSessionState | null> {
   try {
-    if (typeof window === 'undefined') return false;
+    if (typeof window === 'undefined') return null;
 
     const token = getStoredToken();
-    if (!token) return false;
+    if (!token) return null;
 
-    const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin-session'), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      clearStoredSession();
-      return false;
+    if (!forceRefresh && adminSessionStateCache) {
+      if (adminSessionStateCache.token === token && adminSessionStateCache.expiresAt > Date.now()) {
+        return adminSessionStateCache.value;
+      }
+      adminSessionStateCache = null;
     }
 
-    return true;
+    if (!forceRefresh && adminSessionStateInFlight?.token === token) {
+      return adminSessionStateInFlight.promise;
+    }
+
+    const request = (async () => {
+      const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin-session'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        clearStoredSession();
+        return null;
+      }
+
+      const state = normalizeAdminSessionState(await response.json().catch(() => null));
+      if (!state?.authenticated) {
+        clearStoredSession();
+        return null;
+      }
+
+      adminSessionStateCache = {
+        token,
+        value: state,
+        expiresAt: Date.now() + ADMIN_SESSION_STATE_TTL_MS,
+      };
+
+      return state;
+    })();
+
+    adminSessionStateInFlight = { token, promise: request };
+
+    try {
+      return await request;
+    } finally {
+      if (adminSessionStateInFlight?.promise === request) {
+        adminSessionStateInFlight = null;
+      }
+    }
   } catch {
-    return false;
+    return null;
   }
+}
+
+export async function hasValidUserSession(): Promise<boolean> {
+  const state = await getAdminSessionState();
+  return Boolean(state?.authenticated);
 }
 
 /**
@@ -292,71 +386,13 @@ export async function hasValidUserSession(): Promise<boolean> {
  * Does not fall back to the SharePoint service-account permission check.
  */
 export async function hasValidAdminSession(): Promise<boolean> {
-  try {
-    if (typeof window === 'undefined') return false;
-
-    const token = getStoredToken();
-    if (!token) return false;
-
-    const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin-session'), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      clearStoredSession();
-      return false;
-    }
-
-    const data = (await response.json().catch(() => null)) as null | {
-      authenticated?: unknown;
-      isAdmin?: unknown;
-    };
-    const authenticated = Boolean(
-      data && typeof data.authenticated === 'boolean' ? data.authenticated : true
-    );
-    if (!authenticated) {
-      clearStoredSession();
-      return false;
-    }
-    const ok = Boolean(data && typeof data.isAdmin === 'boolean' ? data.isAdmin : false);
-    return ok;
-  } catch {
-    return false;
-  }
+  const state = await getAdminSessionState();
+  return Boolean(state?.isAdmin);
 }
 
 export async function hasValidSuperAdminSession(): Promise<boolean> {
-  try {
-    if (typeof window === 'undefined') return false;
-
-    const token = getStoredToken();
-    if (!token) return false;
-
-    const response = await fetch(buildInstanceAwareUrl('/api/auth/check-admin-session'), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      clearStoredSession();
-      return false;
-    }
-
-    const data = (await response.json().catch(() => null)) as null | {
-      authenticated?: unknown;
-      isSuperAdmin?: unknown;
-    };
-    const authenticated = Boolean(
-      data && typeof data.authenticated === 'boolean' ? data.authenticated : true
-    );
-    if (!authenticated) {
-      clearStoredSession();
-      return false;
-    }
-
-    return Boolean(data && typeof data.isSuperAdmin === 'boolean' ? data.isSuperAdmin : false);
-  } catch {
-    return false;
-  }
+  const state = await getAdminSessionState();
+  return Boolean(state?.isSuperAdmin);
 }
 
 // Check if the current browser session has admin access
