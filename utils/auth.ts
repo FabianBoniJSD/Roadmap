@@ -231,7 +231,7 @@ export async function hasAdminAccessToCurrentInstance(): Promise<boolean> {
     if (!slug) return true;
 
     const resp = await fetch(
-      buildInstanceAwareUrl(`/api/instances/select?slug=${encodeURIComponent(slug)}`),
+      buildInstanceAwareUrl(`/api/instances/select?slug=${encodeURIComponent(slug)}&mode=admin`),
       {
         headers: { Authorization: `Bearer ${token}` },
       }

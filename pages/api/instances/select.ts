@@ -1,7 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getInstanceConfigBySlug, setInstanceCookieHeader } from '@/utils/instanceConfig';
 import { requireUserSession } from '@/utils/apiAuth';
-import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
+import {
+  isAdminSessionAllowedForInstance,
+  isReadSessionAllowedForInstance,
+} from '@/utils/instanceAccessServer';
 import { sanitizeSlug } from './helpers';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -28,6 +31,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(404).json({ error: 'Instance not found' });
   }
 
+  const modeRaw = req.method === 'GET' ? req.query?.mode : req.body?.mode;
+  const accessMode = modeRaw === 'admin' ? 'admin' : 'read';
+
   const forwardedHeaders = {
     authorization:
       typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
@@ -35,11 +41,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   };
 
   if (
-    !(await isReadSessionAllowedForInstance({
-      session,
-      instance,
-      requestHeaders: forwardedHeaders,
-    }))
+    !(await (accessMode === 'admin'
+      ? isAdminSessionAllowedForInstance({
+          session,
+          instance,
+          requestHeaders: forwardedHeaders,
+        })
+      : isReadSessionAllowedForInstance({
+          session,
+          instance,
+          requestHeaders: forwardedHeaders,
+        })))
   ) {
     return res.status(403).json({ error: 'Forbidden' });
   }
