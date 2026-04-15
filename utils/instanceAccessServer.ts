@@ -89,14 +89,14 @@ export async function resolveSessionDepartmentAcrossInstances(opts: {
   return null;
 }
 
-async function isSessionAllowedForInstance(opts: {
-  session: AdminSessionPayload;
-  instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
-  requestHeaders?: ForwardedRequestHeaders;
-  mode: InstanceAccessMode;
-  knownSuperAdmin?: boolean;
-  resolvedDepartment?: string | null;
-}): Promise<boolean> {
+async function isSessionAllowedForInstance(
+  opts: {
+    session: AdminSessionPayload;
+    instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
+    requestHeaders?: ForwardedRequestHeaders;
+    mode: InstanceAccessMode;
+  } & InstanceAccessHints
+): Promise<boolean> {
   const { session, instance } = opts;
 
   const effectiveInstance =
@@ -198,13 +198,13 @@ async function isSessionAllowedForInstance(opts: {
   }
 }
 
-export async function isSessionExplicitlyAllowedByDepartmentForInstance(opts: {
-  session: AdminSessionPayload;
-  instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
-  requestHeaders?: ForwardedRequestHeaders;
-  knownSuperAdmin?: boolean;
-  resolvedDepartment?: string | null;
-}): Promise<boolean> {
+export async function isSessionExplicitlyAllowedByDepartmentForInstance(
+  opts: {
+    session: AdminSessionPayload;
+    instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
+    requestHeaders?: ForwardedRequestHeaders;
+  } & InstanceAccessHints
+): Promise<boolean> {
   const effectiveInstance =
     opts.instance.metadata !== undefined
       ? opts.instance
@@ -252,18 +252,22 @@ export async function isSessionExplicitlyAllowedByDepartmentForInstance(opts: {
   });
 }
 
-export async function isAdminSessionAllowedForInstance(opts: {
-  session: AdminSessionPayload;
-  instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
-  requestHeaders?: ForwardedRequestHeaders;
-}): Promise<boolean> {
+export async function isAdminSessionAllowedForInstance(
+  opts: {
+    session: AdminSessionPayload;
+    instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
+    requestHeaders?: ForwardedRequestHeaders;
+  } & InstanceAccessHints
+): Promise<boolean> {
   return isSessionAllowedForInstance({ ...opts, mode: 'admin' });
 }
 
-export async function isReadSessionAllowedForInstance(opts: {
-  session: AdminSessionPayload;
-  instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
-  requestHeaders?: ForwardedRequestHeaders;
-}): Promise<boolean> {
+export async function isReadSessionAllowedForInstance(
+  opts: {
+    session: AdminSessionPayload;
+    instance: Pick<RoadmapInstanceConfig, 'slug' | 'metadata'>;
+    requestHeaders?: ForwardedRequestHeaders;
+  } & InstanceAccessHints
+): Promise<boolean> {
   return isSessionAllowedForInstance({ ...opts, mode: 'read' });
 }

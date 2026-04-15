@@ -10,6 +10,7 @@ import SiteHeader from '@/components/SiteHeader';
 import {
   ADMIN_SESSION_CHANGED_EVENT,
   buildInstanceAwareUrl,
+  getAdminSessionToken,
   getAdminSessionState,
   persistAdminSession,
 } from '@/utils/auth';
