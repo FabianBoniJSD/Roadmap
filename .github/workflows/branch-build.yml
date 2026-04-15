@@ -166,6 +166,28 @@ jobs:
           echo "XDG_CACHE_HOME=$cacheRoot/xdg" >> "$GITHUB_ENV"
           echo "TMPDIR=$cacheRoot/tmp" >> "$GITHUB_ENV"
 
+          runnerHome="$(getent passwd "$(id -un)" | cut -d: -f6 || true)"
+          if [ -z "$runnerHome" ] || [ ! -d "$runnerHome" ] || [ ! -x "$runnerHome" ]; then
+            runnerHome="$cacheRoot/home"
+          fi
+          mkdir -p "$runnerHome"
+          echo "HOME=$runnerHome" >> "$GITHUB_ENV"
+
+          sanitizedPathEntries=()
+          IFS=':' read -r -a currentPathEntries <<< "${PATH:-}"
+          for entry in "${currentPathEntries[@]}"; do
+            [ -n "$entry" ] || continue
+            if [ "$(id -u)" -ne 0 ] && [[ "$entry" == /root/* ]]; then
+              continue
+            fi
+            sanitizedPathEntries+=("$entry")
+          done
+          sanitizedPath="$(IFS=:; echo "${sanitizedPathEntries[*]}")"
+          echo "PATH=$sanitizedPath" >> "$GITHUB_ENV"
+
+          echo "Effective HOME for following steps: $runnerHome"
+          echo "Sanitized PATH for following steps: $sanitizedPath"
+
           echo "Disk space at cache root:"
           df -h "$best" || true
 
