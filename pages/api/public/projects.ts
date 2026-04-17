@@ -16,12 +16,17 @@ const disableCache = (res: NextApiResponse) => {
   res.setHeader('Surrogate-Control', 'no-store');
 };
 
-const getAllowedApiKeys = (): Set<string> => {
-  const raw = process.env.PUBLIC_PROJECTS_API_KEYS || '';
-  const keys = raw
+const parseApiKeys = (raw: string | undefined): string[] =>
+  (raw || '')
     .split(',')
     .map((k) => k.trim())
     .filter(Boolean);
+
+const getAllowedApiKeys = (): Set<string> => {
+  const keys = [
+    ...parseApiKeys(process.env.PUBLIC_PROJECTS_API_KEYS),
+    ...parseApiKeys(process.env.ROADMAP_API_KEY),
+  ];
   return new Set(keys);
 };
 

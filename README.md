@@ -26,6 +26,7 @@ SharePoint-backed roadmap application built with Next.js 14 (pages router), Type
 3. **Env**: copy `.env.example` to `.env` and set values. Key vars:
    - `NEXT_PUBLIC_DEPLOYMENT_ENV` (`dev`|`production`)
    - `INTERNAL_API_BASE_URL` (absolute server URL for SSR fetches)
+   - `PUBLIC_PROJECTS_API_KEYS` (comma-separated keys for `/api/public/projects`; `ROADMAP_API_KEY` is supported as a single-key alias and can come from GitHub Secrets)
    - `SP_STRATEGY` (deprecated for proxy; Kerberos is the hardcoded default)
    - `SP_USE_CURL` (deprecated; Kerberos proxy uses curl unconditionally)
    - `NEXT_PUBLIC_BASE_PATH_DEV` / `NEXT_PUBLIC_BASE_PATH_PROD` (reverse proxy base paths)
@@ -61,6 +62,7 @@ SharePoint-backed roadmap application built with Next.js 14 (pages router), Type
 - PM2 runs the built app on port 3000 (see `ecosystem.config.js`).
 - Build output lives in `.next`; keep it out of version control.
 - Self-hosted Windows GitHub runner expected; use `npm run pm2:restart` after deploy.
+- GitHub Actions can inject public API keys from `PUBLIC_PROJECTS_API_KEYS` or `ROADMAP_API_KEY` secrets into the generated `.env` during branch builds and deploys.
 
 ## Troubleshooting
 

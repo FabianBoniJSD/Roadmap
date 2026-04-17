@@ -15,13 +15,19 @@ The API key can be provided either via:
 
 ### Configuration
 
-Allowed keys are configured via an environment variable:
+Allowed keys are configured via environment variables:
 
 - `PUBLIC_PROJECTS_API_KEYS`
   - Comma-separated list of allowed keys
   - Example: `PUBLIC_PROJECTS_API_KEYS="key1,key2,key3"`
+- `ROADMAP_API_KEY`
+  - Optional single-key alias
+  - Useful when you want to store one key as a dedicated GitHub Actions secret
 
 If no keys are configured, the endpoint returns `500` with `{"error":"API keys not configured"}`.
+
+GitHub Actions support both names in `.github/workflows/deploy.yml` and `.github/workflows/branch-build.yml`.
+If only `ROADMAP_API_KEY` is set as a secret, the workflow also writes it into `PUBLIC_PROJECTS_API_KEYS` inside the generated runtime `.env` for compatibility.
 
 ### Rate limiting
 
@@ -115,5 +121,5 @@ This is mainly for convenience when a client wants to jump into the admin UI.
 ## Notes / Operational considerations
 
 - Reverse proxy base paths: if this app is deployed under a Next.js `basePath`, the effective URL becomes `/<basePath>/api/public/projects`.
-- API keys are currently stored as plaintext in env; rotate keys by updating `PUBLIC_PROJECTS_API_KEYS` and redeploying.
+- API keys are currently stored as plaintext in env; rotate keys by updating `PUBLIC_PROJECTS_API_KEYS` or `ROADMAP_API_KEY` and redeploying.
 - This API is read-only and uses the existing SharePoint-backed data layer (`clientDataService.getAllProjects()`).

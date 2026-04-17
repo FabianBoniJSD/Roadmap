@@ -19,6 +19,7 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
+      ROADMAP_API_KEY: ${{ secrets.ROADMAP_API_KEY }}
       # Deployment must control the root-owned PM2 daemon so the app does not run under a stale user session.
       PM2_RUN_AS_USER: root
 
@@ -197,6 +198,7 @@ jobs:
           ENTRA_CLIENT_SECRET: ${{ secrets.ENTRA_CLIENT_SECRET }}
           ENTRA_REDIRECT_URI: ${{ secrets.ENTRA_REDIRECT_URI }}
           PUBLIC_PROJECTS_API_KEYS: ${{ secrets.PUBLIC_PROJECTS_API_KEYS }}
+          ROADMAP_API_KEY: ${{ secrets.ROADMAP_API_KEY }}
           SP_KERBEROS_SERVICE_USER: ${{ secrets.SP_KERBEROS_SERVICE_USER }}
           SP_KERBEROS_SERVICE_PASSWORD: ${{ secrets.SP_KERBEROS_SERVICE_PASSWORD }}
         run: |
@@ -219,7 +221,7 @@ jobs:
           # Next.js/dotenv will take the last assignment, so duplicates can silently flip values.
           # We treat the explicitly injected secrets below as the source of truth.
           tmpEnvFile="$(mktemp)"
-          grep -v -E '^(ENTRA_[A-Z0-9_]+=|PUBLIC_PROJECTS_API_KEYS=|SP_USERNAME=|SP_PASSWORD=|SP_KERBEROS_SERVICE_USER=|SP_KERBEROS_SERVICE_PASSWORD=|# Microsoft Entra ID SSO injected from GitHub Actions secrets|# Public projects API keys injected from GH Actions|# SharePoint auth injected from GH Actions)' .env > "$tmpEnvFile" || true
+          grep -v -E '^(ENTRA_[A-Z0-9_]+=|PUBLIC_PROJECTS_API_KEYS=|ROADMAP_API_KEY=|SP_USERNAME=|SP_PASSWORD=|SP_KERBEROS_SERVICE_USER=|SP_KERBEROS_SERVICE_PASSWORD=|# Microsoft Entra ID SSO injected from GitHub Actions secrets|# Public projects API keys injected from GH Actions|# SharePoint auth injected from GH Actions)' .env > "$tmpEnvFile" || true
           mv "$tmpEnvFile" .env
 
           entraLines="$(env | grep -E '^ENTRA_[A-Z0-9_]+=' || true)"
@@ -228,9 +230,16 @@ jobs:
             printf "%s\n" "$entraLines" >> .env
           fi
 
-          if [ -n "${PUBLIC_PROJECTS_API_KEYS:-}" ]; then
+          effectivePublicProjectsApiKeys="${PUBLIC_PROJECTS_API_KEYS:-${ROADMAP_API_KEY:-}}"
+
+          if [ -n "$effectivePublicProjectsApiKeys" ] || [ -n "${ROADMAP_API_KEY:-}" ]; then
             printf "\n# Public projects API keys injected from GH Actions\n" >> .env
-            printf "PUBLIC_PROJECTS_API_KEYS=%s\n" "$PUBLIC_PROJECTS_API_KEYS" >> .env
+            if [ -n "$effectivePublicProjectsApiKeys" ]; then
+              printf "PUBLIC_PROJECTS_API_KEYS=%s\n" "$effectivePublicProjectsApiKeys" >> .env
+            fi
+            if [ -n "${ROADMAP_API_KEY:-}" ]; then
+              printf "ROADMAP_API_KEY=%s\n" "$ROADMAP_API_KEY" >> .env
+            fi
           fi
 
           read_env_value() {
