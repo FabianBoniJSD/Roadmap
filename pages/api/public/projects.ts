@@ -30,12 +30,21 @@ const getAllowedApiKeys = (): Set<string> => {
   return new Set(keys);
 };
 
+const extractBearerApiKey = (authorization: string | string[] | undefined): string | null => {
+  const raw = Array.isArray(authorization) ? authorization[0] : authorization;
+  if (!raw) return null;
+  const match = raw.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
+};
+
 const extractApiKey = (req: NextApiRequest): string | null => {
   const headerKey = req.headers['x-api-key'];
   if (typeof headerKey === 'string' && headerKey.trim()) return headerKey.trim();
   const queryKey = req.query.apiKey;
   if (typeof queryKey === 'string' && queryKey.trim()) return queryKey.trim();
   if (Array.isArray(queryKey) && queryKey[0]?.trim()) return queryKey[0].trim();
+  const bearerKey = extractBearerApiKey(req.headers.authorization);
+  if (bearerKey) return bearerKey;
   return null;
 };
 
