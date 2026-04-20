@@ -10,6 +10,7 @@ import type { Project } from '@/types';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import { getSampleProjects, isSampleDataInstance } from '@/utils/sampleInstanceData';
+import { sanitizeProjectRichTextFields } from '@/utils/richText';
 
 const normalizeTeamMembers = (value: unknown): Array<{ name: string; role: string }> => {
   if (!Array.isArray(value)) return [];
@@ -472,7 +473,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const teamMembers = normalizeTeamMembers(req.body?.teamMembers);
       const links = normalizeProjectLinks(req.body?.links);
-      const projectData = omitProjectRelations(req.body);
+      const projectData = sanitizeProjectRichTextFields(
+        omitProjectRelations(req.body) as Partial<Project>
+      );
 
       const newProject = await clientDataService.withRequestHeaders(forwardedHeaders, () =>
         clientDataService.withInstance(instance.slug, () =>

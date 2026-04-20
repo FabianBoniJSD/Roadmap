@@ -10,6 +10,7 @@ import { FaBars, FaTimes } from 'react-icons/fa';
 import { loadThemeSettings } from '../utils/theme';
 import RoadmapFilters from './RoadmapFilters';
 import CompactProjectCard from './CompactProjectCard';
+import { getRichTextPlainText } from '@/utils/richText';
 
 type ProgressBucket = 'all' | 'not-started' | 'active' | 'almost-done' | 'completed';
 
@@ -477,7 +478,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     if (filterText.trim()) {
       const q = filterText.toLowerCase();
       const inTitle = project.title?.toLowerCase().includes(q);
-      const inDesc = (project.description || '').toLowerCase().includes(q);
+      const inDesc = getRichTextPlainText(project.description).toLowerCase().includes(q);
       const inLead = (project.projektleitung || '').toLowerCase().includes(q);
       const inMilestone = (project.naechster_meilenstein || '').toLowerCase().includes(q);
       const inBadges = (project.badges ?? []).some((value) => value.toLowerCase().includes(q));
@@ -597,6 +598,9 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     const category = categories.find((cat) => cat.id === categoryId);
     return category?.color || '#777777';
   };
+  const hoveredProjectDescription = hoveredProject
+    ? getRichTextPlainText(hoveredProject.description)
+    : '';
 
   // Handle mouse over for project tooltip
   const handleMouseOver = (e: React.MouseEvent, project: Project) => {
@@ -1426,9 +1430,9 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
             </div>
 
             {/* Description (truncated) */}
-            {hoveredProject.description && (
+            {hoveredProjectDescription && (
               <p className="text-xs md:text-[13px] text-gray-200 leading-snug mb-3 line-clamp-4">
-                {hoveredProject.description}
+                {hoveredProjectDescription}
               </p>
             )}
 

@@ -456,6 +456,202 @@ html[data-color-mode='light'] .compact-project-card {
   box-shadow: 0 18px 38px rgba(148, 163, 184, 0.14) !important;
 }
 
+.rich-text-editor-loading {
+  display: flex;
+  min-height: 10rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-soft);
+  color: var(--app-text-muted);
+  font-size: 0.875rem;
+}
+
+.rich-text-editor-shell {
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 1rem;
+  background: var(--app-surface-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.rich-text-editor-shell-error {
+  border-color: rgba(244, 63, 94, 0.8);
+  box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.18);
+}
+
+.rich-text-editor-shell-disabled {
+  opacity: 0.72;
+}
+
+.rich-text-editor-shell .ql-toolbar.ql-snow,
+.rich-text-editor-shell .ql-container.ql-snow {
+  border: 0;
+}
+
+.rich-text-editor-shell .ql-toolbar.ql-snow {
+  border-bottom: 1px solid var(--app-border-soft);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.rich-text-editor-shell .ql-snow .ql-formats {
+  margin-right: 10px;
+}
+
+.rich-text-editor-shell .ql-snow .ql-picker,
+.rich-text-editor-shell .ql-snow .ql-picker-label,
+.rich-text-editor-shell .ql-snow .ql-picker-item,
+.rich-text-editor-shell .ql-snow .ql-stroke,
+.rich-text-editor-shell .ql-snow .ql-fill {
+  color: var(--app-text);
+  stroke: currentColor;
+  fill: currentColor;
+}
+
+.rich-text-editor-shell .ql-snow button:hover,
+.rich-text-editor-shell .ql-snow button:focus,
+.rich-text-editor-shell .ql-snow .ql-picker-label:hover,
+.rich-text-editor-shell .ql-snow .ql-picker-label.ql-active,
+.rich-text-editor-shell .ql-snow .ql-picker-item:hover,
+.rich-text-editor-shell .ql-snow .ql-picker-item.ql-selected,
+.rich-text-editor-shell .ql-snow button.ql-active {
+  color: #38bdf8;
+}
+
+.rich-text-editor-shell .ql-snow button:hover .ql-stroke,
+.rich-text-editor-shell .ql-snow button:focus .ql-stroke,
+.rich-text-editor-shell .ql-snow button.ql-active .ql-stroke,
+.rich-text-editor-shell .ql-snow .ql-picker-label:hover .ql-stroke,
+.rich-text-editor-shell .ql-snow .ql-picker-label.ql-active .ql-stroke {
+  stroke: #38bdf8;
+}
+
+.rich-text-editor-shell .ql-snow .ql-picker-options {
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text-strong);
+}
+
+.rich-text-editor-shell .ql-container {
+  font-size: 0.9375rem;
+}
+
+.rich-text-editor-shell .ql-editor {
+  min-height: 10rem;
+  color: var(--app-text-strong);
+  line-height: 1.65;
+}
+
+.rich-text-editor-shell .ql-editor.ql-blank::before {
+  color: var(--app-text-muted);
+  font-style: normal;
+}
+
+.rich-text-editor-shell .ql-editor a,
+.rich-text-content a {
+  color: #38bdf8;
+  text-decoration: underline;
+}
+
+.rich-text-content {
+  color: inherit;
+  line-height: 1.7;
+}
+
+.rich-text-content > :first-child {
+  margin-top: 0;
+}
+
+.rich-text-content > :last-child {
+  margin-bottom: 0;
+}
+
+.rich-text-content p,
+.rich-text-content ul,
+.rich-text-content ol,
+.rich-text-content blockquote,
+.rich-text-content h2,
+.rich-text-content h3 {
+  margin: 0;
+}
+
+.rich-text-content p + p,
+.rich-text-content p + ul,
+.rich-text-content p + ol,
+.rich-text-content ul + p,
+.rich-text-content ol + p,
+.rich-text-content blockquote + p,
+.rich-text-content p + blockquote,
+.rich-text-content h2 + p,
+.rich-text-content h3 + p,
+.rich-text-content ul + ul,
+.rich-text-content ol + ol,
+.rich-text-content ul + ol,
+.rich-text-content ol + ul {
+  margin-top: 0.75rem;
+}
+
+.rich-text-content ul,
+.rich-text-content ol {
+  padding-left: 1.25rem;
+}
+
+.rich-text-content ul {
+  list-style: disc;
+}
+
+.rich-text-content ol {
+  list-style: decimal;
+}
+
+.rich-text-content li + li {
+  margin-top: 0.25rem;
+}
+
+.rich-text-content blockquote {
+  border-left: 3px solid var(--app-border-soft);
+  padding-left: 1rem;
+  color: var(--app-text);
+}
+
+.rich-text-content h2,
+.rich-text-content h3 {
+  color: var(--app-text-strong);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.rich-text-content h2 {
+  font-size: 1.125rem;
+}
+
+.rich-text-content h3 {
+  font-size: 1rem;
+}
+
+.rich-text-content-compact {
+  line-height: 1.55;
+}
+
+.rich-text-content-compact p + p,
+.rich-text-content-compact p + ul,
+.rich-text-content-compact p + ol,
+.rich-text-content-compact ul + p,
+.rich-text-content-compact ol + p,
+.rich-text-content-compact p + blockquote,
+.rich-text-content-compact blockquote + p {
+  margin-top: 0.5rem;
+}
+
+html[data-color-mode='light'] .rich-text-editor-shell {
+  box-shadow: 0 10px 24px rgba(148, 163, 184, 0.08);
+}
+
+html[data-color-mode='light'] .rich-text-editor-shell .ql-toolbar.ql-snow {
+  background: rgba(248, 250, 252, 0.96);
+}
+
 html[data-color-mode='light'] .prose-invert {
   --tw-prose-body: #334155;
   --tw-prose-headings: #0f172a;

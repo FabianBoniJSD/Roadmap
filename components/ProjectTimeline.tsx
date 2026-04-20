@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
+import { getRichTextPlainText } from '@/utils/richText';
 
 interface Project {
   id: string;
@@ -64,6 +65,9 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({ projects, categories 
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
+  const activeProjectDescription = activeProject
+    ? getRichTextPlainText(activeProject.description)
+    : '';
 
   // Sort projects by start date and then by duration (longer projects first)
   const sortedProjects = [...projects].sort((a, b) => {
@@ -192,7 +196,7 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({ projects, categories 
           <div className="mb-1 italic text-gray-300">
             {activeCategory?.name} • {activeProject.startQuarter} to {activeProject.endQuarter}
           </div>
-          <div className="text-sm leading-tight text-gray-200">{activeProject.description}</div>
+          <div className="text-sm leading-tight text-gray-200">{activeProjectDescription}</div>
         </div>
       )}
     </div>

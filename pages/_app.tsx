@@ -5,6 +5,7 @@ import { initializeIcons } from '@fluentui/react/lib/Icons';
 import type { AppProps } from 'next/app';
 import type { Category, Project } from '@/types';
 import './css/globals.css';
+import 'react-quill/dist/quill.snow.css';
 import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';

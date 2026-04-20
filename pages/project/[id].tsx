@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'r
 import type { GetServerSideProps } from 'next';
 import { FiArrowLeft, FiExternalLink, FiInfo } from 'react-icons/fi';
 import JSDoITLoader from '@/components/JSDoITLoader';
+import RichTextContent from '@/components/RichTextContent';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import { Project, TeamMember } from '@/types';
@@ -335,21 +336,27 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
           <section className="grid gap-6 lg:grid-cols-3">
             <div className="space-y-6">
               <InfoCard title="Beschreibung">
-                <p className="text-sm text-slate-300 leading-relaxed">
-                  {project.description || 'Keine Beschreibung hinterlegt.'}
-                </p>
+                <RichTextContent
+                  value={project.description}
+                  emptyText="Keine Beschreibung hinterlegt."
+                  className="text-sm text-slate-300 leading-relaxed"
+                />
               </InfoCard>
 
               <InfoCard title="Bisher erreicht">
-                <p className="text-sm text-slate-300 leading-relaxed">
-                  {project.bisher || 'Keine Informationen hinterlegt.'}
-                </p>
+                <RichTextContent
+                  value={project.bisher}
+                  emptyText="Keine Informationen hinterlegt."
+                  className="text-sm text-slate-300 leading-relaxed"
+                />
               </InfoCard>
 
               <InfoCard title="Nächste Schritte">
-                <p className="text-sm text-slate-300 leading-relaxed">
-                  {project.zukunft || 'Keine Informationen hinterlegt.'}
-                </p>
+                <RichTextContent
+                  value={project.zukunft}
+                  emptyText="Keine Informationen hinterlegt."
+                  className="text-sm text-slate-300 leading-relaxed"
+                />
               </InfoCard>
 
               {project.links && project.links.length > 0 && (

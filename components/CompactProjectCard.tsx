@@ -1,5 +1,6 @@
 import React from 'react';
 import { Project } from '../types';
+import { getRichTextPlainText } from '@/utils/richText';
 
 interface CompactProjectCardProps {
   project: Project;
@@ -15,6 +16,7 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({
   onClick,
 }) => {
   const formatDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString() : 'n/a');
+  const descriptionPreview = getRichTextPlainText(project.description);
 
   return (
     <div
@@ -66,8 +68,8 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({
       )}
 
       {/* Beschreibung */}
-      {project.description && (
-        <p className="text-xs text-slate-300 line-clamp-3">{project.description}</p>
+      {descriptionPreview && (
+        <p className="text-xs text-slate-300 line-clamp-3">{descriptionPreview}</p>
       )}
 
       {/* Footer meta */}

@@ -7,7 +7,13 @@ import { FaTrash, FaPlus } from 'react-icons/fa';
 import { clientDataService } from '@/utils/clientDataService';
 import JSDoITLoader from './JSDoITLoader';
 import { normalizeCategoryId } from '@/utils/categoryUtils';
+import RichTextEditor from './RichTextEditor';
 import ToggleSwitch from './ToggleSwitch';
+import {
+  getRichTextPlainText,
+  normalizeRichTextEditorValue,
+  sanitizeRichTextHtml,
+} from '@/utils/richText';
 
 interface ProjectFormProps {
   initialProject?: Project;
@@ -36,13 +42,7 @@ const normalizePhase = (val?: string): ProjectPhase => {
 const normalizeBadgeList = (value: unknown): string[] => {
   if (!value) return [];
   if (Array.isArray(value)) {
-    return Array.from(
-      new Set(
-        value
-          .map((entry) => String(entry || '').trim())
-          .filter(Boolean)
-      )
-    );
+    return Array.from(new Set(value.map((entry) => String(entry || '').trim()).filter(Boolean)));
   }
 
   if (typeof value === 'string') {
@@ -59,6 +59,40 @@ const normalizeBadgeList = (value: unknown): string[] => {
   return [];
 };
 
+interface ProjectRichTextFieldProps {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+  placeholder?: string;
+  required?: boolean;
+}
+
+const ProjectRichTextField: React.FC<ProjectRichTextFieldProps> = ({
+  id,
+  label,
+  value,
+  onChange,
+  error,
+  placeholder,
+  required = false,
+}) => (
+  <div>
+    <label htmlFor={id} className="block text-sm font-medium mb-1">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <RichTextEditor
+      id={id}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      error={Boolean(error)}
+    />
+    {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+  </div>
+);
+
 const ProjectForm: React.FC<ProjectFormProps> = ({
   initialProject,
   categories,
@@ -72,7 +106,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
 
   // Grundlegende Projektdaten
   const [title, setTitle] = useState(initialProject?.title || '');
-  const [description, setDescription] = useState(initialProject?.description || '');
+  const [description, setDescription] = useState(
+    normalizeRichTextEditorValue(initialProject?.description || '')
+  );
   const [status, setStatus] = useState(initialProject?.status || 'planned');
   const [startDate, setStartDate] = useState<Date | null>(
     initialProject?.startDate ? new Date(initialProject.startDate) : null
@@ -88,8 +124,10 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
 
   // Zusätzliche Felder aus dem SharePoint-Schema
   const [projektleitung, setProjektleitung] = useState(initialProject?.projektleitung || '');
-  const [bisher, setBisher] = useState(initialProject?.bisher || '');
-  const [zukunft, setZukunft] = useState(initialProject?.zukunft || '');
+  const [bisher, setBisher] = useState(normalizeRichTextEditorValue(initialProject?.bisher || ''));
+  const [zukunft, setZukunft] = useState(
+    normalizeRichTextEditorValue(initialProject?.zukunft || '')
+  );
   const [fortschritt, setFortschritt] = useState(initialProject?.fortschritt || 0);
   const [geplantUmsetzung, setGeplantUmsetzung] = useState(
     initialProject?.geplante_umsetzung || ''
@@ -214,15 +252,15 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     if (!initialProject) return;
     setIsShortTerm((initialProject?.projectType || 'long') === 'short');
     setTitle(initialProject.title || '');
-    setDescription(initialProject.description || '');
+    setDescription(normalizeRichTextEditorValue(initialProject.description || ''));
     setStatus(initialProject.status || 'planned');
     setStartDate(initialProject.startDate ? new Date(initialProject.startDate) : null);
     setEndDate(initialProject.endDate ? new Date(initialProject.endDate) : null);
     setSelectedCategory(normalizeCategoryId(initialProject.category || '', categories));
     setBadges(normalizeBadgeList(initialProject.badges));
     setProjektleitung(initialProject.projektleitung || '');
-    setBisher(initialProject.bisher || '');
-    setZukunft(initialProject.zukunft || '');
+    setBisher(normalizeRichTextEditorValue(initialProject.bisher || ''));
+    setZukunft(normalizeRichTextEditorValue(initialProject.zukunft || ''));
     setFortschritt(initialProject.fortschritt || 0);
     setGeplantUmsetzung(initialProject.geplante_umsetzung || '');
     setBudget(initialProject.budget || '');
@@ -358,7 +396,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       newErrors.title = 'Titel ist erforderlich';
     }
 
-    if (!description.trim()) {
+    if (!getRichTextPlainText(description)) {
       newErrors.description = 'Beschreibung ist erforderlich';
     }
 
@@ -383,11 +421,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         newErrors.projektleitung = 'Projektleitung ist erforderlich';
       }
 
-      if (!bisher.trim()) {
+      if (!getRichTextPlainText(bisher)) {
         newErrors.bisher = 'Bisher-Feld ist erforderlich';
       }
 
-      if (!zukunft.trim()) {
+      if (!getRichTextPlainText(zukunft)) {
         newErrors.zukunft = 'Zukunft-Feld ist erforderlich';
       }
 
@@ -439,7 +477,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     const projectData: Project = {
       id: initialProject?.id || '',
       title,
-      description,
+      description: sanitizeRichTextHtml(description),
       status,
       projectType: isShortTerm ? 'short' : 'long',
       category: selectedCategory,
@@ -449,8 +487,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       endDate: endDate ? endDate.toISOString() : '',
       projektleitung,
       badges,
-      bisher,
-      zukunft,
+      bisher: sanitizeRichTextHtml(bisher),
+      zukunft: sanitizeRichTextHtml(zukunft),
       fortschritt,
       geplante_umsetzung: geplantUmsetzung,
       budget,
@@ -478,7 +516,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       <h3 className="text-lg font-medium mb-2">Badges (optional)</h3>
       <div className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-5">
         <p className="mb-4 text-sm text-slate-300">
-          Badges werden nur in der Kachelansicht angezeigt und können dort zusätzlich gefiltert werden.
+          Badges werden nur in der Kachelansicht angezeigt und können dort zusätzlich gefiltert
+          werden.
         </p>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-7">
@@ -577,17 +616,12 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         <label htmlFor="description" className="block text-sm font-medium mb-1">
           Beschreibung <span className="text-red-500">*</span>
         </label>
-        <textarea
+        <RichTextEditor
           id="description"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={4}
-          className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 placeholder-slate-500 outline-none transition ${
-            errors.description
-              ? 'border-rose-500 bg-slate-900/60'
-              : 'border-slate-800/70 bg-slate-950'
-          } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
-          required
+          onChange={setDescription}
+          placeholder="Projektbeschreibung eingeben"
+          error={Boolean(errors.description)}
         />
         {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
       </div>
@@ -775,44 +809,24 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
             {badgesEditor}
 
             {/* Bisher */}
-            <div>
-              <label htmlFor="bisher" className="block text-sm font-medium mb-1">
-                Bisher (optional)
-              </label>
-              <textarea
-                id="bisher"
-                value={bisher}
-                onChange={(e) => setBisher(e.target.value)}
-                rows={3}
-                className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
-                  errors.bisher
-                    ? 'border-rose-500 bg-slate-900/60'
-                    : 'border-slate-800/70 bg-slate-950'
-                } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
-                placeholder="Was wurde bisher erreicht?"
-              />
-              {errors.bisher && <p className="text-red-500 text-sm mt-1">{errors.bisher}</p>}
-            </div>
+            <ProjectRichTextField
+              id="bisher"
+              label="Bisher (optional)"
+              value={bisher}
+              onChange={setBisher}
+              error={errors.bisher}
+              placeholder="Was wurde bisher erreicht?"
+            />
 
             {/* Zukunft */}
-            <div>
-              <label htmlFor="zukunft" className="block text-sm font-medium mb-1">
-                In Zukunft (optional)
-              </label>
-              <textarea
-                id="zukunft"
-                value={zukunft}
-                onChange={(e) => setZukunft(e.target.value)}
-                rows={3}
-                className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
-                  errors.zukunft
-                    ? 'border-rose-500 bg-slate-900/60'
-                    : 'border-slate-800/70 bg-slate-950'
-                } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
-                placeholder="Was ist für die Zukunft geplant?"
-              />
-              {errors.zukunft && <p className="text-red-500 text-sm mt-1">{errors.zukunft}</p>}
-            </div>
+            <ProjectRichTextField
+              id="zukunft"
+              label="In Zukunft (optional)"
+              value={zukunft}
+              onChange={setZukunft}
+              error={errors.zukunft}
+              placeholder="Was ist für die Zukunft geplant?"
+            />
 
             {/* Geplante Umsetzung */}
             <div>
@@ -1110,46 +1124,26 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           {badgesEditor}
 
           {/* Bisher */}
-          <div>
-            <label htmlFor="bisher" className="block text-sm font-medium mb-1">
-              Bisher <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              id="bisher"
-              value={bisher}
-              onChange={(e) => setBisher(e.target.value)}
-              rows={3}
-              className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
-                errors.bisher
-                  ? 'border-rose-500 bg-slate-900/60'
-                  : 'border-slate-800/70 bg-slate-950'
-              } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
-              placeholder="Was wurde bisher erreicht?"
-              required
-            />
-            {errors.bisher && <p className="text-red-500 text-sm mt-1">{errors.bisher}</p>}
-          </div>
+          <ProjectRichTextField
+            id="bisher"
+            label="Bisher"
+            value={bisher}
+            onChange={setBisher}
+            error={errors.bisher}
+            placeholder="Was wurde bisher erreicht?"
+            required
+          />
 
           {/* Zukunft */}
-          <div>
-            <label htmlFor="zukunft" className="block text-sm font-medium mb-1">
-              In Zukunft <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              id="zukunft"
-              value={zukunft}
-              onChange={(e) => setZukunft(e.target.value)}
-              rows={3}
-              className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition ${
-                errors.zukunft
-                  ? 'border-rose-500 bg-slate-900/60'
-                  : 'border-slate-800/70 bg-slate-950'
-              } focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30`}
-              placeholder="Was ist für die Zukunft geplant?"
-              required
-            />
-            {errors.zukunft && <p className="text-red-500 text-sm mt-1">{errors.zukunft}</p>}
-          </div>
+          <ProjectRichTextField
+            id="zukunft"
+            label="In Zukunft"
+            value={zukunft}
+            onChange={setZukunft}
+            error={errors.zukunft}
+            placeholder="Was ist für die Zukunft geplant?"
+            required
+          />
 
           {/* Geplante Umsetzung */}
           <div>

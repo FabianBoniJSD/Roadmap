@@ -3,6 +3,7 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import JSDoITLoader from '@/components/JSDoITLoader';
+import RichTextContent from '@/components/RichTextContent';
 import SharePointUserPicker from '@/components/SharePointUserPicker';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
@@ -777,7 +778,13 @@ const AdminPage: React.FC = () => {
                             <span className="text-slate-300">{setting.value}</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-slate-300">{setting.description || '—'}</td>
+                        <td className="px-6 py-4 text-slate-300">
+                          <RichTextContent
+                            value={setting.description}
+                            emptyText="—"
+                            className="rich-text-content-compact text-slate-300"
+                          />
+                        </td>
                         <td className="px-6 py-4 text-right text-sm font-medium">
                           {editingSetting?.id === setting.id ? (
                             <div className="flex justify-end gap-3">

@@ -18,3 +18,5 @@ declare module 'os' {
   const x: any;
   export = x;
 }
+
+declare module '*.css';

@@ -4,6 +4,7 @@ import { requireUserSession } from '@/utils/apiAuth';
 import { isAdminSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
+import { sanitizeSettingRichTextFields } from '@/utils/richText';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   let instance: RoadmapInstanceConfig | null = null;
@@ -61,12 +62,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ message: 'Key and value are required' });
       }
 
+      const safeSetting = sanitizeSettingRichTextFields({
+        key,
+        value,
+        description: description || '',
+      });
+
       const newSetting = await clientDataService.withInstance(instance.slug, () =>
-        clientDataService.createSetting({
-          key,
-          value,
-          description: description || '',
-        })
+        clientDataService.createSetting(safeSetting)
       );
 
       return res.status(201).json(newSetting);
