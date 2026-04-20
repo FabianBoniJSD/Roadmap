@@ -165,9 +165,11 @@ html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-gra
 }
 
 html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/40,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/50,
 html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/55,
 html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/60,
 html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/70,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/80,
 html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/85,
 html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/90,
 html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/95 {
@@ -185,7 +187,9 @@ html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-whi
 }
 
 html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-800,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-800\/80,
 html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-gray-700,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-gray-700\/60,
 html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-white\/5,
 html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-white\/10 {
   background-color: #e2e8f0 !important;
@@ -209,6 +213,10 @@ html[data-color-mode='light']
   :is(.theme-page-shell, .docs-layout-shell)
   :is(.text-slate-100, .text-slate-200, .text-white) {
   color: var(--app-text-strong) !important;
+}
+
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .text-gray-200 {
+  color: var(--app-text) !important;
 }
 
 html[data-color-mode='light']
@@ -391,6 +399,61 @@ html[data-color-mode='light'] .roadmap-project-bar:hover {
 html[data-color-mode='light'] .roadmap-project-label {
   background-color: rgba(255, 255, 255, 0.92) !important;
   color: #1e293b !important;
+}
+
+html[data-color-mode='light'] .roadmap-project-count-badge {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(148, 163, 184, 0.5) !important;
+  color: var(--app-text-strong) !important;
+}
+
+html[data-color-mode='light'] .roadmap-filter-panel,
+html[data-color-mode='light'] .roadmap-filter-subpanel,
+html[data-color-mode='light'] .roadmap-filter-footer,
+html[data-color-mode='light'] .roadmap-filter-stat {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(148, 163, 184, 0.4) !important;
+  box-shadow: 0 16px 38px rgba(148, 163, 184, 0.08) !important;
+}
+
+html[data-color-mode='light'] .roadmap-filter-chip {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(148, 163, 184, 0.36) !important;
+  color: var(--app-text) !important;
+}
+
+html[data-color-mode='light'] .roadmap-filter-chip:hover {
+  background: #f8fafc !important;
+  border-color: rgba(100, 116, 139, 0.42) !important;
+}
+
+html[data-color-mode='light'] .roadmap-filter-chip-active {
+  background: rgba(219, 234, 254, 0.95) !important;
+  border-color: rgba(96, 165, 250, 0.8) !important;
+  color: #1d4ed8 !important;
+}
+
+html[data-color-mode='light'] .roadmap-filter-input {
+  background: #ffffff !important;
+  border-color: rgba(148, 163, 184, 0.45) !important;
+  color: var(--app-text-strong) !important;
+}
+
+html[data-color-mode='light'] .roadmap-filter-summary-badge,
+html[data-color-mode='light'] .roadmap-filter-secondary-button {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(148, 163, 184, 0.38) !important;
+  color: var(--app-text-strong) !important;
+}
+
+html[data-color-mode='light'] .roadmap-filter-secondary-button:hover {
+  background: #f8fafc !important;
+}
+
+html[data-color-mode='light'] .compact-project-card {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-color: rgba(148, 163, 184, 0.42) !important;
+  box-shadow: 0 18px 38px rgba(148, 163, 184, 0.14) !important;
 }
 
 html[data-color-mode='light'] .prose-invert {

@@ -1207,7 +1207,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                               <h2 className="text-lg md:text-xl font-semibold m-0">
                                 {getCategoryName(catId)}
                               </h2>
-                              <span className="ml-2 text-xs md:text-sm px-2 py-0.5 rounded-full bg-slate-800/80 border border-white/10 text-slate-200">
+                              <span className="roadmap-project-count-badge ml-2 text-xs md:text-sm px-2 py-0.5 rounded-full bg-slate-800/80 border border-white/10 text-slate-200">
                                 {groupProjects.length}{' '}
                                 {groupProjects.length === 1 ? 'Projekt' : 'Projekte'}
                               </span>
@@ -1344,7 +1344,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                             <h2 className="text-lg md:text-xl font-semibold m-0">
                               {getCategoryName(catId)}
                             </h2>
-                            <span className="ml-2 rounded-full border border-slate-700/70 bg-slate-900/80 px-2 py-0.5 text-xs text-slate-200 md:text-sm">
+                            <span className="roadmap-project-count-badge ml-2 rounded-full border border-slate-700/70 bg-slate-900/80 px-2 py-0.5 text-xs text-slate-200 md:text-sm">
                               {groupProjects.length}{' '}
                               {groupProjects.length === 1 ? 'Projekt' : 'Projekte'}
                             </span>

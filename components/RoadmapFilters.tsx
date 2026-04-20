@@ -77,14 +77,14 @@ const pretty = (value: string) =>
   value.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 
 const chipClass = (active: boolean) =>
-  `rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+  `roadmap-filter-chip rounded-full border px-3 py-1.5 text-xs font-medium transition ${
     active
-      ? 'border-sky-400 bg-sky-500/20 text-sky-100'
+      ? 'roadmap-filter-chip-active border-sky-400 bg-sky-500/20 text-sky-100'
       : 'border-white/10 bg-slate-950/70 text-slate-300 hover:border-slate-500 hover:bg-slate-900'
   }`;
 
 const panelClass =
-  'rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4 shadow-inner shadow-slate-950/30';
+  'roadmap-filter-panel rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4 shadow-inner shadow-slate-950/30';
 
 const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
   filterText,
@@ -197,7 +197,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
   ];
 
   return (
-    <div className="rounded-3xl border border-slate-800/80 bg-slate-900/70 px-4 py-4 shadow-lg shadow-slate-950/30 sm:px-5">
+    <div className="roadmap-filters-shell rounded-3xl border border-slate-800/80 bg-slate-900/70 px-4 py-4 shadow-lg shadow-slate-950/30 sm:px-5">
       <button
         type="button"
         className="flex w-full items-start justify-between gap-4 text-left"
@@ -226,16 +226,17 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
             )}
           </div>
           <p className="text-sm text-slate-300">
-            Verfeinere die Timeline nach Inhalt, Badges, Verantwortlichkeit, Fortschritt und Datenlage.
+            Verfeinere die Timeline nach Inhalt, Badges, Verantwortlichkeit, Fortschritt und
+            Datenlage.
           </p>
         </div>
 
         <div className="grid min-w-[140px] grid-cols-2 gap-2 text-center">
-          <div className="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2">
+          <div className="roadmap-filter-stat rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2">
             <div className="text-lg font-semibold text-white">{resultCount}</div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">Treffer</div>
           </div>
-          <div className="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2">
+          <div className="roadmap-filter-stat rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2">
             <div className="text-lg font-semibold text-white">{totalCount}</div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">Im Jahr</div>
           </div>
@@ -266,7 +267,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                 Suche
               </label>
               <input
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
+                className="roadmap-filter-input w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
                 placeholder="Titel, Beschreibung, Leitung, Meilenstein oder Team"
                 value={filterText}
                 onChange={(event) => onFilterTextChange(event.target.value)}
@@ -329,7 +330,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                 ))}
               </div>
 
-              <div className="mt-4 rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-3">
+              <div className="roadmap-filter-subpanel mt-4 rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-3">
                 <label className="flex items-center gap-3 text-sm text-slate-200">
                   <input
                     type="checkbox"
@@ -418,7 +419,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
                 Zeitraum, Badges und Tags
               </label>
-              <div className="rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-3">
+              <div className="roadmap-filter-subpanel rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-3">
                 <div className="mb-3 flex items-center gap-2 text-xs text-slate-300">
                   <span>Von</span>
                   <input
@@ -435,7 +436,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                         end: monthRange.end,
                       })
                     }
-                    className="w-14 rounded-md border border-slate-700 bg-slate-900 px-2 py-1"
+                    className="roadmap-filter-input w-14 rounded-md border border-slate-700 bg-slate-900 px-2 py-1"
                   />
                   <span>bis</span>
                   <input
@@ -452,9 +453,9 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                         ),
                       })
                     }
-                    className="w-14 rounded-md border border-slate-700 bg-slate-900 px-2 py-1"
+                    className="roadmap-filter-input w-14 rounded-md border border-slate-700 bg-slate-900 px-2 py-1"
                   />
-                  <span className="ml-auto rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-slate-200">
+                  <span className="roadmap-filter-summary-badge ml-auto rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-slate-200">
                     {monthRange.start}-{monthRange.end}
                   </span>
                 </div>
@@ -537,16 +538,16 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-800/80 bg-slate-950/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <div className="roadmap-filter-footer flex flex-col gap-3 rounded-2xl border border-slate-800/80 bg-slate-950/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-2 text-sm text-slate-300">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              <span className="roadmap-filter-summary-badge rounded-full border border-white/10 bg-white/5 px-3 py-1">
                 {resultCount} von {totalCount} Projekten sichtbar
               </span>
               {onSelectAllCategories && (
                 <button
                   type="button"
                   onClick={onSelectAllCategories}
-                  className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
+                  className="roadmap-filter-secondary-button rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
                 >
                   Alle Kategorien
                 </button>
@@ -555,7 +556,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                 <button
                   type="button"
                   onClick={onClearCategories}
-                  className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
+                  className="roadmap-filter-secondary-button rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
                 >
                   Kategorien leeren
                 </button>

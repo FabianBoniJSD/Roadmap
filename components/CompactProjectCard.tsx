@@ -18,14 +18,16 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({
 
   return (
     <div
-      className="rounded-xl bg-gray-800/70 border border-gray-700 hover:border-gray-500 transition-colors shadow-md hover:shadow-lg p-3 md:p-4 cursor-pointer flex flex-col gap-2"
+      className="compact-project-card rounded-xl bg-gray-800/70 border border-gray-700 hover:border-gray-500 transition-colors shadow-md hover:shadow-lg p-3 md:p-4 cursor-pointer flex flex-col gap-2"
       onClick={() => onClick(project.id)}
       title={project.title}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <h3 className="font-semibold text-sm md:text-base truncate">{project.title}</h3>
+          <h3 className="font-semibold text-sm md:text-base truncate text-slate-100">
+            {project.title}
+          </h3>
         </div>
         <span
           className="text-[10px] px-2 py-0.5 rounded-full border border-white/10"
@@ -36,7 +38,7 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({
       </div>
 
       {/* Zeitraum */}
-      <div className="text-[11px] text-gray-300">
+      <div className="text-[11px] text-slate-300">
         {formatDate(project.startDate)} – {formatDate(project.endDate)}
       </div>
 
@@ -65,11 +67,11 @@ const CompactProjectCard: React.FC<CompactProjectCardProps> = ({
 
       {/* Beschreibung */}
       {project.description && (
-        <p className="text-xs text-gray-200 line-clamp-3">{project.description}</p>
+        <p className="text-xs text-slate-300 line-clamp-3">{project.description}</p>
       )}
 
       {/* Footer meta */}
-      <div className="mt-auto pt-2 text-[11px] text-gray-300 flex flex-wrap gap-2">
+      <div className="mt-auto pt-2 text-[11px] text-slate-300 flex flex-wrap gap-2">
         {project.links && project.links.length > 0 && (
           <span className="bg-black/30 border border-white/10 px-2 py-0.5 rounded-full">
             {project.links.length} Links
