@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useMemo, useEffect, useState } from 'react';
 import { hasAdminAccessToCurrentInstance, hasValidAdminSession } from '@/utils/auth';
+import ColorModeToggle from '@/components/ColorModeToggle';
 import { INSTANCE_QUERY_PARAM, INSTANCE_COOKIE_NAME } from '@/utils/instanceConfig';
 
 type RouteKey = 'home' | 'instances' | 'roadmap' | 'help' | 'docs' | 'admin' | 'feedback';
@@ -103,7 +104,7 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
   }, [currentRoute, hasAdminHref]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/85 backdrop-blur supports-[backdrop-filter]:bg-slate-950/70">
+    <header className="site-header-shell sticky top-0 z-40">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-5 sm:px-8">
         <Link
           href={maybeQuery ? { pathname: '/', query: maybeQuery } : '/'}
@@ -115,7 +116,7 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
           <span className="tracking-wide text-slate-100">{brandLabel}</span>
         </Link>
 
-        <nav className="hidden items-center gap-5 text-sm font-medium text-slate-300 lg:flex">
+        <nav className="hidden items-center gap-5 lg:flex">
           {NAV_ITEMS.map((item) => {
             const isActive = currentRoute === item.key;
             return (
@@ -125,10 +126,8 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
                 target={item.target}
                 rel={item.rel}
                 className={clsx(
-                  'rounded-full px-4 py-2 transition',
-                  isActive
-                    ? 'bg-slate-800 text-white shadow-inner shadow-sky-900/40'
-                    : 'hover:text-white hover:shadow hover:shadow-slate-900/40'
+                  'site-header-nav-link rounded-full px-4 py-2 text-sm font-medium',
+                  isActive && 'site-header-nav-link-active'
                 )}
               >
                 {item.label}
@@ -138,14 +137,13 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
         </nav>
 
         <div className="flex items-center gap-3">
+          <ColorModeToggle />
           {hasAdminHref && showAdminLink ? (
             <Link
               href={{ pathname: '/admin', query: { [INSTANCE_QUERY_PARAM]: adminLinkSlug } }}
               className={clsx(
-                'rounded-full border px-4 py-2 text-sm font-semibold transition',
-                currentRoute === 'admin'
-                  ? 'border-sky-400 text-white shadow-inner shadow-sky-900/40'
-                  : 'border-sky-500/60 text-sky-200 hover:border-sky-400 hover:text-white'
+                'site-header-admin-link rounded-full border px-4 py-2 text-sm font-semibold',
+                currentRoute === 'admin' && 'site-header-admin-link-active'
               )}
             >
               Adminbereich

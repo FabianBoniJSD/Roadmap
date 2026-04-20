@@ -437,10 +437,10 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
       <Head>
         <title>JSDoIT Instanzübersicht</title>
       </Head>
-      <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+      <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
         <SiteHeader activeRoute="instances" />
         <main className="flex-1">
-          <section className="relative isolate overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.16),_transparent_24%),radial-gradient(circle_at_82%_18%,_rgba(251,191,36,0.14),_transparent_20%),linear-gradient(180deg,_#08111f_0%,_#0f172a_52%,_#09111b_100%)]">
+          <section className="theme-showcase-hero relative isolate overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.16),_transparent_24%),radial-gradient(circle_at_82%_18%,_rgba(251,191,36,0.14),_transparent_20%),linear-gradient(180deg,_#08111f_0%,_#0f172a_52%,_#09111b_100%)]">
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
               <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:68px_68px]" />
               <div className="absolute left-[10%] top-[-10%] h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" />
@@ -527,7 +527,7 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
                 </div>
               </div>
 
-              <aside className="rounded-[2rem] border border-white/10 bg-slate-950/55 p-7 shadow-[0_24px_80px_rgba(2,6,23,0.5)] backdrop-blur-xl">
+              <aside className="theme-showcase-aside rounded-[2rem] border border-white/10 bg-slate-950/55 p-7 shadow-[0_24px_80px_rgba(2,6,23,0.5)] backdrop-blur-xl">
                 <div className="space-y-5">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -562,7 +562,7 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
             </div>
           </section>
 
-          <section className="border-b border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.96)_0%,_rgba(8,15,28,1)_100%)]">
+          <section className="theme-showcase-band border-b border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.96)_0%,_rgba(8,15,28,1)_100%)]">
             <div className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
               <div className="mb-10 max-w-3xl space-y-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
@@ -580,7 +580,7 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
                 {highlightCards.map((card) => (
                   <article
                     key={card.title}
-                    className="group rounded-[1.75rem] border border-white/10 bg-gradient-to-b from-slate-900/80 to-slate-950/80 p-6 shadow-[0_18px_50px_rgba(2,6,23,0.35)] transition hover:border-cyan-300/30 hover:translate-y-[-2px]"
+                    className="theme-showcase-card group rounded-[1.75rem] border border-white/10 bg-gradient-to-b from-slate-900/80 to-slate-950/80 p-6 shadow-[0_18px_50px_rgba(2,6,23,0.35)] transition hover:border-cyan-300/30 hover:translate-y-[-2px]"
                   >
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300/15 to-amber-200/10 text-cyan-100 ring-1 ring-white/10">
                       <card.icon className="h-5 w-5" />
@@ -638,7 +638,7 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
                 {visibleInstances.map((instance, index) => (
                   <article
                     key={instance.slug}
-                    className="group relative overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.82)_0%,_rgba(2,6,23,0.92)_100%)] p-6 shadow-[0_24px_70px_rgba(2,6,23,0.38)] transition hover:border-cyan-300/30 hover:translate-y-[-2px]"
+                    className="theme-showcase-card theme-instance-card group relative overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.82)_0%,_rgba(2,6,23,0.92)_100%)] p-6 shadow-[0_24px_70px_rgba(2,6,23,0.38)] transition hover:border-cyan-300/30 hover:translate-y-[-2px]"
                   >
                     <div className="pointer-events-none absolute inset-0 opacity-0 transition group-hover:opacity-100">
                       <div className="absolute right-[-10%] top-[-10%] h-40 w-40 rounded-full bg-cyan-300/10 blur-3xl" />
@@ -731,7 +731,7 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
             </section>
           ) : (
             <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
-              <div className="rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.82)_0%,_rgba(2,6,23,0.92)_100%)] p-8 shadow-[0_30px_90px_rgba(2,6,23,0.45)]">
+              <div className="theme-showcase-panel rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.82)_0%,_rgba(2,6,23,0.92)_100%)] p-8 shadow-[0_30px_90px_rgba(2,6,23,0.45)]">
                 <div className="max-w-2xl space-y-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
                     Anmeldung erforderlich

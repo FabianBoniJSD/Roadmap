@@ -224,7 +224,7 @@ const InstancesLanding = (props: {
   onStartSso: () => void;
 }) => {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+    <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteHeader activeRoute="admin" />
       <main className="flex-1">
         <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-16 sm:px-8">
@@ -1751,7 +1751,7 @@ const AdminInstancesPage = () => {
 
 const AdminInstancePicker = () => {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+    <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteHeader activeRoute="admin" />
       <main className="flex-1">
         <div className="mx-auto max-w-4xl px-6 py-16 sm:px-8">

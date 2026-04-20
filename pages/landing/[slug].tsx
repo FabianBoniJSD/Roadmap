@@ -202,7 +202,7 @@ const LandingPage = ({ slug, preset, instance }: LandingPageProps) => {
       <Head>
         <title>{`${title} | Roadmap Landing`}</title>
       </Head>
-      <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+      <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
         <SiteHeader />
         <main className="flex-1">
           <section className="relative overflow-hidden border-b border-slate-800/70">

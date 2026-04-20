@@ -37,7 +37,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const AdminShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+  <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
     <SiteHeader activeRoute="admin" />
     {children}
     <SiteFooter />

@@ -2,12 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: dark;
+  --app-bg: #020617;
+  --app-bg-elevated: rgba(2, 6, 23, 0.86);
+  --app-surface: #0f172a;
+  --app-surface-soft: rgba(15, 23, 42, 0.82);
+  --app-surface-muted: rgba(30, 41, 59, 0.78);
+  --app-border: rgba(51, 65, 85, 0.72);
+  --app-border-soft: rgba(71, 85, 105, 0.55);
+  --app-text-strong: #f8fafc;
+  --app-text: #cbd5e1;
+  --app-text-muted: #94a3b8;
+  --app-hover-surface: rgba(30, 41, 59, 0.92);
+}
+
+html[data-color-mode='light'] {
+  color-scheme: light;
+  --app-bg: #f8fafc;
+  --app-bg-elevated: rgba(255, 255, 255, 0.88);
+  --app-surface: #ffffff;
+  --app-surface-soft: rgba(255, 255, 255, 0.9);
+  --app-surface-muted: rgba(241, 245, 249, 0.96);
+  --app-border: rgba(148, 163, 184, 0.4);
+  --app-border-soft: rgba(148, 163, 184, 0.28);
+  --app-text-strong: #0f172a;
+  --app-text: #334155;
+  --app-text-muted: #64748b;
+  --app-hover-surface: rgba(226, 232, 240, 0.94);
+}
+
 body {
   margin: 0;
   padding: 0;
-  background: #111827;
-  color: #ffffff;
+  background: var(--app-bg);
+  color: var(--app-text-strong);
   font-family: 'Segoe UI', Arial, sans-serif;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
 }
 
 input,
@@ -20,6 +53,323 @@ select {
 input::placeholder,
 textarea::placeholder {
   color: #6b7280;
+}
+
+html[data-color-mode='light'] input::placeholder,
+html[data-color-mode='light'] textarea::placeholder {
+  color: #94a3b8;
+}
+
+.site-header-shell {
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-bg-elevated);
+  backdrop-filter: blur(18px);
+}
+
+.site-header-nav-link {
+  color: var(--app-text);
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.site-header-nav-link:hover {
+  color: var(--app-text-strong);
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.16);
+}
+
+.site-header-nav-link-active {
+  background: var(--app-hover-surface);
+  color: var(--app-text-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.site-header-admin-link {
+  border-color: rgba(14, 165, 233, 0.45);
+  color: #7dd3fc;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.site-header-admin-link:hover {
+  border-color: rgba(56, 189, 248, 0.7);
+  color: var(--app-text-strong);
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.site-header-admin-link-active {
+  border-color: rgba(56, 189, 248, 0.8);
+  color: var(--app-text-strong);
+  background: rgba(14, 165, 233, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.site-footer-shell {
+  border-color: var(--app-border);
+  background: rgba(2, 6, 23, 0.9);
+}
+
+html[data-color-mode='light'] .site-footer-shell {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.docs-layout-shell {
+  background: var(--app-bg);
+  color: var(--app-text-strong);
+}
+
+.theme-page-shell {
+  background: var(--app-bg);
+  color: var(--app-text-strong);
+}
+
+.docs-layout-header,
+.docs-layout-sidebar {
+  border-color: var(--app-border-soft);
+}
+
+.docs-back-link {
+  border-radius: 9999px;
+  background: rgba(51, 65, 85, 0.92);
+  color: #f8fafc;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.docs-back-link:hover {
+  background: rgba(71, 85, 105, 0.96);
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.16);
+}
+
+html[data-color-mode='light'] .docs-back-link {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+html[data-color-mode='light'] .docs-back-link:hover {
+  background: #cbd5e1;
+}
+
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-gray-900 {
+  background-color: var(--app-bg) !important;
+}
+
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/40,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/55,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/60,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/70,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/85,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/90,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-950\/95 {
+  background-color: var(--app-surface-soft) !important;
+}
+
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-900,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-900\/60,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-900\/70,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-900\/80,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-gray-800,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-gray-800\/70,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-white\/\[0\.03\] {
+  background-color: var(--app-surface-muted) !important;
+}
+
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-slate-800,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-gray-700,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-white\/5,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-white\/10 {
+  background-color: #e2e8f0 !important;
+}
+
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .border-slate-800,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .border-slate-800\/60,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .border-slate-800\/70,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .border-gray-700 {
+  border-color: var(--app-border) !important;
+}
+
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .border-slate-700,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .border-white\/8,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .border-white\/10,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .border-white\/15 {
+  border-color: var(--app-border-soft) !important;
+}
+
+html[data-color-mode='light']
+  :is(.theme-page-shell, .docs-layout-shell)
+  :is(.text-slate-100, .text-slate-200, .text-white) {
+  color: var(--app-text-strong) !important;
+}
+
+html[data-color-mode='light']
+  :is(.theme-page-shell, .docs-layout-shell)
+  :is(.text-slate-300, .text-gray-300) {
+  color: var(--app-text) !important;
+}
+
+html[data-color-mode='light']
+  :is(.theme-page-shell, .docs-layout-shell)
+  :is(.text-slate-400, .text-slate-500, .text-gray-400) {
+  color: var(--app-text-muted) !important;
+}
+
+html[data-color-mode='light']
+  :is(.theme-page-shell, .docs-layout-shell)
+  :is(.text-sky-200, .text-sky-300, .text-sky-300\/80, .text-sky-300\/90) {
+  color: #0369a1 !important;
+}
+
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .text-blue-400 {
+  color: #1d4ed8 !important;
+}
+
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .text-rose-200 {
+  color: #be123c !important;
+}
+
+html[data-color-mode='light']
+  :is(.theme-page-shell, .docs-layout-shell)
+  :is(.text-cyan-100, .text-cyan-200, .text-cyan-200\/80, .text-sky-100) {
+  color: #0f766e !important;
+}
+
+html[data-color-mode='light'] .theme-page-shell :is(.bg-black, .bg-black\/30) {
+  background-color: rgba(255, 255, 255, 0.78) !important;
+}
+
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .hover\:text-white:hover {
+  color: var(--app-text-strong) !important;
+}
+
+html[data-color-mode='light']
+  :is(.theme-page-shell, .docs-layout-shell)
+  .hover\:bg-slate-950\/80:hover,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .hover\:bg-slate-900:hover,
+html[data-color-mode='light']
+  :is(.theme-page-shell, .docs-layout-shell)
+  .hover\:bg-slate-900\/80:hover,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .hover\:bg-gray-600:hover,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .hover\:bg-gray-700:hover,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .hover\:bg-gray-800:hover,
+html[data-color-mode='light']
+  :is(.theme-page-shell, .docs-layout-shell)
+  .hover\:bg-white\/10:hover {
+  background-color: var(--app-hover-surface) !important;
+}
+
+html[data-color-mode='light']
+  :is(.theme-page-shell, .docs-layout-shell)
+  :is(.bg-sky-500, .bg-blue-600, .bg-blue-700) {
+  color: #ffffff;
+}
+
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-sky-500.text-white,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-blue-600.text-white,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-blue-700.text-white,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-sky-500 .text-white,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-blue-600 .text-white,
+html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-blue-700 .text-white {
+  color: #ffffff !important;
+}
+
+html[data-color-mode='light'] .theme-showcase-hero {
+  border-color: var(--app-border-soft) !important;
+  background:
+    radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 28%),
+    radial-gradient(circle at 82% 18%, rgba(250, 204, 21, 0.16), transparent 22%),
+    linear-gradient(180deg, #f8fbff 0%, #eef6ff 56%, #f8fafc 100%) !important;
+}
+
+html[data-color-mode='light'] .theme-showcase-band {
+  border-color: var(--app-border-soft) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(241, 245, 249, 0.98) 100%
+  ) !important;
+}
+
+html[data-color-mode='light'] .theme-showcase-aside,
+html[data-color-mode='light'] .theme-showcase-panel,
+html[data-color-mode='light'] .theme-showcase-card,
+html[data-color-mode='light'] .theme-instance-card {
+  border-color: var(--app-border-soft) !important;
+  box-shadow: 0 24px 60px rgba(148, 163, 184, 0.18) !important;
+}
+
+html[data-color-mode='light'] .theme-showcase-aside {
+  background: rgba(255, 255, 255, 0.84) !important;
+}
+
+html[data-color-mode='light'] .theme-showcase-card,
+html[data-color-mode='light'] .theme-instance-card {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(241, 245, 249, 0.97) 100%
+  ) !important;
+}
+
+html[data-color-mode='light'] .theme-showcase-panel {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(248, 250, 252, 0.99) 100%
+  ) !important;
+}
+
+html[data-color-mode='light'] .theme-roadmap-tooltip {
+  border-color: var(--app-border) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(241, 245, 249, 0.98) 100%
+  ) !important;
+  color: var(--app-text-strong) !important;
+  box-shadow: 0 24px 60px rgba(148, 163, 184, 0.24) !important;
+}
+
+html[data-color-mode='light']
+  .theme-roadmap-tooltip
+  :is(.text-white, .text-slate-100, .text-slate-200) {
+  color: var(--app-text-strong) !important;
+}
+
+html[data-color-mode='light'] .theme-roadmap-tooltip .text-gray-300 {
+  color: var(--app-text-muted) !important;
+}
+
+html[data-color-mode='light'] .theme-roadmap-tooltip :is(.bg-black, .bg-black\/30) {
+  background-color: rgba(226, 232, 240, 0.95) !important;
+}
+
+html[data-color-mode='light'] .prose-invert {
+  --tw-prose-body: #334155;
+  --tw-prose-headings: #0f172a;
+  --tw-prose-lead: #475569;
+  --tw-prose-links: #0f766e;
+  --tw-prose-bold: #0f172a;
+  --tw-prose-counters: #64748b;
+  --tw-prose-bullets: #cbd5e1;
+  --tw-prose-hr: #e2e8f0;
+  --tw-prose-quotes: #0f172a;
+  --tw-prose-quote-borders: #e2e8f0;
+  --tw-prose-captions: #64748b;
+  --tw-prose-code: #0f172a;
+  --tw-prose-pre-code: #e2e8f0;
+  --tw-prose-pre-bg: #0f172a;
+  --tw-prose-th-borders: #cbd5e1;
+  --tw-prose-td-borders: #e2e8f0;
 }
 
 /* Add these media queries for more specific control */

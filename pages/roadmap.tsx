@@ -151,7 +151,7 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
   }, [activeInstanceSlug, currentInstanceSlug, router, router.isReady]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+    <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteHeader activeRoute="roadmap" />
       <main className="flex-1 pt-12">
         {loading ? (

@@ -1373,7 +1373,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
         {/* Enhanced Hover Popup (Rich Tooltip) */}
         {hoveredProject && (
           <div
-            className="fixed z-50 w-[300px] pointer-events-none rounded-xl border border-slate-800/70 bg-gradient-to-b from-slate-950/95 to-slate-900/95 p-3 text-white shadow-2xl shadow-slate-950/50 backdrop-blur-sm md:w-[360px] md:p-4 animate-fadeIn"
+            className="theme-roadmap-tooltip fixed z-50 w-[300px] pointer-events-none rounded-xl border border-slate-800/70 bg-gradient-to-b from-slate-950/95 to-slate-900/95 p-3 text-white shadow-2xl shadow-slate-950/50 backdrop-blur-sm md:w-[360px] md:p-4 animate-fadeIn"
             style={{
               top: Math.min(tooltipPosition.y + 16, window.innerHeight - 380),
               left: Math.min(tooltipPosition.x + 16, window.innerWidth - 380),

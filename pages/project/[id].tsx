@@ -61,7 +61,7 @@ const sanitizeProjectFields = (raw?: string | string[] | null): string[] => {
 };
 
 const PageShell: FC<{ children: ReactNode }> = ({ children }) => (
-  <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+  <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
     <SiteHeader activeRoute="roadmap" />
     {children}
     <SiteFooter />

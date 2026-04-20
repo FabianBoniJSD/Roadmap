@@ -82,10 +82,10 @@ const LandingPage = () => {
       <Head>
         <title>JSDoIT Roadmap</title>
       </Head>
-      <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+      <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
         <SiteHeader activeRoute="home" />
         <main className="flex-1">
-          <section className="relative isolate overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_32%),radial-gradient(circle_at_85%_15%,_rgba(251,191,36,0.15),_transparent_24%),linear-gradient(180deg,_#08111f_0%,_#0f172a_55%,_#09111d_100%)]">
+          <section className="theme-showcase-hero relative isolate overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_32%),radial-gradient(circle_at_85%_15%,_rgba(251,191,36,0.15),_transparent_24%),linear-gradient(180deg,_#08111f_0%,_#0f172a_55%,_#09111d_100%)]">
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-200/40 to-transparent" />
               <div className="absolute left-[-8%] top-8 h-72 w-72 rounded-full bg-cyan-300/10 blur-3xl" />
@@ -146,7 +146,7 @@ const LandingPage = () => {
                 </div>
               </div>
 
-              <aside className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/55 p-7 shadow-[0_24px_80px_rgba(2,6,23,0.5)] backdrop-blur-xl">
+              <aside className="theme-showcase-aside relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/55 p-7 shadow-[0_24px_80px_rgba(2,6,23,0.5)] backdrop-blur-xl">
                 <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
                 <div className="space-y-6">
                   <div className="flex items-center justify-between gap-4">
@@ -193,7 +193,7 @@ const LandingPage = () => {
             </div>
           </section>
 
-          <section className="border-b border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.96)_0%,_rgba(8,15,28,1)_100%)]">
+          <section className="theme-showcase-band border-b border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.96)_0%,_rgba(8,15,28,1)_100%)]">
             <div className="mx-auto max-w-6xl px-6 py-20 sm:px-8">
               <div className="grid gap-8 lg:grid-cols-[0.68fr_1.32fr] lg:items-end">
                 <div className="space-y-4">
@@ -215,7 +215,7 @@ const LandingPage = () => {
                 {valueProps.map((item) => (
                   <article
                     key={item.title}
-                    className="group rounded-[1.75rem] border border-white/10 bg-gradient-to-b from-slate-900/80 to-slate-950/80 p-6 shadow-[0_18px_50px_rgba(2,6,23,0.35)] transition hover:border-cyan-300/30 hover:translate-y-[-2px]"
+                    className="theme-showcase-card group rounded-[1.75rem] border border-white/10 bg-gradient-to-b from-slate-900/80 to-slate-950/80 p-6 shadow-[0_18px_50px_rgba(2,6,23,0.35)] transition hover:border-cyan-300/30 hover:translate-y-[-2px]"
                   >
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300/15 to-amber-200/10 text-cyan-100 ring-1 ring-white/10">
                       <item.icon className="h-5 w-5" />
@@ -233,7 +233,7 @@ const LandingPage = () => {
           </section>
 
           <section className="mx-auto max-w-6xl px-6 py-20 sm:px-8">
-            <div className="grid gap-10 rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.8)_0%,_rgba(3,7,18,0.92)_100%)] p-8 shadow-[0_30px_100px_rgba(2,6,23,0.45)] lg:grid-cols-[0.88fr_1.12fr] lg:p-10">
+            <div className="theme-showcase-panel grid gap-10 rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.8)_0%,_rgba(3,7,18,0.92)_100%)] p-8 shadow-[0_30px_100px_rgba(2,6,23,0.45)] lg:grid-cols-[0.88fr_1.12fr] lg:p-10">
               <div className="space-y-5">
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-300">
                   <FiUsers className="h-4 w-4" />

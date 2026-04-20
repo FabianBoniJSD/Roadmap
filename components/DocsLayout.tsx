@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import ColorModeToggle from '@/components/ColorModeToggle';
 import SiteFooter from '@/components/SiteFooter';
 
 interface DocsLayoutProps {
@@ -17,21 +18,22 @@ const DocsLayout: React.FC<DocsLayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <header className="bg-gray-800 py-4 px-6 border-b border-gray-700">
+    <div className="docs-layout-shell min-h-screen bg-gray-900 text-white">
+      <header className="docs-layout-header bg-gray-800 py-4 px-6 border-b border-gray-700">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold">Roadmap JSD Dokumentation</h1>
-          <Link href="/">
-            <button className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded transition-colors">
+          <div className="flex items-center gap-3">
+            <ColorModeToggle />
+            <Link href="/" className="docs-back-link">
               Zurück zur Roadmap
-            </button>
-          </Link>
+            </Link>
+          </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 flex">
         {/* Sidebar Navigation */}
-        <div className="w-64 pr-8 border-r border-gray-700">
+        <div className="docs-layout-sidebar w-64 pr-8 border-r border-gray-700">
           <nav className="space-y-6">
             <div>
               <h3 className="text-xs uppercase tracking-wider text-gray-400 font-semibold mb-3">
@@ -155,7 +157,7 @@ const DocsLayout: React.FC<DocsLayoutProps> = ({ children }) => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 pl-8">
+        <div className="docs-layout-content flex-1 pl-8">
           <div className="prose prose-invert max-w-none">{children}</div>
         </div>
       </div>

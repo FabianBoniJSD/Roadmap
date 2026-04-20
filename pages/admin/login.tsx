@@ -207,7 +207,7 @@ const AdminLogin: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+    <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteHeader activeRoute="admin" />
       <main className="flex-1">
         <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-16 sm:px-8">

@@ -28,7 +28,7 @@ const AdminSubpageLayout: FC<AdminSubpageLayoutProps> = ({
   maxWidthClassName = 'max-w-5xl',
 }) => {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+    <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteHeader activeRoute="admin" />
 
       <main className="relative flex-1">
