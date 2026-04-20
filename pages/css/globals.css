@@ -341,16 +341,56 @@ html[data-color-mode='light'] .theme-roadmap-tooltip {
 
 html[data-color-mode='light']
   .theme-roadmap-tooltip
-  :is(.text-white, .text-slate-100, .text-slate-200) {
+  :is(.text-white, .text-slate-100, .text-slate-200, .text-gray-200) {
   color: var(--app-text-strong) !important;
 }
 
-html[data-color-mode='light'] .theme-roadmap-tooltip .text-gray-300 {
+html[data-color-mode='light'] .theme-roadmap-tooltip :is(.text-gray-300, .text-gray-400) {
   color: var(--app-text-muted) !important;
 }
 
 html[data-color-mode='light'] .theme-roadmap-tooltip :is(.bg-black, .bg-black\/30) {
   background-color: rgba(226, 232, 240, 0.95) !important;
+}
+
+html[data-color-mode='light'] .theme-roadmap-tooltip .bg-black\/40 {
+  background-color: rgba(226, 232, 240, 0.92) !important;
+}
+
+html[data-color-mode='light'] .theme-roadmap-tooltip :is(.bg-slate-700\/40, .bg-slate-700\/60) {
+  background-color: rgba(226, 232, 240, 0.92) !important;
+}
+
+html[data-color-mode='light'] .theme-roadmap-tooltip a {
+  color: #b45309 !important;
+}
+
+html[data-color-mode='light'] .theme-roadmap-tooltip a:hover {
+  color: #92400e !important;
+}
+
+html[data-color-mode='light'] .roadmap-time-header {
+  background: #dbeafe !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  box-shadow: none !important;
+}
+
+html[data-color-mode='light'] .roadmap-project-bar {
+  background: #60a5fa !important;
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+html[data-color-mode='light'] .roadmap-project-bar:hover {
+  background: #3b82f6 !important;
+  filter: none !important;
+}
+
+html[data-color-mode='light'] .roadmap-project-label {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  color: #1e293b !important;
 }
 
 html[data-color-mode='light'] .prose-invert {

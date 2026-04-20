@@ -1026,25 +1026,25 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                     {viewType === 'quarters' ? (
                       <div className="grid grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
                         <div
-                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          className="roadmap-time-header p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
                           style={{ background: 'linear-gradient(to right, #eab308, #d97706)' }}
                         >
                           Q1 {currentYear}
                         </div>
                         <div
-                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          className="roadmap-time-header p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
                           style={{ background: 'linear-gradient(to right, #d97706, #ea580c)' }}
                         >
                           Q2 {currentYear}
                         </div>
                         <div
-                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          className="roadmap-time-header p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
                           style={{ background: 'linear-gradient(to right, #ea580c, #c2410c)' }}
                         >
                           Q3 {currentYear}
                         </div>
                         <div
-                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          className="roadmap-time-header p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
                           style={{ background: 'linear-gradient(to right, #c2410c, #b91c1c)' }}
                         >
                           Q4 {currentYear}
@@ -1053,73 +1053,73 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                     ) : viewType === 'months' ? (
                       <div className="grid grid-cols-12 gap-1 md:gap-2 mb-4 md:mb-6">
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #eab308, #e3a008)' }}
                         >
                           Jan
                         </div>
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #e3a008, #dd9107)' }}
                         >
                           Feb
                         </div>
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #dd9107, #d97706)' }}
                         >
                           Mär
                         </div>
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #d97706, #d57005)' }}
                         >
                           Apr
                         </div>
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #d57005, #d16904)' }}
                         >
                           Mai
                         </div>
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #d16904, #cc6203)' }}
                         >
                           Jun
                         </div>
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #cc6203, #c65b02)' }}
                         >
                           Jul
                         </div>
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #c65b02, #c05401)' }}
                         >
                           Aug
                         </div>
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #c05401, #ba4d01)' }}
                         >
                           Sep
                         </div>
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #ba4d01, #b44600)' }}
                         >
                           Okt
                         </div>
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #b44600, #ae3f00)' }}
                         >
                           Nov
                         </div>
                         <div
-                          className="p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
+                          className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #ae3f00, #a83800)' }}
                         >
                           Dez
@@ -1140,7 +1140,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                         ).map((week) => (
                           <div
                             key={week}
-                            className="p-1 text-center font-semibold text-xs"
+                            className="roadmap-time-header p-1 text-center font-semibold text-xs"
                             style={{
                               background: `linear-gradient(to right, 
                             hsl(${Math.max(40 - week * 0.5, 0)}, 90%, ${Math.max(50 - week * 0.3, 30)}%)
@@ -1154,31 +1154,31 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                     ) : (
                       <div className="grid grid-cols-5 gap-2 md:gap-4 mb-4 md:mb-6">
                         <div
-                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          className="roadmap-time-header p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
                           style={{ background: 'linear-gradient(to right, #eab308, #d97706)' }}
                         >
                           {currentYear - 2}
                         </div>
                         <div
-                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          className="roadmap-time-header p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
                           style={{ background: 'linear-gradient(to right, #d97706, #ea580c)' }}
                         >
                           {currentYear - 1}
                         </div>
                         <div
-                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          className="roadmap-time-header p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
                           style={{ background: 'linear-gradient(to right, #ea580c, #c2410c)' }}
                         >
                           {currentYear}
                         </div>
                         <div
-                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          className="roadmap-time-header p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
                           style={{ background: 'linear-gradient(to right, #c2410c, #b91c1c)' }}
                         >
                           {currentYear + 1}
                         </div>
                         <div
-                          className="p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
+                          className="roadmap-time-header p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
                           style={{ background: 'linear-gradient(to right, #b91c1c, #991b1b)' }}
                         >
                           {currentYear + 2}
@@ -1286,7 +1286,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
 
                                     {/* Project bar */}
                                     <div
-                                      className="absolute top-0 h-full rounded-lg flex items-center px-1 md:px-3 cursor-pointer transition-all hover:brightness-110 group border border-white border-opacity-30 hover:border-opacity-70"
+                                      className="roadmap-project-bar absolute top-0 h-full rounded-lg flex items-center px-1 md:px-3 cursor-pointer transition-all hover:brightness-110 group border border-white border-opacity-30 hover:border-opacity-70"
                                       style={{
                                         left: `${startPosition}%`,
                                         width: `${width}%`,
@@ -1314,7 +1314,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                                     >
                                       {/* Project title with improved visibility */}
                                       <div className="flex items-center gap-1 w-full overflow-hidden">
-                                        <span className="font-medium truncate px-1 md:px-2 py-0.5 rounded bg-black bg-opacity-40 text-white group-hover:bg-opacity-60 text-[10px] md:text-sm flex-shrink">
+                                        <span className="roadmap-project-label font-medium truncate px-1 md:px-2 py-0.5 rounded bg-black bg-opacity-40 text-white group-hover:bg-opacity-60 text-[10px] md:text-sm flex-shrink">
                                           {project.title}
                                         </span>
                                       </div>
