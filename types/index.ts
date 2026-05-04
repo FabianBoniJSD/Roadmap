@@ -41,6 +41,8 @@ export interface Category {
   isSubcategory?: boolean; // Added for easier filtering
 }
 
+export type ProjectOrderByCategory = Record<string, string[]>;
+
 export interface TeamMember {
   id?: string;
   name: string;

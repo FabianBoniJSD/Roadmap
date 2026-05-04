@@ -17,11 +17,49 @@ import {
   getSampleProjects,
   isSampleDataInstance,
 } from '@/utils/sampleInstanceData';
-import type { Category, Project } from '../types';
+import type { Category, Project, ProjectOrderByCategory } from '../types';
+
+const parseProjectOrderByCategoryValue = (value: unknown): ProjectOrderByCategory => {
+  if (typeof value !== 'string' || !value.trim()) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+
+    const normalized: ProjectOrderByCategory = {};
+    for (const [categoryId, orderedIds] of Object.entries(parsed as Record<string, unknown>)) {
+      const normalizedCategoryId = String(categoryId || '').trim();
+      if (!normalizedCategoryId || !Array.isArray(orderedIds)) {
+        continue;
+      }
+
+      const normalizedIds = orderedIds
+        .map((entry) =>
+          typeof entry === 'string' || typeof entry === 'number' ? String(entry) : ''
+        )
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .filter((entry, index, list) => list.indexOf(entry) === index);
+
+      if (normalizedIds.length > 0) {
+        normalized[normalizedCategoryId] = normalizedIds;
+      }
+    }
+
+    return normalized;
+  } catch {
+    return {};
+  }
+};
 
 type RoadmapPageProps = {
   projects: Project[];
   categories: Category[];
+  projectOrderByCategory: ProjectOrderByCategory;
   resolvedInstanceSlug: string;
   accessDenied?: boolean;
 };
@@ -29,6 +67,7 @@ type RoadmapPageProps = {
 const RoadmapPage: React.FC<RoadmapPageProps> = ({
   projects,
   categories,
+  projectOrderByCategory,
   resolvedInstanceSlug,
   accessDenied,
 }) => {
@@ -57,6 +96,8 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
 
   const [projectsState, setProjectsState] = useState<Project[]>(projects);
   const [categoriesState, setCategoriesState] = useState<Category[]>(categories);
+  const [projectOrderByCategoryState, setProjectOrderByCategoryState] =
+    useState<ProjectOrderByCategory>(projectOrderByCategory);
   const [accessDeniedState, setAccessDeniedState] = useState(Boolean(accessDenied));
   const [activeInstanceSlug, setActiveInstanceSlug] = useState(resolvedInstanceSlug);
   const [loading, setLoading] = useState(false);
@@ -64,10 +105,11 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
   useEffect(() => {
     setProjectsState(projects);
     setCategoriesState(categories);
+    setProjectOrderByCategoryState(projectOrderByCategory);
     setAccessDeniedState(Boolean(accessDenied));
     setActiveInstanceSlug(resolvedInstanceSlug);
     setLoading(false);
-  }, [accessDenied, categories, projects, resolvedInstanceSlug]);
+  }, [accessDenied, categories, projectOrderByCategory, projects, resolvedInstanceSlug]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -85,15 +127,23 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
       const categoriesUrl = currentInstanceSlug
         ? `/api/categories?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(currentInstanceSlug)}`
         : '/api/categories';
+      const projectOrderUrl = currentInstanceSlug
+        ? `/api/settings/key/projectOrderByCategory?${INSTANCE_QUERY_PARAM}=${encodeURIComponent(currentInstanceSlug)}`
+        : '/api/settings/key/projectOrderByCategory';
 
       try {
-        const [projectsResp, categoriesResp] = await Promise.all([
+        const [projectsResp, categoriesResp, projectOrderResp] = await Promise.all([
           fetch(projectsUrl, {
             credentials: 'same-origin',
             signal: controller.signal,
             headers: { Accept: 'application/json' },
           }),
           fetch(categoriesUrl, {
+            credentials: 'same-origin',
+            signal: controller.signal,
+            headers: { Accept: 'application/json' },
+          }),
+          fetch(projectOrderUrl, {
             credentials: 'same-origin',
             signal: controller.signal,
             headers: { Accept: 'application/json' },
@@ -111,30 +161,41 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
           if (controller.signal.aborted || requestId !== fetchRequestIdRef.current) return;
           setProjectsState([]);
           setCategoriesState([]);
+          setProjectOrderByCategoryState({});
           setAccessDeniedState(true);
           setActiveInstanceSlug(currentInstanceSlug);
           return;
         }
 
-        if (!projectsResp.ok || !categoriesResp.ok) {
+        if (
+          !projectsResp.ok ||
+          !categoriesResp.ok ||
+          (projectOrderResp.status !== 404 && !projectOrderResp.ok)
+        ) {
           const projectPayload = await projectsResp.json().catch(() => null);
           const categoryPayload = await categoriesResp.json().catch(() => null);
+          const orderPayload = await projectOrderResp.json().catch(() => null);
           throw new Error(
             projectPayload?.error ||
               categoryPayload?.error ||
-              `Failed to fetch roadmap data (${projectsResp.status}/${categoriesResp.status})`
+              orderPayload?.message ||
+              `Failed to fetch roadmap data (${projectsResp.status}/${categoriesResp.status}/${projectOrderResp.status})`
           );
         }
 
-        const [nextProjects, nextCategories] = await Promise.all([
+        const [nextProjects, nextCategories, projectOrderPayload] = await Promise.all([
           projectsResp.json(),
           categoriesResp.json(),
+          projectOrderResp.status === 404 ? Promise.resolve(null) : projectOrderResp.json(),
         ]);
 
         if (controller.signal.aborted || requestId !== fetchRequestIdRef.current) return;
 
         setProjectsState(Array.isArray(nextProjects) ? nextProjects : []);
         setCategoriesState(Array.isArray(nextCategories) ? nextCategories : []);
+        setProjectOrderByCategoryState(
+          parseProjectOrderByCategoryValue(projectOrderPayload?.value)
+        );
         setAccessDeniedState(false);
         setActiveInstanceSlug(currentInstanceSlug);
       } catch (error) {
@@ -178,6 +239,7 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
             key={activeInstanceSlug || resolvedInstanceSlug || 'default'}
             initialProjects={projectsState}
             initialCategories={categoriesState}
+            initialProjectOrderByCategory={projectOrderByCategoryState}
           />
         )}
       </main>
@@ -269,28 +331,43 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
       };
     }
 
-    const [projects, categories] = isSampleDataInstance(instance)
-      ? [getSampleProjects(), getSampleCategories()]
+    const [projects, categories, projectOrderByCategory] = isSampleDataInstance(instance)
+      ? [getSampleProjects(), getSampleCategories(), {}]
       : await clientDataService.withRequestHeaders(forwardedHeaders, () =>
           clientDataService.withInstance(instance.slug, () =>
-            Promise.all([clientDataService.getAllProjects(), clientDataService.getAllCategories()])
+            Promise.all([
+              clientDataService.getAllProjects(),
+              clientDataService.getAllCategories(),
+              clientDataService.getProjectOrderByCategory(),
+            ])
           )
         );
 
     const safeProjects = Array.isArray(projects) ? projects : [];
     const safeCategories = Array.isArray(categories) ? categories : [];
+    const safeProjectOrderByCategory =
+      projectOrderByCategory && typeof projectOrderByCategory === 'object'
+        ? projectOrderByCategory
+        : {};
 
     return {
       props: {
         projects: safeProjects,
         categories: safeCategories,
+        projectOrderByCategory: safeProjectOrderByCategory,
         resolvedInstanceSlug: instance.slug,
       },
     };
   } catch (error) {
     console.error('[roadmap] getServerSideProps failed', error);
     return {
-      props: { projects: [], categories: [], resolvedInstanceSlug: '', accessDenied: false },
+      props: {
+        projects: [],
+        categories: [],
+        projectOrderByCategory: {},
+        resolvedInstanceSlug: '',
+        accessDenied: false,
+      },
     };
   }
 };

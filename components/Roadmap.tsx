@@ -2,14 +2,20 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import type { ParsedUrlQuery } from 'querystring';
 import RoadmapYearNavigation from './RoadmapYearNavigation';
-import { Category, Project } from '../types';
+import { Category, Project, ProjectOrderByCategory } from '../types';
 import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '../utils/instanceConfig';
 import { normalizeCategoryId, UNCATEGORIZED_ID } from '../utils/categoryUtils';
 import CategorySidebar from './CategorySidebar';
 import { FaBars, FaTimes } from 'react-icons/fa';
+import { FiGripVertical } from 'react-icons/fi';
 import { loadThemeSettings } from '../utils/theme';
 import RoadmapFilters from './RoadmapFilters';
 import CompactProjectCard from './CompactProjectCard';
+import {
+  buildInstanceAwareUrl,
+  hasAdminAccessToCurrentInstance,
+  hasValidAdminSession,
+} from '@/utils/auth';
 import { getRichTextPlainText } from '@/utils/richText';
 
 type ProgressBucket = 'all' | 'not-started' | 'active' | 'almost-done' | 'completed';
@@ -47,12 +53,88 @@ const getProgressBucket = (progress?: number): Exclude<ProgressBucket, 'all'> =>
   return 'not-started';
 };
 
+const moveCategoryInList = (
+  categories: Category[],
+  sourceCategoryId: string,
+  targetCategoryId: string
+): Category[] => {
+  const sourceIndex = categories.findIndex((category) => category.id === sourceCategoryId);
+  const targetIndex = categories.findIndex((category) => category.id === targetCategoryId);
+
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+    return categories;
+  }
+
+  const nextCategories = [...categories];
+  const [movedCategory] = nextCategories.splice(sourceIndex, 1);
+  nextCategories.splice(targetIndex, 0, movedCategory);
+  return nextCategories;
+};
+
+const moveProjectInList = (
+  projects: Project[],
+  sourceProjectId: string,
+  targetProjectId: string
+): Project[] => {
+  const sourceIndex = projects.findIndex((project) => project.id === sourceProjectId);
+  const targetIndex = projects.findIndex((project) => project.id === targetProjectId);
+
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+    return projects;
+  }
+
+  const nextProjects = [...projects];
+  const [movedProject] = nextProjects.splice(sourceIndex, 1);
+  nextProjects.splice(targetIndex, 0, movedProject);
+  return nextProjects;
+};
+
+const applyStoredProjectOrder = (
+  projects: Project[],
+  orderedProjectIds: string[] | undefined
+): Project[] => {
+  if (!orderedProjectIds?.length || projects.length <= 1) {
+    return projects;
+  }
+
+  const orderIndex = new Map<string, number>();
+  orderedProjectIds.forEach((projectId, index) => {
+    if (!orderIndex.has(projectId)) {
+      orderIndex.set(projectId, index);
+    }
+  });
+
+  const originalIndex = new Map<string, number>();
+  projects.forEach((project, index) => {
+    originalIndex.set(project.id, index);
+  });
+
+  return [...projects].sort((left, right) => {
+    const leftOrder = orderIndex.get(left.id);
+    const rightOrder = orderIndex.get(right.id);
+
+    if (leftOrder !== undefined && rightOrder !== undefined) {
+      return leftOrder - rightOrder;
+    }
+
+    if (leftOrder !== undefined) return -1;
+    if (rightOrder !== undefined) return 1;
+
+    return (originalIndex.get(left.id) ?? 0) - (originalIndex.get(right.id) ?? 0);
+  });
+};
+
 interface RoadmapProps {
   initialProjects: Project[];
   initialCategories: Category[];
+  initialProjectOrderByCategory: ProjectOrderByCategory;
 }
 
-const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories }) => {
+const Roadmap: React.FC<RoadmapProps> = ({
+  initialProjects,
+  initialCategories,
+  initialProjectOrderByCategory,
+}) => {
   const router = useRouter();
 
   const instanceSlug = useMemo(() => {
@@ -87,6 +169,19 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
   });
   const [onlyRunning, setOnlyRunning] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'timeline' | 'tiles'>('timeline');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [projectOrderByCategory, setProjectOrderByCategory] = useState<ProjectOrderByCategory>(
+    initialProjectOrderByCategory
+  );
+  const [draggedCategoryId, setDraggedCategoryId] = useState<string | null>(null);
+  const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null);
+  const [isSavingCategoryOrder, setIsSavingCategoryOrder] = useState(false);
+  const [categoryOrderError, setCategoryOrderError] = useState<string | null>(null);
+  const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null);
+  const [draggedProjectCategoryId, setDraggedProjectCategoryId] = useState<string | null>(null);
+  const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null);
+  const [isSavingProjectOrder, setIsSavingProjectOrder] = useState(false);
+  const [projectOrderError, setProjectOrderError] = useState<string | null>(null);
 
   const sidebarRef = useRef<HTMLDivElement>(null);
   // Track whether URL-derived category selection has been applied to prevent race conditions
@@ -95,6 +190,10 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
   useEffect(() => {
     setCategories(initialCategories);
   }, [initialCategories]);
+
+  useEffect(() => {
+    setProjectOrderByCategory(initialProjectOrderByCategory);
+  }, [initialProjectOrderByCategory]);
 
   // When the active instance changes, reset category selection derived from the previous instance.
   useEffect(() => {
@@ -130,6 +229,31 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
 
     loadAppTitle();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkAdmin = async () => {
+      try {
+        const [hasSession, hasInstanceAdminAccess] = await Promise.all([
+          hasValidAdminSession(),
+          hasAdminAccessToCurrentInstance(),
+        ]);
+        if (!cancelled) {
+          setIsAdmin(Boolean(hasSession && hasInstanceAdminAccess));
+        }
+      } catch {
+        if (!cancelled) {
+          setIsAdmin(false);
+        }
+      }
+    };
+
+    void checkAdmin();
+    return () => {
+      cancelled = true;
+    };
+  }, [instanceSlug]);
 
   // Load filters from URL on mount and whenever query changes
   useEffect(() => {
@@ -440,6 +564,254 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     }
   };
 
+  const canReorderCategories = () =>
+    isAdmin && categories.filter((category) => visibleCategoryIds.includes(category.id)).length > 1;
+
+  const canReorderProjectsInCategory = (categoryId: string) =>
+    isAdmin && (orderedProjectsByCategory[categoryId]?.length ?? 0) > 1;
+
+  const canReorderAnyProjects = () =>
+    visibleCategoryIds.some((categoryId) => canReorderProjectsInCategory(categoryId));
+
+  const hasReorderControls = () => canReorderCategories() || canReorderAnyProjects();
+
+  const isReorderableCategory = (categoryId: string) =>
+    canReorderCategories() && categoryId !== UNCATEGORIZED_ID;
+
+  const getCategorySectionClassName = (categoryId: string) => {
+    const isDragged = draggedCategoryId === categoryId;
+    const isDropTarget = dragOverCategoryId === categoryId && draggedCategoryId !== categoryId;
+
+    return [
+      'relative rounded-3xl border p-3 md:p-4 transition-all',
+      isDropTarget
+        ? 'border-sky-400/60 bg-sky-500/10 shadow-lg shadow-sky-950/20'
+        : 'border-white/5 bg-transparent',
+      isDragged ? 'opacity-60' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  };
+
+  const persistCategoryOrder = async (
+    nextCategories: Category[],
+    previousCategories: Category[]
+  ) => {
+    setCategoryOrderError(null);
+    setIsSavingCategoryOrder(true);
+
+    try {
+      const response = await fetch(buildInstanceAwareUrl('/api/categories/reorder'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderedCategoryIds: nextCategories.map((category) => category.id),
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(
+          payload?.error || 'Die Kategorien-Reihenfolge konnte nicht gespeichert werden.'
+        );
+      }
+    } catch (error) {
+      console.error('Error saving category order:', error);
+      setCategories(previousCategories);
+      setCategoryOrderError('Die neue Kategorien-Reihenfolge konnte nicht gespeichert werden.');
+    } finally {
+      setIsSavingCategoryOrder(false);
+    }
+  };
+
+  const persistProjectOrder = async (
+    categoryId: string,
+    orderedProjectIds: string[],
+    previousOrderMap: ProjectOrderByCategory
+  ) => {
+    setProjectOrderError(null);
+    setIsSavingProjectOrder(true);
+
+    try {
+      const response = await fetch(buildInstanceAwareUrl('/api/projects/reorder'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          categoryId,
+          orderedProjectIds,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(
+          payload?.error || 'Die Projekt-Reihenfolge konnte nicht gespeichert werden.'
+        );
+      }
+    } catch (error) {
+      console.error('Error saving project order:', error);
+      setProjectOrderByCategory(previousOrderMap);
+      setProjectOrderError('Die neue Projekt-Reihenfolge konnte nicht gespeichert werden.');
+    } finally {
+      setIsSavingProjectOrder(false);
+    }
+  };
+
+  const handleCategoryDragStart = (event: React.DragEvent<HTMLDivElement>, categoryId: string) => {
+    if (!isReorderableCategory(categoryId) || isSavingCategoryOrder) {
+      event.preventDefault();
+      return;
+    }
+
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', categoryId);
+    setDraggedCategoryId(categoryId);
+    setDragOverCategoryId(categoryId);
+  };
+
+  const handleCategoryDragOver = (event: React.DragEvent<HTMLDivElement>, categoryId: string) => {
+    if (
+      !isReorderableCategory(categoryId) ||
+      !draggedCategoryId ||
+      draggedCategoryId === categoryId
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    if (dragOverCategoryId !== categoryId) {
+      setDragOverCategoryId(categoryId);
+    }
+  };
+
+  const handleCategoryDragEnd = () => {
+    setDraggedCategoryId(null);
+    setDragOverCategoryId(null);
+  };
+
+  const handleCategoryDrop = async (
+    event: React.DragEvent<HTMLDivElement>,
+    targetCategoryId: string
+  ) => {
+    if (!isReorderableCategory(targetCategoryId) || isSavingCategoryOrder) {
+      return;
+    }
+
+    event.preventDefault();
+    const sourceCategoryId = event.dataTransfer.getData('text/plain') || draggedCategoryId;
+    setDraggedCategoryId(null);
+    setDragOverCategoryId(null);
+
+    if (!sourceCategoryId || sourceCategoryId === targetCategoryId) {
+      return;
+    }
+
+    const previousCategories = categories;
+    const nextCategories = moveCategoryInList(
+      previousCategories,
+      sourceCategoryId,
+      targetCategoryId
+    );
+    if (nextCategories === previousCategories) {
+      return;
+    }
+
+    setCategories(nextCategories);
+    await persistCategoryOrder(nextCategories, previousCategories);
+  };
+
+  const handleProjectDragStart = (
+    event: React.DragEvent<HTMLDivElement>,
+    projectId: string,
+    categoryId: string
+  ) => {
+    if (!canReorderProjectsInCategory(categoryId) || isSavingProjectOrder) {
+      event.preventDefault();
+      return;
+    }
+
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', projectId);
+    setDraggedProjectId(projectId);
+    setDraggedProjectCategoryId(categoryId);
+    setDragOverProjectId(projectId);
+  };
+
+  const handleProjectDragOver = (
+    event: React.DragEvent<HTMLDivElement>,
+    targetProjectId: string,
+    categoryId: string
+  ) => {
+    if (
+      !draggedProjectId ||
+      draggedProjectCategoryId !== categoryId ||
+      draggedProjectId === targetProjectId ||
+      isSavingProjectOrder
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    if (dragOverProjectId !== targetProjectId) {
+      setDragOverProjectId(targetProjectId);
+    }
+  };
+
+  const handleProjectDragEnd = () => {
+    setDraggedProjectId(null);
+    setDraggedProjectCategoryId(null);
+    setDragOverProjectId(null);
+  };
+
+  const handleProjectDrop = async (
+    event: React.DragEvent<HTMLDivElement>,
+    targetProjectId: string,
+    categoryId: string
+  ) => {
+    if (draggedProjectCategoryId !== categoryId || isSavingProjectOrder) {
+      return;
+    }
+
+    event.preventDefault();
+    const sourceProjectId = event.dataTransfer.getData('text/plain') || draggedProjectId;
+    setDraggedProjectId(null);
+    setDraggedProjectCategoryId(null);
+    setDragOverProjectId(null);
+
+    if (!sourceProjectId || sourceProjectId === targetProjectId) {
+      return;
+    }
+
+    const fullCategoryProjects = applyStoredProjectOrder(
+      allProjectsByCategory[categoryId] || [],
+      projectOrderByCategory[categoryId]
+    );
+    const reorderedProjects = moveProjectInList(
+      fullCategoryProjects,
+      sourceProjectId,
+      targetProjectId
+    );
+
+    if (reorderedProjects === fullCategoryProjects) {
+      return;
+    }
+
+    const previousOrderMap = projectOrderByCategory;
+    const nextOrderMap = {
+      ...projectOrderByCategory,
+      [categoryId]: reorderedProjects.map((project) => project.id),
+    };
+
+    setProjectOrderByCategory(nextOrderMap);
+    await persistProjectOrder(categoryId, nextOrderMap[categoryId], previousOrderMap);
+  };
+
   // Derive filter options from displayed projects
   const allStatuses = Array.from(
     new Set(displayedProjects.map((p) => (p.status || '').toLowerCase()).filter(Boolean))
@@ -570,6 +942,15 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     return true;
   });
 
+  const allProjectsByCategory = initialProjects.reduce<Record<string, Project[]>>(
+    (acc, project) => {
+      const catId = normalizeCategoryId(project.category, categories);
+      (acc[catId] ||= []).push(project);
+      return acc;
+    },
+    {}
+  );
+
   // Group projects by category (Bereich)
   const projectsByCategory = filteredProjects.reduce<Record<string, Project[]>>((acc, p) => {
     const catId = normalizeCategoryId(p.category, categories);
@@ -577,10 +958,17 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
     return acc;
   }, {});
 
+  const orderedProjectsByCategory = Object.entries(projectsByCategory).reduce<
+    Record<string, Project[]>
+  >((acc, [categoryId, projects]) => {
+    acc[categoryId] = applyStoredProjectOrder(projects, projectOrderByCategory[categoryId]);
+    return acc;
+  }, {});
+
   // Ordered list of visible categories (only those with projects)
   const visibleCategoryIds = [
-    ...categories.filter((c) => projectsByCategory[c.id]?.length).map((c) => c.id),
-    ...(projectsByCategory[UNCATEGORIZED_ID]?.length ? [UNCATEGORIZED_ID] : []),
+    ...categories.filter((c) => orderedProjectsByCategory[c.id]?.length).map((c) => c.id),
+    ...(orderedProjectsByCategory[UNCATEGORIZED_ID]?.length ? [UNCATEGORIZED_ID] : []),
   ];
 
   // Get category name by ID
@@ -1022,6 +1410,36 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                     onClearCategories={() => setActiveCategories([])}
                   />
                 </div>
+
+                {hasReorderControls() && (
+                  <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-50">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-slate-950/40 px-3 py-1 font-medium text-sky-100">
+                      <FiGripVertical className="h-4 w-4" />
+                      Admin-Modus
+                    </span>
+                    <span>
+                      Kategorien und Projekte innerhalb einer Kategorie lassen sich hier per Drag
+                      and Drop neu anordnen.
+                    </span>
+                    {(isSavingCategoryOrder || isSavingProjectOrder) && (
+                      <span className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-1 text-xs font-medium text-slate-200">
+                        Speichert...
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {categoryOrderError && (
+                  <div className="mb-4 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                    {categoryOrderError}
+                  </div>
+                )}
+
+                {projectOrderError && (
+                  <div className="mb-4 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                    {projectOrderError}
+                  </div>
+                )}
                 {/* Quarter/Month/Week headers */}
 
                 {viewMode === 'timeline' && (
@@ -1199,11 +1617,29 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                     {/* Project timeline bars grouped by Bereich (category) */}
                     <div className="space-y-6 md:space-y-8 relative">
                       {visibleCategoryIds.map((catId) => {
-                        const groupProjects = projectsByCategory[catId] || [];
+                        const groupProjects = orderedProjectsByCategory[catId] || [];
                         return (
-                          <div key={catId} className="relative">
+                          <div
+                            key={catId}
+                            className={getCategorySectionClassName(catId)}
+                            onDragOver={(event) => handleCategoryDragOver(event, catId)}
+                            onDrop={(event) => void handleCategoryDrop(event, catId)}
+                          >
                             {/* Bereich Kopfzeile */}
-                            <div className="flex items-center gap-3 mb-2 md:mb-3">
+                            <div className="mb-2 flex items-center gap-3 md:mb-3">
+                              {isReorderableCategory(catId) && (
+                                <div
+                                  draggable={!isSavingCategoryOrder}
+                                  onDragStart={(event) => handleCategoryDragStart(event, catId)}
+                                  onDragEnd={handleCategoryDragEnd}
+                                  className="inline-flex cursor-grab items-center gap-1 rounded-full border border-slate-700/70 bg-slate-900/80 px-2.5 py-1 text-xs font-medium text-slate-200 transition hover:border-sky-400 hover:text-white active:cursor-grabbing"
+                                  aria-label={`Kategorie ${getCategoryName(catId)} verschieben`}
+                                  title="Kategorie verschieben"
+                                >
+                                  <FiGripVertical className="h-4 w-4" />
+                                  <span>Verschieben</span>
+                                </div>
+                              )}
                               <span
                                 className="inline-block h-3 w-3 rounded-full"
                                 style={{ backgroundColor: getCategoryColor(catId) }}
@@ -1220,6 +1656,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                             {/* Projekte dieser Kategorie */}
                             <div className="space-y-2 md:space-y-4">
                               {groupProjects.map((project) => {
+                                const isReorderableProject = canReorderProjectsInCategory(catId);
                                 // Use the appropriate position calculation based on view type
                                 const { startPosition, width } =
                                   viewType === 'quarters'
@@ -1238,7 +1675,27 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                                 return (
                                   <div
                                     key={project.id}
-                                    className="relative h-6 md:h-8 mb-1 md:mb-2"
+                                    className={[
+                                      'relative mb-1 h-6 md:mb-2 md:h-8',
+                                      dragOverProjectId === project.id &&
+                                      draggedProjectId !== project.id
+                                        ? 'rounded-xl ring-2 ring-sky-400/40'
+                                        : '',
+                                      draggedProjectId === project.id ? 'opacity-60' : '',
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' ')}
+                                    draggable={isReorderableProject && !isSavingProjectOrder}
+                                    onDragStart={(event) =>
+                                      handleProjectDragStart(event, project.id, catId)
+                                    }
+                                    onDragOver={(event) =>
+                                      handleProjectDragOver(event, project.id, catId)
+                                    }
+                                    onDrop={(event) =>
+                                      void handleProjectDrop(event, project.id, catId)
+                                    }
+                                    onDragEnd={handleProjectDragEnd}
                                   >
                                     {/* Background grid */}
                                     <div className="absolute top-0 left-0 right-0 h-full pointer-events-none">
@@ -1290,7 +1747,7 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
 
                                     {/* Project bar */}
                                     <div
-                                      className="roadmap-project-bar absolute top-0 h-full rounded-lg flex items-center px-1 md:px-3 cursor-pointer transition-all hover:brightness-110 group border border-white border-opacity-30 hover:border-opacity-70"
+                                      className={`roadmap-project-bar absolute top-0 h-full rounded-lg flex items-center px-1 md:px-3 transition-all hover:brightness-110 group border border-white border-opacity-30 hover:border-opacity-70 ${isReorderableProject ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
                                       style={{
                                         left: `${startPosition}%`,
                                         width: `${width}%`,
@@ -1318,6 +1775,9 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                                     >
                                       {/* Project title with improved visibility */}
                                       <div className="flex items-center gap-1 w-full overflow-hidden">
+                                        {isReorderableProject && (
+                                          <FiGripVertical className="h-3 w-3 shrink-0 text-white/80" />
+                                        )}
                                         <span className="roadmap-project-label font-medium truncate px-1 md:px-2 py-0.5 rounded bg-black bg-opacity-40 text-white group-hover:bg-opacity-60 text-[10px] md:text-sm flex-shrink">
                                           {project.title}
                                         </span>
@@ -1337,10 +1797,28 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                 {viewMode === 'tiles' && (
                   <div className="space-y-8">
                     {visibleCategoryIds.map((catId) => {
-                      const groupProjects = projectsByCategory[catId] || [];
+                      const groupProjects = orderedProjectsByCategory[catId] || [];
                       return (
-                        <div key={catId}>
-                          <div className="flex items-center gap-3 mb-3">
+                        <div
+                          key={catId}
+                          className={getCategorySectionClassName(catId)}
+                          onDragOver={(event) => handleCategoryDragOver(event, catId)}
+                          onDrop={(event) => void handleCategoryDrop(event, catId)}
+                        >
+                          <div className="mb-3 flex items-center gap-3">
+                            {isReorderableCategory(catId) && (
+                              <div
+                                draggable={!isSavingCategoryOrder}
+                                onDragStart={(event) => handleCategoryDragStart(event, catId)}
+                                onDragEnd={handleCategoryDragEnd}
+                                className="inline-flex cursor-grab items-center gap-1 rounded-full border border-slate-700/70 bg-slate-900/80 px-2.5 py-1 text-xs font-medium text-slate-200 transition hover:border-sky-400 hover:text-white active:cursor-grabbing"
+                                aria-label={`Kategorie ${getCategoryName(catId)} verschieben`}
+                                title="Kategorie verschieben"
+                              >
+                                <FiGripVertical className="h-4 w-4" />
+                                <span>Verschieben</span>
+                              </div>
+                            )}
                             <span
                               className="inline-block h-3 w-3 rounded-full"
                               style={{ backgroundColor: getCategoryColor(catId) }}
@@ -1354,15 +1832,49 @@ const Roadmap: React.FC<RoadmapProps> = ({ initialProjects, initialCategories })
                             </span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-                            {groupProjects.map((project) => (
-                              <CompactProjectCard
-                                key={project.id}
-                                project={project}
-                                categoryName={getCategoryName(catId)}
-                                categoryColor={getCategoryColor(catId)}
-                                onClick={handleProjectClick}
-                              />
-                            ))}
+                            {groupProjects.map((project) => {
+                              const isReorderableProject = canReorderProjectsInCategory(catId);
+
+                              return (
+                                <div
+                                  key={project.id}
+                                  className={[
+                                    'relative',
+                                    dragOverProjectId === project.id &&
+                                    draggedProjectId !== project.id
+                                      ? 'rounded-2xl ring-2 ring-sky-400/40'
+                                      : '',
+                                    draggedProjectId === project.id ? 'opacity-60' : '',
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' ')}
+                                  draggable={isReorderableProject && !isSavingProjectOrder}
+                                  onDragStart={(event) =>
+                                    handleProjectDragStart(event, project.id, catId)
+                                  }
+                                  onDragOver={(event) =>
+                                    handleProjectDragOver(event, project.id, catId)
+                                  }
+                                  onDrop={(event) =>
+                                    void handleProjectDrop(event, project.id, catId)
+                                  }
+                                  onDragEnd={handleProjectDragEnd}
+                                >
+                                  {isReorderableProject && (
+                                    <div className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full border border-white/10 bg-slate-950/70 px-2 py-1 text-[11px] font-medium text-slate-100 shadow-lg shadow-slate-950/30">
+                                      <FiGripVertical className="h-3.5 w-3.5" />
+                                      <span>Verschieben</span>
+                                    </div>
+                                  )}
+                                  <CompactProjectCard
+                                    project={project}
+                                    categoryName={getCategoryName(catId)}
+                                    categoryColor={getCategoryColor(catId)}
+                                    onClick={handleProjectClick}
+                                  />
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       );

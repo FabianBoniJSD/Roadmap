@@ -1,6 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-console */
 import type { AsyncLocalStorage } from 'async_hooks';
-import { AppSettings, Category, Project, ProjectLink, TeamMember } from '@/types';
+import {
+  AppSettings,
+  Category,
+  Project,
+  ProjectLink,
+  ProjectOrderByCategory,
+  TeamMember,
+} from '@/types';
 import { SHAREPOINT_LIST_DEFINITIONS } from '@/utils/sharePointLists';
 import { buildInstanceAwareUrl, getAdminSessionToken } from '@/utils/auth';
 import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
@@ -77,6 +84,11 @@ const SP_LIST_VARIANTS: Record<string, string[]> = {
   [SP_LISTS.TEAM_MEMBERS]: [],
   [SP_LISTS.PROJECT_LINKS]: [],
 };
+
+const CATEGORY_ORDER_SETTING_KEY = 'categoryOrder';
+const CATEGORY_ORDER_SETTING_DESCRIPTION = 'Persisted roadmap category order';
+const PROJECT_ORDER_SETTING_KEY = 'projectOrderByCategory';
+const PROJECT_ORDER_SETTING_DESCRIPTION = 'Persisted roadmap project order by category';
 
 class ClientDataService {
   private listTitleCache: Record<string, string> = {};
@@ -1888,6 +1900,164 @@ class ClientDataService {
     }
   }
 
+  private parseStoredCategoryOrder(value?: string | null): string[] {
+    if (!value) return [];
+
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) return [];
+
+      return parsed
+        .map((entry) =>
+          typeof entry === 'string' || typeof entry === 'number' ? String(entry) : ''
+        )
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .filter((entry, index, list) => list.indexOf(entry) === index);
+    } catch {
+      return [];
+    }
+  }
+
+  private normalizeOrderedIds(ids: readonly string[]): string[] {
+    return ids
+      .map((id) => String(id || '').trim())
+      .filter(Boolean)
+      .filter((id, index, list) => list.indexOf(id) === index);
+  }
+
+  private parseStoredProjectOrderByCategory(value?: string | null): ProjectOrderByCategory {
+    if (!value) return {};
+
+    try {
+      const parsed = JSON.parse(value);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
+      }
+
+      const normalized: ProjectOrderByCategory = {};
+      for (const [categoryId, orderedIds] of Object.entries(parsed as Record<string, unknown>)) {
+        const normalizedCategoryId = String(categoryId || '').trim();
+        if (!normalizedCategoryId || !Array.isArray(orderedIds)) {
+          continue;
+        }
+
+        const normalizedIds = this.normalizeOrderedIds(
+          orderedIds.filter(
+            (entry): entry is string => typeof entry === 'string' || typeof entry === 'number'
+          ) as string[]
+        );
+
+        if (normalizedIds.length > 0) {
+          normalized[normalizedCategoryId] = normalizedIds;
+        }
+      }
+
+      return normalized;
+    } catch {
+      return {};
+    }
+  }
+
+  private applyStoredCategoryOrder(categories: Category[], orderedIds: string[]): Category[] {
+    if (!orderedIds.length || categories.length <= 1) {
+      return categories;
+    }
+
+    const orderIndex = new Map<string, number>();
+    orderedIds.forEach((id, index) => {
+      if (!orderIndex.has(id)) {
+        orderIndex.set(id, index);
+      }
+    });
+
+    const originalIndex = new Map<string, number>();
+    categories.forEach((category, index) => {
+      originalIndex.set(category.id, index);
+    });
+
+    return [...categories].sort((left, right) => {
+      const leftOrder = orderIndex.get(left.id);
+      const rightOrder = orderIndex.get(right.id);
+
+      if (leftOrder !== undefined && rightOrder !== undefined) {
+        return leftOrder - rightOrder;
+      }
+
+      if (leftOrder !== undefined) return -1;
+      if (rightOrder !== undefined) return 1;
+
+      return (originalIndex.get(left.id) ?? 0) - (originalIndex.get(right.id) ?? 0);
+    });
+  }
+
+  async updateCategoryOrder(orderedCategoryIds: string[]): Promise<string[]> {
+    const normalizedIds = this.normalizeOrderedIds(orderedCategoryIds);
+
+    const payload = JSON.stringify(normalizedIds);
+    const existingSetting = await this.getSettingByKey(CATEGORY_ORDER_SETTING_KEY);
+
+    if (existingSetting) {
+      await this.updateSetting({
+        ...existingSetting,
+        value: payload,
+        description: existingSetting.description || CATEGORY_ORDER_SETTING_DESCRIPTION,
+      });
+      return normalizedIds;
+    }
+
+    await this.createSetting({
+      key: CATEGORY_ORDER_SETTING_KEY,
+      value: payload,
+      description: CATEGORY_ORDER_SETTING_DESCRIPTION,
+    });
+
+    return normalizedIds;
+  }
+
+  async getProjectOrderByCategory(): Promise<ProjectOrderByCategory> {
+    const setting = await this.getSettingByKey(PROJECT_ORDER_SETTING_KEY);
+    return this.parseStoredProjectOrderByCategory(setting?.value);
+  }
+
+  async updateProjectOrderByCategory(
+    projectOrderByCategory: ProjectOrderByCategory
+  ): Promise<ProjectOrderByCategory> {
+    const normalizedOrder: ProjectOrderByCategory = {};
+
+    for (const [categoryId, orderedIds] of Object.entries(projectOrderByCategory || {})) {
+      const normalizedCategoryId = String(categoryId || '').trim();
+      if (!normalizedCategoryId) {
+        continue;
+      }
+
+      const normalizedIds = this.normalizeOrderedIds(orderedIds);
+      if (normalizedIds.length > 0) {
+        normalizedOrder[normalizedCategoryId] = normalizedIds;
+      }
+    }
+
+    const payload = JSON.stringify(normalizedOrder);
+    const existingSetting = await this.getSettingByKey(PROJECT_ORDER_SETTING_KEY);
+
+    if (existingSetting) {
+      await this.updateSetting({
+        ...existingSetting,
+        value: payload,
+        description: existingSetting.description || PROJECT_ORDER_SETTING_DESCRIPTION,
+      });
+      return normalizedOrder;
+    }
+
+    await this.createSetting({
+      key: PROJECT_ORDER_SETTING_KEY,
+      value: payload,
+      description: PROJECT_ORDER_SETTING_DESCRIPTION,
+    });
+
+    return normalizedOrder;
+  }
+
   // CATEGORY OPERATIONS
   async createCategory(categoryData: Omit<Category, 'id'>): Promise<Category> {
     try {
@@ -2053,7 +2223,7 @@ class ClientDataService {
         }
       }
 
-      return items.map((item) => {
+      const categories = items.map((item) => {
         const parentRaw =
           item.ParentCategoryId ?? item.ParentCategoryID ?? item.ParentId ?? item.ParentCategory;
         let parentId: string | undefined;
@@ -2081,6 +2251,12 @@ class ClientDataService {
           isSubcategory: item.IsSubcategory === true,
         };
       });
+
+      const orderSetting = await this.getSettingByKey(CATEGORY_ORDER_SETTING_KEY);
+      return this.applyStoredCategoryOrder(
+        categories,
+        this.parseStoredCategoryOrder(orderSetting?.value)
+      );
     } catch (error) {
       console.error('Error fetching categories:', error);
       return [];
