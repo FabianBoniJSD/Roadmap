@@ -325,6 +325,7 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
         props: {
           projects: [],
           categories: [],
+          projectOrderByCategory: {},
           resolvedInstanceSlug: instance.slug,
           accessDenied: true,
         },
