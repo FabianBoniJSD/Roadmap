@@ -225,7 +225,7 @@ const AdminPage: React.FC = () => {
 
   const handleAddProject = () => pushWithInstance('/admin/projects/new');
   const handleEditProject = (projectId: string) =>
-    pushWithInstance(`/admin/projects/edit/${projectId}`);
+    pushWithInstance(`/admin/projects/edit/${encodeURIComponent(projectId)}`);
 
   const handleDeleteProject = async (id: string) => {
     if (!window.confirm('Möchten Sie dieses Projekt wirklich löschen?')) return;
@@ -625,8 +625,13 @@ const AdminPage: React.FC = () => {
                       {projects.map((project) => (
                         <tr key={project.id} className="transition hover:bg-slate-900/80">
                           <td className="px-6 py-4">
-                            <div className="font-medium text-white">
+                            <div className="font-medium text-white flex items-center gap-2">
                               {project.title || '(Ohne Titel)'}
+                              {project.isReadOnlyMirror && (
+                                <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100">
+                                  Read-only Spiegelung
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="px-6 py-4">
@@ -651,19 +656,25 @@ const AdminPage: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right text-sm font-medium">
-                            <button
-                              onClick={() => handleEditProject(project.id)}
-                              className="text-sky-300 transition hover:text-sky-200"
-                            >
-                              Bearbeiten
-                            </button>
-                            <span className="mx-2 text-slate-600">|</span>
-                            <button
-                              onClick={() => handleDeleteProject(project.id)}
-                              className="text-rose-300 transition hover:text-rose-200"
-                            >
-                              Löschen
-                            </button>
+                            {project.isReadOnlyMirror ? (
+                              <span className="text-slate-500">Nur lesen</span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleEditProject(project.id)}
+                                  className="text-sky-300 transition hover:text-sky-200"
+                                >
+                                  Bearbeiten
+                                </button>
+                                <span className="mx-2 text-slate-600">|</span>
+                                <button
+                                  onClick={() => handleDeleteProject(project.id)}
+                                  className="text-rose-300 transition hover:text-rose-200"
+                                >
+                                  Löschen
+                                </button>
+                              </>
+                            )}
                           </td>
                         </tr>
                       ))}

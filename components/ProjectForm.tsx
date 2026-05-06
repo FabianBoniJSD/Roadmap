@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Project, Category, ProjectLink, TeamMember } from '../types';
+import { Project, Category, InstanceBadgeOption, ProjectLink, TeamMember } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -18,6 +18,7 @@ import {
 interface ProjectFormProps {
   initialProject?: Project;
   categories: Category[];
+  instanceBadgeOptions?: InstanceBadgeOption[];
   onSubmit: (project: Project) => void;
   onCancel: () => void;
 }
@@ -96,6 +97,7 @@ const ProjectRichTextField: React.FC<ProjectRichTextFieldProps> = ({
 const ProjectForm: React.FC<ProjectFormProps> = ({
   initialProject,
   categories,
+  instanceBadgeOptions = [],
   onSubmit,
   onCancel,
 }) => {
@@ -519,6 +521,41 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           Badges werden nur in der Kachelansicht angezeigt und können dort zusätzlich gefiltert
           werden.
         </p>
+
+        {instanceBadgeOptions.length > 0 && (
+          <div className="mb-4 space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              Instanz-Badges
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {instanceBadgeOptions.map((option) => {
+                const selected = badges.some(
+                  (badge) => badge.toLowerCase() === option.badge.toLowerCase()
+                );
+                return (
+                  <button
+                    key={`${option.slug}:${option.badge}`}
+                    type="button"
+                    onClick={() => {
+                      setNewBadge(option.badge);
+                      if (!selected) {
+                        setBadges((prev) => [...prev, option.badge]);
+                      }
+                    }}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                      selected
+                        ? 'border-sky-400/60 bg-sky-500/15 text-sky-100'
+                        : 'border-slate-700 bg-slate-900/70 text-slate-300 hover:border-sky-400 hover:text-white'
+                    }`}
+                    title={option.displayName}
+                  >
+                    {option.displayName}: {option.badge}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-7">
           <div className="md:col-span-6">

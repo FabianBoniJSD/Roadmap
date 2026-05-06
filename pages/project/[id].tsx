@@ -310,6 +310,12 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
                         Phase: {project.projektphase}
                       </span>
                     )}
+                    {project.isReadOnlyMirror && (
+                      <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-1 text-xs uppercase tracking-[0.25em] text-amber-100">
+                        Gespiegelt aus{' '}
+                        {project.mirrorSourceInstanceName || project.mirrorSourceInstanceSlug}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

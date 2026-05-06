@@ -1,15 +1,20 @@
 export interface Project {
   id: string;
+  sourceProjectId?: string;
   title: string;
   /** 'short' = Kurzzeitprojekt, 'long' = normales (Langzeit) Projekt */
   projectType?: 'short' | 'long';
   category: string;
+  categoryLabel?: string;
   startQuarter: string;
   endQuarter: string;
   description: string;
   status: 'planned' | 'in-progress' | 'completed' | 'paused' | 'cancelled';
   ProjectFields: string[];
   badges?: string[];
+  isReadOnlyMirror?: boolean;
+  mirrorSourceInstanceSlug?: string;
+  mirrorSourceInstanceName?: string;
   projektleitung: string;
   projektleitungImageUrl?: string | null;
   teamMembers?: TeamMember[];
@@ -71,4 +76,10 @@ export interface AppSettings {
   key: string;
   value: string;
   description?: string;
+}
+
+export interface InstanceBadgeOption {
+  slug: string;
+  displayName: string;
+  badge: string;
 }

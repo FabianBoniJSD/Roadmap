@@ -10,6 +10,7 @@ import type { Project } from '@/types';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 import { getSampleProjectById, isSampleDataInstance } from '@/utils/sampleInstanceData';
 import { sanitizeProjectRichTextFields } from '@/utils/richText';
+import { getMirroredProjectById, parseMirroredProjectId } from '@/utils/instanceMirroring';
 
 const normalizeTeamMembers = (value: unknown): Array<{ name: string; role: string }> => {
   if (!Array.isArray(value)) return [];
@@ -101,6 +102,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid project ID' });
   }
 
+  const mirroredId = parseMirroredProjectId(id);
+
   // GET - Fetch a single project
   if (req.method === 'GET') {
     try {
@@ -115,13 +118,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      const project = isSampleDataInstance(instance)
-        ? getSampleProjectById(id)
-        : await clientDataService.withRequestHeaders(forwardedHeaders, () =>
-            clientDataService.withInstance(instance.slug, () =>
-              clientDataService.getProjectById(id)
-            )
-          );
+      const project = mirroredId
+        ? await getMirroredProjectById({
+            targetInstance: instance,
+            mirroredId: id,
+            forwardedHeaders,
+          })
+        : isSampleDataInstance(instance)
+          ? getSampleProjectById(id)
+          : await clientDataService.withRequestHeaders(forwardedHeaders, () =>
+              clientDataService.withInstance(instance.slug, () =>
+                clientDataService.getProjectById(id)
+              )
+            );
 
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
@@ -136,6 +145,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // PUT - Update a project
   else if (req.method === 'PUT') {
     try {
+      if (mirroredId) {
+        return res.status(409).json({ error: 'Mirrored projects are read-only' });
+      }
+
       if (isSampleDataInstance(instance)) {
         return res.status(501).json({ error: 'Sample data instance is read-only' });
       }
@@ -179,6 +192,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // DELETE - Delete a project
   else if (req.method === 'DELETE') {
     try {
+      if (mirroredId) {
+        return res.status(409).json({ error: 'Mirrored projects are read-only' });
+      }
+
       if (isSampleDataInstance(instance)) {
         return res.status(501).json({ error: 'Sample data instance is read-only' });
       }

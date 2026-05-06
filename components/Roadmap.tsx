@@ -1009,7 +1009,7 @@ const Roadmap: React.FC<RoadmapProps> = ({
       });
       return;
     }
-    void router.push(`/project/${projectId}`);
+    void router.push(`/project/${encodeURIComponent(projectId)}`);
   };
 
   // Calculate position for quarter view

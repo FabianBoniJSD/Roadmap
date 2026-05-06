@@ -4,10 +4,11 @@ import AdminSubpageLayout from '@/components/AdminSubpageLayout';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import ProjectForm from '@/components/ProjectForm';
 import withAdminAuth from '@/components/withAdminAuth';
-import { Category, Project, TeamMember } from '@/types';
+import { Category, InstanceBadgeOption, Project, TeamMember } from '@/types';
 import { buildInstanceAwareUrl } from '@/utils/auth';
 import { clientDataService } from '@/utils/clientDataService';
 import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
+import { parseMirroredProjectId } from '@/utils/instanceMirroring';
 
 type Attachment = {
   FileName: string;
@@ -20,6 +21,7 @@ const EditProjectPage: FC = () => {
 
   const [project, setProject] = useState<Project | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [instanceBadgeOptions, setInstanceBadgeOptions] = useState<InstanceBadgeOption[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,22 +62,28 @@ const EditProjectPage: FC = () => {
     const requestId = ++fetchRequestIdRef.current;
     const fetchData = async () => {
       if (!id || typeof id !== 'string') return;
+      const mirroredRequest = parseMirroredProjectId(id);
 
       try {
         setLoading(true);
         setError(null);
 
-        const [projectResponse, categoriesResponse, attachmentsData] = await Promise.all([
-          fetch(buildInstanceAwareUrl(`/api/projects/${encodeURIComponent(id)}`), {
-            headers: { Accept: 'application/json' },
-            credentials: 'same-origin',
-          }),
-          fetch(buildInstanceAwareUrl('/api/categories'), {
-            headers: { Accept: 'application/json' },
-            credentials: 'same-origin',
-          }),
-          clientDataService.listAttachments(id),
-        ]);
+        const [projectResponse, categoriesResponse, attachmentsData, instancesResponse] =
+          await Promise.all([
+            fetch(buildInstanceAwareUrl(`/api/projects/${encodeURIComponent(id)}`), {
+              headers: { Accept: 'application/json' },
+              credentials: 'same-origin',
+            }),
+            fetch(buildInstanceAwareUrl('/api/categories'), {
+              headers: { Accept: 'application/json' },
+              credentials: 'same-origin',
+            }),
+            mirroredRequest ? Promise.resolve([]) : clientDataService.listAttachments(id),
+            fetch('/api/instances/slugs', {
+              headers: { Accept: 'application/json' },
+              credentials: 'same-origin',
+            }),
+          ]);
 
         if (!projectResponse.ok || !categoriesResponse.ok) {
           const projectPayload = await projectResponse.json().catch(() => null);
@@ -91,11 +99,23 @@ const EditProjectPage: FC = () => {
           projectResponse.json(),
           categoriesResponse.json(),
         ])) as [Project | null, Category[]];
+        const instancesPayload = await instancesResponse.json().catch(() => null);
 
         if (requestId !== fetchRequestIdRef.current) return;
 
         setProject(projectData);
         setCategories(categoriesData);
+        setInstanceBadgeOptions(
+          Array.isArray(instancesPayload?.instances)
+            ? instancesPayload.instances.filter(
+                (instance): instance is InstanceBadgeOption =>
+                  typeof instance?.slug === 'string' &&
+                  typeof instance?.displayName === 'string' &&
+                  typeof instance?.badge === 'string' &&
+                  instance.badge.trim().length > 0
+              )
+            : []
+        );
         setTeamMembers(Array.isArray(projectData?.teamMembers) ? projectData.teamMembers : []);
         setAttachments(attachmentsData);
       } catch (err) {
@@ -421,6 +441,24 @@ const EditProjectPage: FC = () => {
             </button>
           </div>
         </section>
+      ) : project.isReadOnlyMirror ? (
+        <section className="rounded-3xl border border-amber-500/30 bg-amber-500/10 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold text-white">Gespiegeltes Projekt</h2>
+            <p className="text-sm text-slate-200">
+              Dieses Projekt wird aus der Instanz{' '}
+              {project.mirrorSourceInstanceName || project.mirrorSourceInstanceSlug || 'Quelle'}{' '}
+              gespiegelt und kann hier nur gelesen werden.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push({ pathname: '/admin', query: router.query })}
+              className="rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+            >
+              Zurück zur Übersicht
+            </button>
+          </div>
+        </section>
       ) : (
         <>
           <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
@@ -440,6 +478,7 @@ const EditProjectPage: FC = () => {
                 })),
               }}
               categories={categories}
+              instanceBadgeOptions={instanceBadgeOptions}
               onSubmit={handleSubmit}
               onCancel={handleCancel}
             />

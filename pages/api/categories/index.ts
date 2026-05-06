@@ -8,6 +8,7 @@ import {
 import { getInstanceConfigFromRequest } from '@/utils/instanceConfig';
 import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 import { getSampleCategories, isSampleDataInstance } from '@/utils/sampleInstanceData';
+import { getMirroredProjectsForInstance } from '@/utils/instanceMirroring';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const disableCache = () => {
@@ -59,8 +60,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             clientDataService.getAllCategories()
           );
 
+      const { mirroredCategories } = await getMirroredProjectsForInstance({
+        instance,
+        forwardedHeaders,
+      });
+
+      const responseCategories = [...categories, ...mirroredCategories];
+
       res.setHeader('x-categories-instance', instance.slug);
-      res.status(200).json(categories);
+      res.status(200).json(responseCategories);
     } catch (error) {
       console.error('Error fetching categories:', error);
       res.status(500).json({ error: 'Failed to fetch categories' });

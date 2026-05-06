@@ -11,6 +11,7 @@ import type { RoadmapInstanceConfig } from '@/types/roadmapInstance';
 import { resolveSharePointSiteUrl } from '@/utils/sharepointEnv';
 import { getSampleProjects, isSampleDataInstance } from '@/utils/sampleInstanceData';
 import { sanitizeProjectRichTextFields } from '@/utils/richText';
+import { getMirroredProjectsForInstance } from '@/utils/instanceMirroring';
 
 const normalizeTeamMembers = (value: unknown): Array<{ name: string; role: string }> => {
   if (!Array.isArray(value)) return [];
@@ -331,6 +332,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         : await clientDataService.withRequestHeaders(forwardedHeaders, () =>
             clientDataService.withInstance(instance.slug, () => clientDataService.getAllProjects())
           );
+
+      const { mirroredProjects } = await getMirroredProjectsForInstance({
+        instance,
+        forwardedHeaders,
+      });
+
+      if (mirroredProjects.length > 0) {
+        projects = [...projects, ...mirroredProjects];
+        res.setHeader('x-projects-mirrored-count', String(mirroredProjects.length));
+      }
 
       if (Array.isArray(projects) && projects.length === 0) {
         const explicit = await fetchProjectsViaExplicitInstanceProxy(req, instance);

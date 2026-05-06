@@ -17,6 +17,7 @@ import {
   getSampleProjects,
   isSampleDataInstance,
 } from '@/utils/sampleInstanceData';
+import { getMirroredProjectsForInstance } from '@/utils/instanceMirroring';
 import type { Category, Project, ProjectOrderByCategory } from '../types';
 
 const parseProjectOrderByCategoryValue = (value: unknown): ProjectOrderByCategory => {
@@ -344,8 +345,16 @@ export const getServerSideProps: GetServerSideProps<RoadmapPageProps> = async (c
           )
         );
 
-    const safeProjects = Array.isArray(projects) ? projects : [];
-    const safeCategories = Array.isArray(categories) ? categories : [];
+    const { mirroredProjects, mirroredCategories } = await getMirroredProjectsForInstance({
+      instance,
+      forwardedHeaders,
+    });
+
+    const safeProjects = [...(Array.isArray(projects) ? projects : []), ...mirroredProjects];
+    const safeCategories = [
+      ...(Array.isArray(categories) ? categories : []),
+      ...mirroredCategories,
+    ];
     const safeProjectOrderByCategory =
       projectOrderByCategory && typeof projectOrderByCategory === 'object'
         ? projectOrderByCategory

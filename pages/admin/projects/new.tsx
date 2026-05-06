@@ -4,12 +4,13 @@ import AdminSubpageLayout from '@/components/AdminSubpageLayout';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import ProjectForm from '@/components/ProjectForm';
 import withAdminAuth from '@/components/withAdminAuth';
-import { Category, Project } from '@/types';
+import { Category, InstanceBadgeOption, Project } from '@/types';
 import { buildInstanceAwareUrl } from '@/utils/auth';
 
 const NewProjectPage: FC = () => {
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [instanceBadgeOptions, setInstanceBadgeOptions] = useState<InstanceBadgeOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,17 +20,35 @@ const NewProjectPage: FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(buildInstanceAwareUrl('/api/categories'), {
-          headers: { Accept: 'application/json' },
-          credentials: 'same-origin',
-        });
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
+        const [categoriesResponse, instancesResponse] = await Promise.all([
+          fetch(buildInstanceAwareUrl('/api/categories'), {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+          }),
+          fetch('/api/instances/slugs', {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+          }),
+        ]);
+        if (!categoriesResponse.ok) {
+          const payload = await categoriesResponse.json().catch(() => null);
           throw new Error(payload?.error || 'Kategorien konnten nicht geladen werden');
         }
-        const categoriesData = (await response.json()) as Category[];
+        const categoriesData = (await categoriesResponse.json()) as Category[];
+        const instancesPayload = await instancesResponse.json().catch(() => null);
         if (cancelled) return;
         setCategories(categoriesData);
+        setInstanceBadgeOptions(
+          Array.isArray(instancesPayload?.instances)
+            ? instancesPayload.instances.filter(
+                (instance): instance is InstanceBadgeOption =>
+                  typeof instance?.slug === 'string' &&
+                  typeof instance?.displayName === 'string' &&
+                  typeof instance?.badge === 'string' &&
+                  instance.badge.trim().length > 0
+              )
+            : []
+        );
       } catch (err) {
         console.error('Error fetching categories:', err);
         if (cancelled) return;
@@ -92,7 +111,12 @@ const NewProjectPage: FC = () => {
               {error}
             </div>
           )}
-          <ProjectForm categories={categories} onSubmit={handleSubmit} onCancel={handleCancel} />
+          <ProjectForm
+            categories={categories}
+            instanceBadgeOptions={instanceBadgeOptions}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+          />
         </section>
       )}
     </AdminSubpageLayout>

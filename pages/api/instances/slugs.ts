@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { extractAdminSession } from '@/utils/apiAuth';
+import { getInstanceBadge } from '@/utils/instanceMirroring';
 import {
   isReadSessionAllowedForInstance,
   resolveSessionDepartmentAcrossInstances,
@@ -83,9 +84,14 @@ const resolveFrontendTarget = (settingsJson: string | null, hosts: string[]): st
   return buildTargetFromHost(hostCandidate, pathCandidate);
 };
 
-const toInstanceOption = (record: { slug: string; displayName: string | null }) => ({
+const toInstanceOption = (record: {
+  slug: string;
+  displayName: string | null;
+  settingsJson?: string | null;
+}) => ({
   slug: record.slug,
   displayName: record.displayName || record.slug,
+  badge: getInstanceBadge(parseMetadata(record.settingsJson ?? null)),
 });
 
 const toLandingInstance = (record: {

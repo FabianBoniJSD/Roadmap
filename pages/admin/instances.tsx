@@ -16,6 +16,7 @@ import {
 } from '@/utils/auth';
 import type { RoadmapInstanceSummary } from '@/types/roadmapInstance';
 import { SHAREPOINT_LIST_DEFINITIONS } from '@/utils/sharePointLists';
+import { getInstanceBadge, setInstanceBadgeMetadata } from '@/utils/instanceMirroring';
 
 type ApiInstanceResponse = {
   instances: RoadmapInstanceSummary[];
@@ -39,6 +40,7 @@ type SuperAdminRecord = {
 type AdminFormState = {
   slug: string;
   displayName: string;
+  instanceBadge: string;
   department: string;
   allowedDepartmentsInput: string;
   description: string;
@@ -57,6 +59,7 @@ type AdminFormState = {
 const defaultForm: AdminFormState = {
   slug: '',
   displayName: '',
+  instanceBadge: '',
   department: '',
   allowedDepartmentsInput: '',
   description: '',
@@ -505,6 +508,7 @@ const AdminInstancesPage = () => {
     setForm({
       slug: instance.slug,
       displayName: instance.displayName,
+      instanceBadge: getInstanceBadge(instance) || '',
       department: instance.department || '',
       allowedDepartmentsInput: (instance.allowedDepartments || []).join(', '),
       description: instance.description || '',
@@ -526,6 +530,7 @@ const AdminInstancesPage = () => {
     const {
       slug,
       displayName,
+      instanceBadge,
       department,
       allowedDepartmentsInput,
       description,
@@ -537,6 +542,14 @@ const AdminInstancesPage = () => {
       sharePointSiteUrlProd,
       hostsInput,
     } = form;
+
+    const existingMetadata =
+      mode === 'edit' && selectedSlug
+        ? (instances.find((instance) => instance.slug === selectedSlug)?.metadata as
+            | Record<string, unknown>
+            | undefined)
+        : undefined;
+    const metadata = setInstanceBadgeMetadata(existingMetadata, instanceBadge);
 
     const hostEntries = hostsInput
       .split(/[\n,]/)
@@ -551,6 +564,7 @@ const AdminInstancesPage = () => {
     return {
       slug,
       displayName,
+      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       department: department || undefined,
       allowedDepartments,
       description: description || undefined,
@@ -1028,6 +1042,19 @@ const AdminInstancesPage = () => {
                   disabled={mode === 'edit'}
                   onChange={(e) => updateField('slug', e.target.value.toLowerCase())}
                 />
+              </label>
+              <label className="space-y-1 sm:col-span-2">
+                <span className="text-slate-300">Instanz-Badge</span>
+                <input
+                  type="text"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+                  placeholder="z. B. roadmap-bdm"
+                  value={form.instanceBadge}
+                  onChange={(e) => updateField('instanceBadge', e.target.value)}
+                />
+                <span className="text-xs text-slate-500">
+                  Projekte mit diesem Badge werden in dieser Instanz schreibgeschützt gespiegelt.
+                </span>
               </label>
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-slate-300">Landing Page (optional)</span>

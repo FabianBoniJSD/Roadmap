@@ -104,7 +104,7 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({ projects, categories 
       });
       return;
     }
-    void router.push(`/project/${projectId}`);
+    void router.push(`/project/${encodeURIComponent(projectId)}`);
   };
 
   const handleMouseEnter = (
