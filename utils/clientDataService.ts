@@ -872,10 +872,15 @@ class ClientDataService {
       const unique = Array.from(new Set(['Id', ...fields]));
       return unique.join(',');
     };
+    const getSelectableProjectFields = (fields: string[], knownFieldNames: Set<string>) => {
+      if (knownFieldNames.size === 0) return fields.slice();
+      return fields.filter((field) => knownFieldNames.has(field));
+    };
     // Determine the available category field name (supports variants like Bereich/Bereiche)
     const resolvedProjects = await this.resolveListTitle(SP_LISTS.PROJECTS, ['Roadmap Projects']);
     const listFieldNames = await this.getListFieldNames(resolvedProjects);
     const listFieldTypes = await this.getListFieldTypes(resolvedProjects);
+    const selectableCandidateFields = getSelectableProjectFields(candidateFields, listFieldNames);
     const categoryFieldCandidates = ['Category', 'Bereich', 'Bereiche'];
     const categoryFieldName = categoryFieldCandidates.find((f) => listFieldNames.has(f)) || null;
     const categoryIsLookup = categoryFieldName
@@ -993,8 +998,14 @@ class ClientDataService {
 
     // Attempt full fetch first (use cached successful set if we already probed)
     const projectFieldsCacheKey = this.getInstanceCacheKey('project-fields');
-    let fieldsToUse =
-      this.validProjectFieldsCache[projectFieldsCacheKey] || candidateFields.slice();
+    const cachedProjectFields = this.validProjectFieldsCache[projectFieldsCacheKey];
+    let fieldsToUse = cachedProjectFields
+      ? getSelectableProjectFields(cachedProjectFields, listFieldNames)
+      : selectableCandidateFields.slice();
+    if (!fieldsToUse.includes('Title')) fieldsToUse.unshift('Title');
+    if (cachedProjectFields && fieldsToUse.length !== cachedProjectFields.length) {
+      this.validProjectFieldsCache[projectFieldsCacheKey] = fieldsToUse;
+    }
     let initialResult = await fetchItems(fieldsToUse);
 
     // Detect InvalidClientQueryException / invalid argument / unknown field errors
@@ -1017,7 +1028,7 @@ class ClientDataService {
         '[clientDataService] Full select failed, probing individual fields to isolate invalid ones'
       );
       const valid: string[] = [];
-      for (const f of candidateFields) {
+      for (const f of selectableCandidateFields) {
         const testRes = await fetchItems(['Id', f]); // builder adds Id again but harmless
         if (Array.isArray(testRes)) {
           valid.push(f);
@@ -1038,10 +1049,7 @@ class ClientDataService {
       console.error('Error fetching projects (after fallback if any):', initialResult);
       // Final defensive fallback using generic helper (handles Atom/XML etc.)
       try {
-        const minimal = await this.fetchFromSharePoint(
-          resolvedProjects,
-          'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Badges,ProjectBadges,Projektphase,NaechsterMeilenstein'
-        );
+        const minimal = await this.fetchFromSharePoint(resolvedProjects, buildSelect(fieldsToUse));
         initialResult = Array.isArray(minimal) ? minimal : [];
       } catch (e) {
         console.warn('[clientDataService] minimal project fetch also failed', e);
@@ -1074,10 +1082,7 @@ class ClientDataService {
     // If we got an empty array (possible Atom-minimal normalization), try generic helper as a second chance
     if (Array.isArray(items) && items.length === 0) {
       try {
-        const alt = await this.fetchFromSharePoint(
-          resolvedProjects,
-          'Id,Title,Category,StartQuarter,EndQuarter,Description,Status,Projektleitung,Bisher,Zukunft,Fortschritt,GeplantUmsetzung,Budget,StartDate,EndDate,ProjectFields,Badges,ProjectBadges,Projektphase,NaechsterMeilenstein'
-        );
+        const alt = await this.fetchFromSharePoint(resolvedProjects, buildSelect(fieldsToUse));
         if (Array.isArray(alt) && alt.length > 0) items = alt;
       } catch {
         /* ignore */
