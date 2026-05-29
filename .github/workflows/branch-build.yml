@@ -196,7 +196,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
- 
+
       - name: Write environment file from secret
         env:
           ENV_FILE_CONTENT: ${{ secrets.env }}
@@ -619,7 +619,7 @@ jobs:
 
       - name: Start app on port 3000 with PM2
         env:
-          RUNNER_TRACKING_ID: ""
+          RUNNER_TRACKING_ID: ''
           NODE_ENV: production
           PORT: 3000
         run: |
@@ -669,19 +669,81 @@ jobs:
           pm2cmd status
           pm2cmd describe roadmap-app
 
+          read_env_value() {
+            local key="$1"
+            if [ ! -f .env ]; then
+              return 0
+            fi
+            awk -F= -v k="$key" '
+              $0 ~ "^[[:space:]]*"k"=" {
+                sub(/^[^=]*=/, "", $0);
+                val=$0
+              }
+              END { if (val != "") print val }
+            ' .env
+          }
+
+          sanitize_env_value() {
+            local v="$1"
+            v="${v%\"}"
+            v="${v#\"}"
+            v="${v%\'}"
+            v="${v#\'}"
+            echo "$v"
+          }
+
+          check_http_ready() {
+            local path
+            for path in "$@"; do
+              local url="http://127.0.0.1:3000${path}"
+              local code
+              code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url" || true)"
+              if [ -n "$code" ] && [ "$code" != "000" ]; then
+                echo "[OK] HTTP reachable at $url (status=$code)"
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          deploymentEnv="$(sanitize_env_value "${NEXT_PUBLIC_DEPLOYMENT_ENV:-$(read_env_value NEXT_PUBLIC_DEPLOYMENT_ENV || true)}")"
+          if [ -z "$deploymentEnv" ]; then
+            deploymentEnv="${NODE_ENV:-production}"
+          fi
+          deploymentEnv="$(echo "$deploymentEnv" | tr '[:upper:]' '[:lower:]')"
+
+          if [ "$deploymentEnv" = "production" ]; then
+            rawBasePath="$(sanitize_env_value "$(read_env_value NEXT_PUBLIC_BASE_PATH_PROD || true)")"
+          else
+            rawBasePath="$(sanitize_env_value "$(read_env_value NEXT_PUBLIC_BASE_PATH_DEV || true)")"
+          fi
+
+          basePath="${rawBasePath%/}"
+          if [ -n "$basePath" ] && [ "${basePath#/}" = "$basePath" ]; then
+            basePath="/$basePath"
+          fi
+
+          candidatePaths=("/api/health/ready" "/")
+          if [ -n "$basePath" ] && [ "$basePath" != "/" ]; then
+            candidatePaths=("$basePath/api/health/ready" "$basePath" "$basePath/" "/api/health/ready" "/")
+          fi
+
+          echo "Resolved deployment env: $deploymentEnv"
+          echo "Resolved base path: ${basePath:-<none>}"
+
           maxAttempts=12
           attempt=1
-          until curl -fsS http://127.0.0.1:3000 >/dev/null; do
+          until check_http_ready "${candidatePaths[@]}"; do
             if [ "$attempt" -ge "$maxAttempts" ]; then
-              echo "[FAIL] App did not become ready on http://127.0.0.1:3000." >&2
+              echo "[FAIL] App did not become ready on local HTTP readiness paths." >&2
               pm2cmd logs roadmap-app --lines 100 --nostream || true
               ss -ltnp 2>/dev/null | grep ':3000' || true
               exit 1
             fi
 
-            echo "Waiting for app readiness on port 3000 (attempt $attempt/$maxAttempts)..."
+            echo "Waiting for app readiness on /api/health/ready (attempt $attempt/$maxAttempts)..."
             attempt=$((attempt + 1))
             sleep 5
           done
 
-          echo "Branch app is reachable on http://127.0.0.1:3000"
+          echo "Branch app is reachable on a local readiness path"

@@ -2,7 +2,7 @@
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['main']
   workflow_dispatch:
 
 concurrency:
@@ -411,7 +411,7 @@ jobs:
             exit 1
           fi
           echo "No stale workspace artifacts detected."
-      
+
       - name: Show disk space (after cleanup)
         run: |
           set -euo pipefail
@@ -667,7 +667,7 @@ jobs:
 
       - name: Start app on port 3000 with PM2
         env:
-          RUNNER_TRACKING_ID: ""
+          RUNNER_TRACKING_ID: ''
           NODE_ENV: production
           PORT: 3000
         run: |
@@ -814,9 +814,9 @@ jobs:
             basePath="/$basePath"
           fi
 
-          candidatePaths=("/" "/api/health/sharepoint")
+          candidatePaths=("/api/health/ready" "/" "/api/health/sharepoint")
           if [ -n "$basePath" ] && [ "$basePath" != "/" ]; then
-            candidatePaths=("$basePath" "$basePath/" "$basePath/api/health/sharepoint" "/" "/api/health/sharepoint")
+            candidatePaths=("$basePath/api/health/ready" "$basePath" "$basePath/" "$basePath/api/health/sharepoint" "/api/health/ready" "/" "/api/health/sharepoint")
           fi
 
           echo "Resolved deployment env: $deploymentEnv"
