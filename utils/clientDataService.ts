@@ -98,6 +98,59 @@ class ClientDataService {
   private metadataCache: Record<string, string> = {};
   private validProjectFieldsCache: Record<string, string[]> = {};
 
+  private normalizeStringList(value: unknown): string[] {
+    const normalizeEntry = (entry: unknown): string[] => {
+      if (entry === undefined || entry === null) return [];
+
+      if (Array.isArray(entry)) {
+        return entry.flatMap((nestedEntry) => normalizeEntry(nestedEntry));
+      }
+
+      if (typeof entry === 'object') {
+        const record = entry as Record<string, unknown>;
+        const nestedResults = record.results ?? record.Results ?? record.value ?? record.Value;
+        if (Array.isArray(nestedResults)) {
+          return nestedResults.flatMap((nestedEntry) => normalizeEntry(nestedEntry));
+        }
+
+        const label =
+          record.Label ??
+          record.Title ??
+          record.LookupValue ??
+          record.Name ??
+          record.value ??
+          record.Value;
+        if (label !== undefined && label !== null) return normalizeEntry(label);
+      }
+
+      return String(entry)
+        .split(/;#|[;,\n]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+    };
+
+    const normalized = normalizeEntry(value);
+    return normalized.filter((entry, index, list) => list.indexOf(entry) === index);
+  }
+
+  private serializeStringList(value: unknown): string {
+    return this.normalizeStringList(value).join('; ');
+  }
+
+  private formatStringListForSharePoint(
+    value: unknown,
+    fieldType?: string
+  ): string | { __metadata: { type: string }; results: string[] } {
+    const values = this.normalizeStringList(value);
+    if (/multi/i.test(String(fieldType || ''))) {
+      return {
+        __metadata: { type: 'Collection(Edm.String)' },
+        results: values,
+      };
+    }
+    return values.join('; ');
+  }
+
   private prepareFetch(url: string, init: RequestInit = {}) {
     const prepared: RequestInit = { ...init };
     const headers = new Headers(init.headers || {});
@@ -1187,42 +1240,8 @@ class ClientDataService {
           console.debug('[getAllProjects] raw item keys:', Object.keys(item));
         } catch {}
       }
-      let projectFields: string[] = [];
-      const raw = item.ProjectFields;
-      if (raw) {
-        if (Array.isArray(raw)) projectFields = raw;
-        else if (typeof raw === 'string') {
-          if (raw.includes('\n'))
-            projectFields = raw
-              .split('\n')
-              .map((s: string) => s.trim())
-              .filter(Boolean);
-          else if (raw.includes(';') || raw.includes(','))
-            projectFields = raw
-              .split(/[;,]/)
-              .map((s: string) => s.trim())
-              .filter(Boolean);
-          else projectFields = [raw.trim()];
-        }
-      }
-      let badges: string[] = [];
-      const rawBadges = item.Badges ?? item.ProjectBadges;
-      if (rawBadges) {
-        if (Array.isArray(rawBadges)) badges = rawBadges;
-        else if (typeof rawBadges === 'string') {
-          if (rawBadges.includes('\n'))
-            badges = rawBadges
-              .split('\n')
-              .map((s: string) => s.trim())
-              .filter(Boolean);
-          else if (rawBadges.includes(';') || rawBadges.includes(','))
-            badges = rawBadges
-              .split(/[;,]/)
-              .map((s: string) => s.trim())
-              .filter(Boolean);
-          else badges = [rawBadges.trim()];
-        }
-      }
+      const projectFields = this.normalizeStringList(item.ProjectFields);
+      const badges = this.normalizeStringList(item.Badges ?? item.ProjectBadges);
       const normalizedCategory = getNormalizedCategoryFromEntity(item);
       if (normalizedCategory) item.Category = normalizedCategory;
 
@@ -1507,42 +1526,8 @@ class ClientDataService {
   // Helper to normalize a single project (shared by getProjectById fallbacks)
   private async buildSingleProject(item: any, id: string): Promise<Project | null> {
     if (!item) return null;
-    let projectFields: string[] = [];
-    const raw = item.ProjectFields;
-    if (raw) {
-      if (Array.isArray(raw)) projectFields = raw;
-      else if (typeof raw === 'string') {
-        if (raw.includes('\n'))
-          projectFields = raw
-            .split('\n')
-            .map((s: string) => s.trim())
-            .filter(Boolean);
-        else if (raw.includes(';') || raw.includes(','))
-          projectFields = raw
-            .split(/[;,]/)
-            .map((s: string) => s.trim())
-            .filter(Boolean);
-        else projectFields = [raw.trim()];
-      }
-    }
-    let badges: string[] = [];
-    const rawBadges = item.Badges ?? item.ProjectBadges;
-    if (rawBadges) {
-      if (Array.isArray(rawBadges)) badges = rawBadges;
-      else if (typeof rawBadges === 'string') {
-        if (rawBadges.includes('\n'))
-          badges = rawBadges
-            .split('\n')
-            .map((s: string) => s.trim())
-            .filter(Boolean);
-        else if (rawBadges.includes(';') || rawBadges.includes(','))
-          badges = rawBadges
-            .split(/[;,]/)
-            .map((s: string) => s.trim())
-            .filter(Boolean);
-        else badges = [rawBadges.trim()];
-      }
-    }
+    const projectFields = this.normalizeStringList(item.ProjectFields);
+    const badges = this.normalizeStringList(item.Badges ?? item.ProjectBadges);
 
     const teamMembers = await this.getTeamMembersForProject(id);
     const links = await this.getProjectLinks(id);
@@ -1678,42 +1663,13 @@ class ClientDataService {
       const requestDigest = await this.getRequestDigest();
       const itemType = await this.getListMetadata(resolvedProjects);
 
-      // Process ProjectFields value
-      let projectFieldsValue = '';
-      let badgesValue = '';
-
-      if (projectData.ProjectFields !== undefined) {
-        if (Array.isArray(projectData.ProjectFields)) {
-          projectFieldsValue = projectData.ProjectFields.join('; ');
-        } else if (typeof projectData.ProjectFields === 'string') {
-          projectFieldsValue = projectData.ProjectFields;
-        } else if (projectData.ProjectFields) {
-          projectFieldsValue = String(projectData.ProjectFields);
-        }
-      } else if (existingProject.ProjectFields) {
-        // Use existing value if available
-        if (Array.isArray(existingProject.ProjectFields)) {
-          projectFieldsValue = existingProject.ProjectFields.join('; ');
-        } else {
-          projectFieldsValue = String(existingProject.ProjectFields);
-        }
-      }
-
-      if (projectData.badges !== undefined) {
-        if (Array.isArray(projectData.badges)) {
-          badgesValue = projectData.badges.join('; ');
-        } else if (typeof projectData.badges === 'string') {
-          badgesValue = projectData.badges;
-        } else if (projectData.badges) {
-          badgesValue = String(projectData.badges);
-        }
-      } else if (existingProject.badges) {
-        if (Array.isArray(existingProject.badges)) {
-          badgesValue = existingProject.badges.join('; ');
-        } else {
-          badgesValue = String(existingProject.badges);
-        }
-      }
+      const projectFieldsSource =
+        projectData.ProjectFields !== undefined
+          ? projectData.ProjectFields
+          : existingProject.ProjectFields;
+      const badgesSource =
+        projectData.badges !== undefined ? projectData.badges : existingProject.badges;
+      const projectFieldsValue = this.serializeStringList(projectFieldsSource);
 
       // Create a clean request body with all fields included
       const body: any = {
@@ -1742,15 +1698,25 @@ class ClientDataService {
       // Conditionally include optional new fields if list supports them
       try {
         const fields = await this.getListFieldNames(resolvedProjects);
+        const fieldTypes = await this.getListFieldTypes(resolvedProjects);
+        if (fields.has('ProjectFields')) {
+          body['ProjectFields'] = this.formatStringListForSharePoint(
+            projectFieldsSource,
+            fieldTypes['ProjectFields']
+          );
+        }
         if (fields.has('ProjectType')) {
           const nextType = (projectData as any).projectType || (existingProject as any).projectType;
           if (nextType)
             body['ProjectType'] = String(nextType).toLowerCase() === 'short' ? 'short' : 'long';
         }
         if (fields.has('Badges')) {
-          body['Badges'] = badgesValue;
+          body['Badges'] = this.formatStringListForSharePoint(badgesSource, fieldTypes['Badges']);
         } else if (fields.has('ProjectBadges')) {
-          body['ProjectBadges'] = badgesValue;
+          body['ProjectBadges'] = this.formatStringListForSharePoint(
+            badgesSource,
+            fieldTypes['ProjectBadges']
+          );
         }
         if (fields.has('Projektphase')) {
           const phaseRaw =
@@ -1770,17 +1736,13 @@ class ClientDataService {
         if (!isNaN(num)) {
           console.log('[updateProject] Available fields:', Array.from(fields));
           let choseLookup = false;
-          let catType: string | undefined;
-          try {
-            const types = await this.getListFieldTypes(resolvedProjects);
-            catType = types['Category'];
-            // Prefer lookup if Category is a lookup-type (Lookup/LookupMulti)
-            if (catType && /lookup/i.test(catType) && fields.has('CategoryId')) {
-              body['CategoryId'] = num;
-              delete body['Category'];
-              choseLookup = true;
-            }
-          } catch {}
+          const catType = fieldTypes['Category'];
+          // Prefer lookup if Category is a lookup-type (Lookup/LookupMulti)
+          if (catType && /lookup/i.test(catType) && fields.has('CategoryId')) {
+            body['CategoryId'] = num;
+            delete body['Category'];
+            choseLookup = true;
+          }
           if (choseLookup) {
             console.log('[updateProject] Using CategoryId (lookup) for category value', num);
           } else {
@@ -2677,19 +2639,32 @@ class ClientDataService {
         Budget: projectData.budget,
         StartDate: projectData.startDate,
         EndDate: projectData.endDate,
-        ProjectFields: cleanFields(projectData.ProjectFields),
+        ProjectFields: this.serializeStringList(projectData.ProjectFields),
       };
 
       try {
         const fields = await this.getListFieldNames(resolvedProjects);
+        const fieldTypes = await this.getListFieldTypes(resolvedProjects);
+        if (fields.has('ProjectFields')) {
+          body['ProjectFields'] = this.formatStringListForSharePoint(
+            projectData.ProjectFields,
+            fieldTypes['ProjectFields']
+          );
+        }
         if (fields.has('ProjectType')) {
           const pt = (projectData as any).projectType;
           if (pt) body['ProjectType'] = String(pt).toLowerCase() === 'short' ? 'short' : 'long';
         }
         if (fields.has('Badges')) {
-          body['Badges'] = cleanFields((projectData as any).badges);
+          body['Badges'] = this.formatStringListForSharePoint(
+            (projectData as any).badges,
+            fieldTypes['Badges']
+          );
         } else if (fields.has('ProjectBadges')) {
-          body['ProjectBadges'] = cleanFields((projectData as any).badges);
+          body['ProjectBadges'] = this.formatStringListForSharePoint(
+            (projectData as any).badges,
+            fieldTypes['ProjectBadges']
+          );
         }
         if (fields.has('Projektphase')) {
           const phaseRaw = (projectData as any).projektphase || '';
@@ -2704,16 +2679,12 @@ class ClientDataService {
         if (!isNaN(num)) {
           console.log('[saveProject] Available fields:', Array.from(fields));
           let choseLookup = false;
-          let catType: string | undefined;
-          try {
-            const types = await this.getListFieldTypes(resolvedProjects);
-            catType = types['Category'];
-            if (catType && /lookup/i.test(catType) && fields.has('CategoryId')) {
-              body['CategoryId'] = num;
-              delete body['Category'];
-              choseLookup = true;
-            }
-          } catch {}
+          const catType = fieldTypes['Category'];
+          if (catType && /lookup/i.test(catType) && fields.has('CategoryId')) {
+            body['CategoryId'] = num;
+            delete body['Category'];
+            choseLookup = true;
+          }
           if (choseLookup) {
             console.log('[saveProject] Using CategoryId (lookup) for category value', num);
           } else {
