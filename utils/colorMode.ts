@@ -2,6 +2,7 @@ export type ColorMode = 'dark' | 'light';
 
 export const COLOR_MODE_STORAGE_KEY = 'roadmap-color-mode';
 export const COLOR_MODE_ATTRIBUTE = 'data-color-mode';
+export const THEME_ATTRIBUTE = 'data-theme';
 export const DEFAULT_COLOR_MODE: ColorMode = 'dark';
 
 const isColorMode = (value: string | null | undefined): value is ColorMode => {
@@ -31,6 +32,7 @@ export const getActiveColorMode = (): ColorMode => {
 export const applyColorMode = (colorMode: ColorMode): void => {
   if (typeof document !== 'undefined') {
     document.documentElement.setAttribute(COLOR_MODE_ATTRIBUTE, colorMode);
+    document.documentElement.setAttribute(THEME_ATTRIBUTE, colorMode);
     document.documentElement.style.colorScheme = colorMode;
   }
 
@@ -52,9 +54,11 @@ export const getColorModeInitScript = (): string => {
       const storedValue = window.localStorage.getItem('${COLOR_MODE_STORAGE_KEY}');
       const colorMode = storedValue === 'light' || storedValue === 'dark' ? storedValue : fallback;
       root.setAttribute('${COLOR_MODE_ATTRIBUTE}', colorMode);
+      root.setAttribute('${THEME_ATTRIBUTE}', colorMode);
       root.style.colorScheme = colorMode;
     } catch {
       root.setAttribute('${COLOR_MODE_ATTRIBUTE}', fallback);
+      root.setAttribute('${THEME_ATTRIBUTE}', fallback);
       root.style.colorScheme = fallback;
     }
   })();`;

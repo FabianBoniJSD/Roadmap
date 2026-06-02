@@ -37,7 +37,7 @@ const ApiDocsPage: React.FC = () => {
 
           <p>
             Die meisten API-Endpunkte erfordern eine Authentifizierung. Admin-Zugriff wird über
-            SharePoint-Berechtigungen (Service Account) oder Microsoft Entra SSO gesteuert.
+            Microsoft Entra SSO und die hinterlegten Admin-Rollen gesteuert.
           </p>
 
           <h3 className="text-xl font-bold mt-6 mb-3">Admin-Status prüfen</h3>

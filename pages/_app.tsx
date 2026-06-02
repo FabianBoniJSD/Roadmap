@@ -4,6 +4,7 @@ import { clientDataService } from '@/utils/clientDataService';
 import { initializeIcons } from '@fluentui/react/lib/Icons';
 import type { AppProps } from 'next/app';
 import type { Category, Project } from '@/types';
+import './css/design-system.css';
 import './css/globals.css';
 import 'react-quill/dist/quill.snow.css';
 import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
@@ -91,6 +92,7 @@ function RoadmapApp({ Component, pageProps }: AppProps): JSX.Element {
     return (
       <>
         <Head>
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
           <link rel="stylesheet" href={prefixBasePath('/maintenance.css')} />
         </Head>
         <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-gray-900 text-white">
@@ -151,7 +153,14 @@ function RoadmapApp({ Component, pageProps }: AppProps): JSX.Element {
     );
   }
 
-  return <Component {...pageProps} />;
+  return (
+    <>
+      <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
+      <Component {...pageProps} />
+    </>
+  );
 }
 
 export default RoadmapApp;

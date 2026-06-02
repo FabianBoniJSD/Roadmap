@@ -582,11 +582,9 @@ const Roadmap: React.FC<RoadmapProps> = ({
     const isDropTarget = dragOverCategoryId === categoryId && draggedCategoryId !== categoryId;
 
     return [
-      'relative rounded-3xl border p-3 md:p-4 transition-all',
-      isDropTarget
-        ? 'border-sky-400/60 bg-sky-500/10 shadow-lg shadow-sky-950/20'
-        : 'border-white/5 bg-transparent',
-      isDragged ? 'opacity-60' : '',
+      'ds-roadmap-category-section relative transition-all',
+      isDropTarget ? 'is-drop-target' : '',
+      isDragged ? 'is-dragged' : '',
     ]
       .filter(Boolean)
       .join(' ');
@@ -1204,9 +1202,8 @@ const Roadmap: React.FC<RoadmapProps> = ({
 
   return (
     <>
-      {/* Top Navigation Bar */}
-      <div className="mx-auto w-full space-y-8 px-3 sm:px-6 lg:w-[85%]">
-        <div className="rounded-3xl border border-slate-800/80 bg-slate-900/70 px-6 py-8 shadow-xl shadow-slate-950/30">
+      <div className="ds-container ds-roadmap-shell">
+        <div className="ds-card ds-roadmap-hero-card">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-4">
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-sky-300/90">
@@ -1228,7 +1225,7 @@ const Roadmap: React.FC<RoadmapProps> = ({
               </p>
             </div>
             <div className="grid w-full gap-3 text-xs text-slate-300 sm:w-auto sm:text-sm md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-center">
+              <div className="ds-roadmap-stat-card rounded-2xl border px-4 py-3 text-center">
                 <span className="block text-2xl font-semibold text-white">
                   {displayedProjects.length}
                 </span>
@@ -1238,20 +1235,20 @@ const Roadmap: React.FC<RoadmapProps> = ({
           </div>
         </div>
 
-        <div className="rounded-3xl border border-slate-800/80 bg-slate-900/60 px-4 py-5 shadow-lg shadow-slate-950/30 sm:px-6">
+        <div className="ds-card ds-roadmap-toolbar">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             {/* View mode + View scale buttons */}
             <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:gap-3">
-              <div className="inline-flex overflow-hidden rounded-xl border border-slate-700 bg-slate-900/70">
+              <div className="ds-roadmap-segmented">
                 <button
-                  className={`px-3 py-2 text-sm font-medium transition ${viewMode === 'timeline' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'text-slate-200 hover:bg-slate-800'}`}
+                  className={`ds-roadmap-segment ${viewMode === 'timeline' ? 'is-active' : ''}`}
                   onClick={() => setViewMode('timeline')}
                   title="Zeitstrahl"
                 >
                   Zeitstrahl
                 </button>
                 <button
-                  className={`px-3 py-2 text-sm font-medium transition ${viewMode === 'tiles' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'text-slate-200 hover:bg-slate-800'}`}
+                  className={`ds-roadmap-segment ${viewMode === 'tiles' ? 'is-active' : ''}`}
                   onClick={() => setViewMode('tiles')}
                   title="Kachelansicht"
                 >
@@ -1259,25 +1256,25 @@ const Roadmap: React.FC<RoadmapProps> = ({
                 </button>
               </div>
               <button
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition md:flex-none ${viewType === 'quarters' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                className={`ds-roadmap-scale-button ${viewType === 'quarters' ? 'is-active' : ''}`}
                 onClick={() => setViewType('quarters')}
               >
                 Quartale
               </button>
               <button
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition md:flex-none ${viewType === 'months' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                className={`ds-roadmap-scale-button ${viewType === 'months' ? 'is-active' : ''}`}
                 onClick={() => setViewType('months')}
               >
                 Monate
               </button>
               <button
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition md:flex-none ${viewType === 'weeks' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                className={`ds-roadmap-scale-button ${viewType === 'weeks' ? 'is-active' : ''}`}
                 onClick={() => setViewType('weeks')}
               >
                 Wochen
               </button>
               <button
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition md:flex-none ${viewType === 'years' ? 'bg-sky-500 text-white shadow-sm shadow-sky-900/40' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                className={`ds-roadmap-scale-button ${viewType === 'years' ? 'is-active' : ''}`}
                 onClick={() => setViewType('years')}
               >
                 Jahre
@@ -1292,10 +1289,10 @@ const Roadmap: React.FC<RoadmapProps> = ({
         </div>
 
         {/* Mobile categories toggle button */}
-        <div className="md:hidden mb-4 px-4">
+        <div className="ds-roadmap-mobile-category-toggle">
           <button
             onClick={() => setMobileCategoriesOpen(!mobileCategoriesOpen)}
-            className="flex w-full items-center justify-between rounded-lg border border-slate-700 bg-slate-900/70 px-4 py-2 text-slate-200 transition hover:border-sky-500 hover:text-white"
+            className="ds-roadmap-mobile-button"
           >
             <span>Kategorien auswählen</span>
             {mobileCategoriesOpen ? <FaTimes /> : <FaBars />}
@@ -1303,11 +1300,11 @@ const Roadmap: React.FC<RoadmapProps> = ({
         </div>
 
         {/* Responsive layout - stack on mobile, side-by-side on larger screens */}
-        <div className="flex flex-col md:flex-row relative">
+        <div className="ds-roadmap-layout relative">
           {/* Sidebar with categories - collapsible on mobile */}
           <div
             ref={sidebarRef}
-            className={`md:w-64 mb-4 md:mb-0 ${mobileCategoriesOpen ? 'block' : 'hidden'} md:block z-20 bg-slate-950/95 md:bg-transparent md:static absolute top-0 left-0 right-0 p-4 md:p-0`}
+            className={`ds-roadmap-sidebar ${mobileCategoriesOpen ? 'is-open' : ''}`}
           >
             <CategorySidebar
               categories={categories}
@@ -1317,13 +1314,13 @@ const Roadmap: React.FC<RoadmapProps> = ({
           </div>
 
           {/* Main content area */}
-          <div className="flex-1 overflow-hidden">
-            <div className="overflow-x-auto pb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="ds-roadmap-content">
+            <div className="ds-roadmap-scroll" style={{ WebkitOverflowScrolling: 'touch' }}>
               <div
-                className={`min-w-full ${viewType === 'months' || viewType === 'weeks' ? 'md:min-w-[800px]' : ''}`}
+                className={`ds-roadmap-canvas ${viewType === 'months' || viewType === 'weeks' ? 'is-wide' : ''}`}
               >
                 {/* Advanced Filters Bar */}
-                <div className="mb-4">
+                <div className="ds-roadmap-filter-slot">
                   <RoadmapFilters
                     filterText={filterText}
                     onFilterTextChange={setFilterText}
@@ -1411,8 +1408,8 @@ const Roadmap: React.FC<RoadmapProps> = ({
                 </div>
 
                 {hasReorderControls() && (
-                  <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-50">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-slate-950/40 px-3 py-1 font-medium text-sky-100">
+                  <div className="ds-roadmap-admin-banner">
+                    <span className="ds-roadmap-admin-pill">
                       <FiGripVertical className="h-4 w-4" />
                       Admin-Modus
                     </span>
@@ -1421,23 +1418,17 @@ const Roadmap: React.FC<RoadmapProps> = ({
                       and Drop neu anordnen.
                     </span>
                     {(isSavingCategoryOrder || isSavingProjectOrder) && (
-                      <span className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-1 text-xs font-medium text-slate-200">
-                        Speichert...
-                      </span>
+                      <span className="ds-roadmap-saving-pill">Speichert...</span>
                     )}
                   </div>
                 )}
 
                 {categoryOrderError && (
-                  <div className="mb-4 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-                    {categoryOrderError}
-                  </div>
+                  <div className="ds-roadmap-error-banner">{categoryOrderError}</div>
                 )}
 
                 {projectOrderError && (
-                  <div className="mb-4 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-                    {projectOrderError}
-                  </div>
+                  <div className="ds-roadmap-error-banner">{projectOrderError}</div>
                 )}
                 {/* Quarter/Month/Week headers */}
 
@@ -1445,7 +1436,7 @@ const Roadmap: React.FC<RoadmapProps> = ({
                   <>
                     {/* Quarter/Month/Week headers */}
                     {viewType === 'quarters' ? (
-                      <div className="grid grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
+                      <div className="ds-roadmap-time-grid is-quarters">
                         <div
                           className="roadmap-time-header p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
                           style={{ background: 'linear-gradient(to right, #eab308, #d97706)' }}
@@ -1472,7 +1463,7 @@ const Roadmap: React.FC<RoadmapProps> = ({
                         </div>
                       </div>
                     ) : viewType === 'months' ? (
-                      <div className="grid grid-cols-12 gap-1 md:gap-2 mb-4 md:mb-6">
+                      <div className="ds-roadmap-time-grid is-months">
                         <div
                           className="roadmap-time-header p-1 md:p-2 rounded-lg text-center font-semibold text-xs"
                           style={{ background: 'linear-gradient(to right, #eab308, #e3a008)' }}
@@ -1548,7 +1539,7 @@ const Roadmap: React.FC<RoadmapProps> = ({
                       </div>
                     ) : viewType === 'weeks' ? (
                       <div
-                        className="mb-4 md:mb-6 overflow-x-auto"
+                        className="ds-roadmap-time-grid is-weeks"
                         style={{
                           display: 'grid',
                           gridTemplateColumns: `repeat(${getISOWeeksInYear(currentYear)}, minmax(30px, 1fr))`,
@@ -1573,7 +1564,7 @@ const Roadmap: React.FC<RoadmapProps> = ({
                         ))}
                       </div>
                     ) : (
-                      <div className="grid grid-cols-5 gap-2 md:gap-4 mb-4 md:mb-6">
+                      <div className="ds-roadmap-time-grid is-years">
                         <div
                           className="roadmap-time-header p-2 md:p-3 rounded-lg text-center font-semibold text-xs md:text-sm"
                           style={{ background: 'linear-gradient(to right, #eab308, #d97706)' }}
@@ -1614,7 +1605,7 @@ const Roadmap: React.FC<RoadmapProps> = ({
                 {viewMode === 'timeline' && (
                   <>
                     {/* Project timeline bars grouped by Bereich (category) */}
-                    <div className="space-y-6 md:space-y-8 relative">
+                    <div className="ds-roadmap-category-stack relative">
                       {visibleCategoryIds.map((catId) => {
                         const groupProjects = orderedProjectsByCategory[catId] || [];
                         return (
@@ -1631,7 +1622,7 @@ const Roadmap: React.FC<RoadmapProps> = ({
                                   draggable={!isSavingCategoryOrder}
                                   onDragStart={(event) => handleCategoryDragStart(event, catId)}
                                   onDragEnd={handleCategoryDragEnd}
-                                  className="inline-flex cursor-grab items-center gap-1 rounded-full border border-slate-700/70 bg-slate-900/80 px-2.5 py-1 text-xs font-medium text-slate-200 transition hover:border-sky-400 hover:text-white active:cursor-grabbing"
+                                  className="ds-roadmap-drag-handle"
                                   aria-label={`Kategorie ${getCategoryName(catId)} verschieben`}
                                   title="Kategorie verschieben"
                                 >
@@ -1794,7 +1785,7 @@ const Roadmap: React.FC<RoadmapProps> = ({
                 )}
 
                 {viewMode === 'tiles' && (
-                  <div className="space-y-8">
+                  <div className="ds-roadmap-category-stack">
                     {visibleCategoryIds.map((catId) => {
                       const groupProjects = orderedProjectsByCategory[catId] || [];
                       return (
@@ -1810,7 +1801,7 @@ const Roadmap: React.FC<RoadmapProps> = ({
                                 draggable={!isSavingCategoryOrder}
                                 onDragStart={(event) => handleCategoryDragStart(event, catId)}
                                 onDragEnd={handleCategoryDragEnd}
-                                className="inline-flex cursor-grab items-center gap-1 rounded-full border border-slate-700/70 bg-slate-900/80 px-2.5 py-1 text-xs font-medium text-slate-200 transition hover:border-sky-400 hover:text-white active:cursor-grabbing"
+                                className="ds-roadmap-drag-handle"
                                 aria-label={`Kategorie ${getCategoryName(catId)} verschieben`}
                                 title="Kategorie verschieben"
                               >
@@ -1888,7 +1879,7 @@ const Roadmap: React.FC<RoadmapProps> = ({
         {/* Enhanced Hover Popup (Rich Tooltip) */}
         {hoveredProject && (
           <div
-            className="theme-roadmap-tooltip fixed z-50 w-[300px] pointer-events-none rounded-xl border border-slate-800/70 bg-gradient-to-b from-slate-950/95 to-slate-900/95 p-3 text-white shadow-2xl shadow-slate-950/50 backdrop-blur-sm md:w-[360px] md:p-4 animate-fadeIn"
+            className="theme-roadmap-tooltip ds-roadmap-tooltip fixed z-50 w-[300px] pointer-events-none rounded-xl border border-slate-800/70 bg-gradient-to-b from-slate-950/95 to-slate-900/95 p-3 text-white shadow-2xl shadow-slate-950/50 backdrop-blur-sm md:w-[360px] md:p-4 animate-fadeIn"
             style={{
               top: Math.min(tooltipPosition.y + 16, window.innerHeight - 380),
               left: Math.min(tooltipPosition.x + 16, window.innerWidth - 380),

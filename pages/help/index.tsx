@@ -1,39 +1,56 @@
+import Head from 'next/head';
 import Link from 'next/link';
-import HelpLayout from '@/components/HelpLayout';
+import { useEffect, useState } from 'react';
+import {
+  FiArrowUpRight,
+  FiBookOpen,
+  FiCheckCircle,
+  FiCompass,
+  FiHelpCircle,
+  FiLifeBuoy,
+  FiSettings,
+  FiShield,
+  FiSliders,
+} from 'react-icons/fi';
+import ColorModeToggle from '@/components/ColorModeToggle';
+import { ADMIN_SESSION_CHANGED_EVENT, getAdminSessionToken } from '@/utils/auth';
 
 type Guide = {
   title: string;
   description: string;
   href: string;
   badge?: string;
+  icon: typeof FiBookOpen;
 };
 
 const spotlightGuides: Guide[] = [
   {
     title: 'Erste Schritte',
-    description:
-      'In drei Minuten wissen, wo Sie klicken müssen und welche Informationen Sie finden.',
+    description: 'In drei Minuten wissen, wo Sie starten und welche Informationen relevant sind.',
     href: '/help/erste-schritte',
     badge: 'Schnellstart',
+    icon: FiCompass,
   },
   {
     title: 'Roadmap lesen & filtern',
-    description: 'So nutzen Sie Suchfeld, Filter und Ansichten, um Projekte gezielt einzugrenzen.',
+    description: 'Suchen, filtern und Ansichten nutzen, um Projekte gezielt einzugrenzen.',
     href: '/help/projekte-ansehen',
     badge: 'Visualisierung',
+    icon: FiBookOpen,
   },
   {
     title: 'Projekte melden',
-    description: 'Welche Informationen benötigt werden und wie das Formular sicher ankommt.',
+    description: 'Welche Angaben helfen und wie neue Vorhaben strukturiert eingereicht werden.',
     href: '/help/projekte-melden',
     badge: 'Input geben',
+    icon: FiCheckCircle,
   },
   {
     title: 'Admin-Leitfaden',
-    description:
-      'Instanzen konfigurieren, Kategorien pflegen und Farben passend zum Auftritt wählen.',
+    description: 'Instanzen pflegen, Kategorien steuern und Einstellungen nachvollziehbar ändern.',
     href: '/help/admin',
     badge: 'Für Admins',
+    icon: FiSettings,
   },
 ];
 
@@ -42,185 +59,269 @@ const knowledgeBase: Guide[] = [
     title: 'FAQ & Problemlösung',
     description: 'Schnelle Antworten auf wiederkehrende Fragen und Tipps bei Störungen.',
     href: '/help/faq',
+    icon: FiHelpCircle,
   },
   {
     title: 'Berechtigungen & Rollen',
-    description: 'Wer sieht welche Roadmap? Überblick über SharePoint und Service-Accounts.',
+    description: 'Wer sieht welche Roadmap? Überblick über SSO, Rollen und Instanzfreigaben.',
     href: '/help/admin/rechte-und-zugang',
+    icon: FiShield,
   },
   {
     title: 'Roadmap-Projekte verwalten',
-    description: 'Status, Phasen und Meilensteine pflegen – inklusive Best Practices.',
+    description: 'Status, Phasen und Meilensteine pflegen, inklusive Best Practices.',
     href: '/help/admin/projekte-verwalten',
+    icon: FiSliders,
   },
   {
     title: 'Design & Einstellungen',
-    description: 'Farben, Branding und Texte konfigurieren, damit alles zur Organisation passt.',
+    description:
+      'Farben, Branding und Texte so konfigurieren, dass die Instanz verständlich bleibt.',
     href: '/help/admin/einstellungen-und-design',
+    icon: FiSettings,
+  },
+];
+
+const helpSteps = [
+  {
+    title: 'Orientieren',
+    description:
+      'Starten Sie mit den Grundlagen, wenn Sie die Roadmap nur lesen oder teilen möchten.',
+  },
+  {
+    title: 'Vertiefen',
+    description: 'Nutzen Sie FAQ und Wissensdatenbank für konkrete Fragen im Arbeitsalltag.',
+  },
+  {
+    title: 'Administrieren',
+    description:
+      'Wechseln Sie in den Admin-Leitfaden, wenn Sie Inhalte oder Einstellungen pflegen.',
   },
 ];
 
 const HelpHome = () => {
+  const [showFeedbackLink, setShowFeedbackLink] = useState(false);
+
+  useEffect(() => {
+    const updateFeedbackLink = () => setShowFeedbackLink(Boolean(getAdminSessionToken()));
+    updateFeedbackLink();
+    window.addEventListener(ADMIN_SESSION_CHANGED_EVENT, updateFeedbackLink);
+    return () => window.removeEventListener(ADMIN_SESSION_CHANGED_EVENT, updateFeedbackLink);
+  }, []);
+
   return (
-    <HelpLayout
-      eyebrow="Hilfe & Support"
-      title="Willkommen im JSDoIT Support Center"
-      description={
-        <>
-          Hier finden Sie Schritt-für-Schritt-Anleitungen, Videos und Antworten auf häufige Fragen.
-          Egal ob Sie nur einen schnellen Überblick benötigen oder als Administrator Einstellungen
-          anpassen – wir begleiten Sie.
-        </>
-      }
-      actions={
-        <>
-          <Link
-            href="/help/faq"
-            className="inline-flex items-center gap-2 rounded-full border border-sky-500/50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-sky-200 transition hover:border-sky-400 hover:text-white"
-          >
-            FAQ öffnen
+    <>
+      <Head>
+        <title>Hilfe | JSDoIT Roadmap</title>
+      </Head>
+      <div className="ds-page-shell">
+        <header className="ds-topbar">
+          <Link className="ds-brand" href="/landing">
+            <span className="ds-brand-mark">JS</span>
+            <span className="ds-brand-name">JSDOIT Roadmap Center</span>
           </Link>
-          <Link
-            href="/support"
-            className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-300 transition hover:border-sky-400 hover:text-white"
-          >
-            Support kontaktieren
-          </Link>
-        </>
-      }
-    >
-      <section className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-white sm:text-xl">Leitfäden im Fokus</h2>
-          <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Für alle Rollen</span>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {spotlightGuides.map((guide) => (
-            <Link
-              key={guide.href}
-              href={guide.href}
-              className="group relative overflow-hidden rounded-3xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-sky-500/60 hover:bg-slate-900/80"
-            >
-              <div className="absolute left-4 top-4 h-16 w-16 rounded-full bg-sky-500/15 blur-3xl transition group-hover:bg-sky-400/20" />
-              <div className="relative space-y-3">
-                {guide.badge && (
-                  <span className="inline-flex items-center rounded-full border border-sky-500/50 bg-slate-950/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-sky-200">
-                    {guide.badge}
-                  </span>
-                )}
-                <h3 className="text-lg font-semibold text-white transition group-hover:text-sky-100">
-                  {guide.title}
-                </h3>
-                <p className="text-sm text-slate-300">{guide.description}</p>
-                <span className="inline-flex items-center gap-2 text-sm font-semibold text-sky-300 transition group-hover:text-sky-200">
-                  Weiterlesen
-                  <span aria-hidden="true">→</span>
+
+          <nav className="ds-nav" aria-label="Hauptnavigation">
+            <Link className="ds-nav-link" href="/landing">
+              Start
+            </Link>
+            <Link className="ds-nav-link" href="/instances">
+              Instanzübersicht
+            </Link>
+            <Link className="ds-nav-link is-active" href="/help">
+              Hilfe
+            </Link>
+            {showFeedbackLink && (
+              <Link className="ds-nav-link" href="/feedback">
+                Feedback
+              </Link>
+            )}
+          </nav>
+
+          <ColorModeToggle className="ds-color-mode-toggle" />
+        </header>
+
+        <main className="ds-page-main">
+          <section className="ds-container ds-hero ds-help-hero">
+            <div className="ds-hero-content">
+              <div className="ds-eyebrow">
+                <FiLifeBuoy className="ds-icon-sm" />
+                Hilfe & Support
+              </div>
+              <h1 className="ds-hero-title">Antworten finden, Roadmaps sicher nutzen.</h1>
+              <p className="ds-hero-copy">
+                Der Hilfebereich bündelt schnelle Einstiege, vertiefende Anleitungen und
+                Admin-Themen für alle, die Roadmap-Instanzen lesen, pflegen oder weiterentwickeln.
+              </p>
+
+              <div className="ds-actions">
+                <Link className="ds-button ds-button-primary" href="/help/faq">
+                  FAQ öffnen
+                  <FiArrowUpRight className="ds-icon-sm" />
+                </Link>
+                <Link className="ds-button ds-button-secondary" href="/support">
+                  Support kontaktieren
+                </Link>
+              </div>
+
+              <div className="ds-feature-grid ds-help-feature-grid">
+                <article className="ds-card ds-feature-card">
+                  <div className="ds-icon-box">
+                    <FiBookOpen className="ds-icon-sm" />
+                  </div>
+                  <p className="ds-kicker">Guides</p>
+                  <p className="ds-small-text">Kurze Wege zu den wichtigsten Arbeitsabläufen.</p>
+                </article>
+                <article className="ds-card ds-feature-card">
+                  <div className="ds-icon-box">
+                    <FiShield className="ds-icon-sm" />
+                  </div>
+                  <p className="ds-kicker">Rollen</p>
+                  <p className="ds-small-text">Berechtigungen und Zugriff verständlich erklärt.</p>
+                </article>
+                <article className="ds-card ds-feature-card">
+                  <div className="ds-icon-box">
+                    <FiSettings className="ds-icon-sm" />
+                  </div>
+                  <p className="ds-kicker">Admin</p>
+                  <p className="ds-small-text">
+                    Konfiguration, Kategorien und Inhalte gezielt pflegen.
+                  </p>
+                </article>
+              </div>
+            </div>
+
+            <aside className="ds-card ds-logic-panel" aria-label="Hilfebereich Orientierung">
+              <div className="ds-panel-header">
+                <div>
+                  <p className="ds-panel-label">Schnelle Orientierung</p>
+                  <h2 className="ds-panel-title">Wählen Sie den passenden Einstieg</h2>
+                </div>
+                <div className="ds-panel-icon" aria-hidden="true">
+                  <FiCompass className="ds-icon-md" />
+                </div>
+              </div>
+
+              <div className="ds-steps">
+                {helpSteps.map((step, index) => (
+                  <article key={step.title} className="ds-step">
+                    <span className="ds-step-number">{String(index + 1).padStart(2, '0')}</span>
+                    <div>
+                      <h3 className="ds-step-title">{step.title}</h3>
+                      <p className="ds-step-copy">{step.description}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="ds-note">
+                <span className="ds-note-icon" aria-hidden="true">
+                  i
                 </span>
+                <p>
+                  Die wichtigsten Inhalte sind rollenbasiert sortiert: Lesen, Melden,
+                  Administrieren.
+                </p>
               </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+            </aside>
+          </section>
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-white sm:text-xl">Wissensdatenbank</h2>
-          <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Vertiefte Informationen
-          </span>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {knowledgeBase.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="group rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 transition hover:border-sky-500/50 hover:bg-slate-900"
-            >
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-white transition group-hover:text-sky-100">
-                  {item.title}
-                </h3>
-                <p className="text-sm text-slate-300">{item.description}</p>
+          <section className="ds-container ds-section">
+            <div className="ds-section-header">
+              <div>
+                <p className="ds-panel-label">Leitfäden im Fokus</p>
+                <h2 className="ds-section-title">Direkt in die wichtigsten Hilfen einsteigen</h2>
               </div>
-              <span className="mt-4 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-400 transition group-hover:text-sky-200">
-                Öffnen
-                <span aria-hidden="true">↗</span>
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
+              <p className="ds-section-copy">
+                Diese Einstiege decken die häufigsten Situationen ab: Überblick gewinnen, Roadmap
+                bedienen, Projekte melden und Administration starten.
+              </p>
+            </div>
 
-      <section className="grid gap-6 rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 sm:grid-cols-[1.2fr_1fr] sm:p-8">
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-white sm:text-xl">
-            Benötigen Sie persönlichen Support?
-          </h2>
-          <p className="text-sm text-slate-300 sm:text-base">
-            Das Roadmap-Team unterstützt bei Berechtigungen, Anpassungen und Fragen zum Betrieb.
-            Melden Sie sich mit einer kurzen Beschreibung Ihres Anliegens – wir melden uns werktags
-            innerhalb von 24 Stunden.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <a
-              href="mailto:roadmap@jsd.bs.ch"
-              className="rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
-            >
-              E-Mail schreiben
-            </a>
-            <Link
-              href="/docs"
-              className="rounded-full border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
-            >
-              Technische Dokumentation
-            </Link>
-          </div>
-        </div>
-        <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-900/60 p-5 text-sm text-slate-300">
-          <h3 className="text-base font-semibold text-white">Hinweise & Updates</h3>
-          <ul className="space-y-3">
-            <li className="flex items-start gap-3">
-              <span
-                className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200"
-                aria-hidden="true"
-              >
-                I
-              </span>
-              <span>
-                Systemstatus: <strong className="text-slate-100">betriebsbereit</strong>.
-              </span>
-            </li>
-            <li className="flex items-start gap-3">
-              <span
-                className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200"
-                aria-hidden="true"
-              >
-                N
-              </span>
-              <span>Neue Werkzeuge für die Kategorie-Verwaltung befinden sich im Rollout.</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <span
-                className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200"
-                aria-hidden="true"
-              >
-                W
-              </span>
-              <span>
-                Workshops finden am letzten Donnerstag im Monat statt – Anmeldung via{' '}
-                <a
-                  href="mailto:roadmap@jsd.bs.ch"
-                  className="underline decoration-dotted underline-offset-4 transition hover:text-white"
-                >
-                  roadmap@jsd.bs.ch
+            <div className="ds-help-grid">
+              {spotlightGuides.map((guide) => (
+                <Link key={guide.href} href={guide.href} className="ds-card ds-help-card">
+                  <div className="ds-help-card-header">
+                    <div className="ds-help-card-icon">
+                      <guide.icon className="ds-icon-sm" />
+                    </div>
+                    {guide.badge && <span className="ds-help-card-badge">{guide.badge}</span>}
+                  </div>
+                  <h3 className="ds-help-card-title">{guide.title}</h3>
+                  <p className="ds-help-card-copy">{guide.description}</p>
+                  <span className="ds-help-link">
+                    Weiterlesen
+                    <FiArrowUpRight className="ds-icon-sm" />
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <section className="ds-container ds-section ds-help-knowledge-section">
+            <div className="ds-section-header">
+              <div>
+                <p className="ds-panel-label">Wissensdatenbank</p>
+                <h2 className="ds-section-title">Vertiefung für wiederkehrende Fragen</h2>
+              </div>
+            </div>
+
+            <div className="ds-help-list">
+              {knowledgeBase.map((item) => (
+                <Link key={item.href} href={item.href} className="ds-help-list-item">
+                  <div className="ds-help-list-icon">
+                    <item.icon className="ds-icon-sm" />
+                  </div>
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p>{item.description}</p>
+                  </div>
+                  <FiArrowUpRight className="ds-icon-sm" />
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <section className="ds-container ds-section">
+            <div className="ds-card ds-help-support-panel">
+              <div>
+                <p className="ds-panel-label">Persönlicher Support</p>
+                <h2 className="ds-section-title">Wenn die Anleitung nicht reicht</h2>
+                <p className="ds-section-copy">
+                  Das Roadmap-Team unterstützt bei Berechtigungen, Anpassungen und Fragen zum
+                  Betrieb. Eine kurze Beschreibung des Anliegens reicht für den ersten Kontakt.
+                </p>
+              </div>
+              <div className="ds-actions ds-help-support-actions">
+                <a className="ds-button ds-button-primary" href="mailto:roadmap@jsd.bs.ch">
+                  E-Mail schreiben
                 </a>
-                .
-              </span>
-            </li>
-          </ul>
-        </div>
-      </section>
-    </HelpLayout>
+                <Link className="ds-button ds-button-secondary" href="/docs">
+                  Technische Dokumentation
+                </Link>
+              </div>
+            </div>
+          </section>
+        </main>
+
+        <footer className="ds-footer">
+          <div className="ds-container ds-footer-inner">
+            <span>JSDoIT Roadmap Center</span>
+            <div className="ds-footer-links">
+              <Link className="ds-footer-link" href="/landing">
+                Start
+              </Link>
+              <Link className="ds-footer-link" href="/instances">
+                Instanzen
+              </Link>
+              <Link className="ds-footer-link" href="/docs">
+                Dokumentation
+              </Link>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </>
   );
 };
 

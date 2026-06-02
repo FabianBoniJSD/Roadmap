@@ -62,3 +62,29 @@ model InstanceDepartmentAccess {
   @@unique([instanceSlug, normalizedDepartment])
   @@index([instanceSlug])
 }
+
+model FeedbackRequest {
+  id            Int            @id @default(autoincrement())
+  title         String
+  description   String?
+  createdBy     String
+  createdByName String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  votes         FeedbackVote[]
+
+  @@index([createdAt])
+}
+
+model FeedbackVote {
+  id         Int             @id @default(autoincrement())
+  feedbackId Int
+  userKey    String
+  value      Int
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  request    FeedbackRequest @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+
+  @@unique([feedbackId, userKey])
+  @@index([userKey])
+}

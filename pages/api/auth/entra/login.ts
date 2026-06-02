@@ -90,7 +90,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
     res.redirect(
       302,
-      `/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}&error=${encodeURIComponent(msg)}`
+      `/admin/login?returnUrl=${encodeURIComponent(returnUrl)}&error=${encodeURIComponent(msg)}`
     );
     return;
   }

@@ -8,7 +8,7 @@ interface RoadmapYearNavigationProps {
 
 const RoadmapYearNavigation: React.FC<RoadmapYearNavigationProps> = ({
   initialYear,
-  onYearChange
+  onYearChange,
 }) => {
   const [currentYear, setCurrentYear] = React.useState(initialYear);
 
@@ -25,22 +25,18 @@ const RoadmapYearNavigation: React.FC<RoadmapYearNavigationProps> = ({
   };
 
   return (
-    <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-2">
+    <div className="ds-roadmap-year-nav">
       <button
         onClick={handlePreviousYear}
-        className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+        className="ds-roadmap-year-button"
         aria-label="Previous Year"
       >
         <FaChevronLeft className="w-4 h-4" />
       </button>
-      
-      <span className="text-lg font-bold text-white px-2">{currentYear}</span>
-      
-      <button
-        onClick={handleNextYear}
-        className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
-        aria-label="Next Year"
-      >
+
+      <span className="ds-roadmap-year-value">{currentYear}</span>
+
+      <button onClick={handleNextYear} className="ds-roadmap-year-button" aria-label="Next Year">
         <FaChevronRight className="w-4 h-4" />
       </button>
     </div>

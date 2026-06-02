@@ -1,13 +1,15 @@
+import Head from 'next/head';
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import type { GetServerSideProps } from 'next';
 import Roadmap from '../components/Roadmap';
-import SiteFooter from '@/components/SiteFooter';
-import SiteHeader from '@/components/SiteHeader';
+import ColorModeToggle from '@/components/ColorModeToggle';
 import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
 import { INSTANCE_QUERY_PARAM, setInstanceCookieHeader } from '@/utils/instanceConfig';
+import { ADMIN_SESSION_CHANGED_EVENT, getAdminSessionToken } from '@/utils/auth';
 import {
   resolveFirstAllowedInstanceForAdminSession,
   resolveInstanceForAdminSession,
@@ -102,6 +104,11 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
   const [accessDeniedState, setAccessDeniedState] = useState(Boolean(accessDenied));
   const [activeInstanceSlug, setActiveInstanceSlug] = useState(resolvedInstanceSlug);
   const [loading, setLoading] = useState(false);
+  const [showFeedbackLink, setShowFeedbackLink] = useState(false);
+
+  const roadmapHref = currentInstanceSlug
+    ? { pathname: '/roadmap', query: { [INSTANCE_QUERY_PARAM]: currentInstanceSlug } }
+    : '/roadmap';
 
   useEffect(() => {
     setProjectsState(projects);
@@ -111,6 +118,13 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
     setActiveInstanceSlug(resolvedInstanceSlug);
     setLoading(false);
   }, [accessDenied, categories, projectOrderByCategory, projects, resolvedInstanceSlug]);
+
+  useEffect(() => {
+    const updateFeedbackLink = () => setShowFeedbackLink(Boolean(getAdminSessionToken()));
+    updateFeedbackLink();
+    window.addEventListener(ADMIN_SESSION_CHANGED_EVENT, updateFeedbackLink);
+    return () => window.removeEventListener(ADMIN_SESSION_CHANGED_EVENT, updateFeedbackLink);
+  }, []);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -213,39 +227,88 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
   }, [activeInstanceSlug, currentInstanceSlug, router, router.isReady]);
 
   return (
-    <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
-      <SiteHeader activeRoute="roadmap" />
-      <main className="flex-1 pt-12">
-        {loading ? (
-          <div className="mx-auto w-full max-w-4xl px-6 py-16 sm:px-8">
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-8 shadow-xl shadow-slate-950/40">
-              <h1 className="text-lg font-semibold text-white">Lade Roadmap …</h1>
-              <p className="mt-3 text-sm text-slate-300">
-                Projekte werden für die ausgewählte Instanz geladen.
-              </p>
+    <>
+      <Head>
+        <title>Roadmap | JSDoIT Roadmap</title>
+      </Head>
+      <div className="ds-page-shell">
+        <header className="ds-topbar">
+          <Link className="ds-brand" href="/landing">
+            <span className="ds-brand-mark">JS</span>
+            <span className="ds-brand-name">JSDOIT Roadmap Center</span>
+          </Link>
+
+          <nav className="ds-nav" aria-label="Hauptnavigation">
+            <Link className="ds-nav-link" href="/landing">
+              Start
+            </Link>
+            <Link className="ds-nav-link" href="/instances">
+              Instanzübersicht
+            </Link>
+            <Link className="ds-nav-link is-active" href={roadmapHref}>
+              Roadmap
+            </Link>
+            <Link className="ds-nav-link" href="/help">
+              Hilfe
+            </Link>
+            {showFeedbackLink && (
+              <Link className="ds-nav-link" href="/feedback">
+                Feedback
+              </Link>
+            )}
+          </nav>
+
+          <ColorModeToggle className="ds-color-mode-toggle" />
+        </header>
+
+        <main className="ds-page-main ds-roadmap-page-main">
+          {loading ? (
+            <div className="ds-container ds-roadmap-state">
+              <div className="ds-card ds-roadmap-state-card">
+                <h1>Lade Roadmap ...</h1>
+                <p>Projekte werden für die ausgewählte Instanz geladen.</p>
+              </div>
+            </div>
+          ) : accessDeniedState ? (
+            <div className="ds-container ds-roadmap-state">
+              <div className="ds-card ds-roadmap-state-card is-warning">
+                <h1>Kein Zugriff</h1>
+                <p>
+                  Du hast keinen Zugriff auf diese Roadmap-Instanz. Sichtbarkeit wird pro Instanz
+                  anhand deiner Abteilung oder expliziter Admin-Berechtigungen gesteuert.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <Roadmap
+              key={activeInstanceSlug || resolvedInstanceSlug || 'default'}
+              initialProjects={projectsState}
+              initialCategories={categoriesState}
+              initialProjectOrderByCategory={projectOrderByCategoryState}
+            />
+          )}
+        </main>
+
+        <footer className="ds-footer">
+          <div className="ds-container ds-footer-inner">
+            <span>JSDoIT Roadmap Center</span>
+            <div className="ds-footer-links">
+              <Link className="ds-footer-link" href="/instances">
+                Instanzen
+              </Link>
+              <Link className="ds-footer-link" href="/help">
+                Hilfe
+              </Link>
+              {showFeedbackLink && (
+                <Link className="ds-footer-link" href="/feedback">
+                  Feedback
+                </Link>
+              )}
             </div>
           </div>
-        ) : accessDeniedState ? (
-          <div className="mx-auto w-full max-w-4xl px-6 py-16 sm:px-8">
-            <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-8 shadow-xl shadow-slate-950/40">
-              <h1 className="text-xl font-semibold text-white">Kein Zugriff</h1>
-              <p className="mt-3 text-sm text-slate-200">
-                Du hast keinen Zugriff auf diese Roadmap-Instanz. Sichtbarkeit wird pro Instanz
-                anhand deiner Abteilung oder expliziter Admin-Berechtigungen gesteuert.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <Roadmap
-            key={activeInstanceSlug || resolvedInstanceSlug || 'default'}
-            initialProjects={projectsState}
-            initialCategories={categoriesState}
-            initialProjectOrderByCategory={projectOrderByCategoryState}
-          />
-        )}
-      </main>
-      <SiteFooter />
-    </div>
+        </footer>
+      </div>
+    </>
   );
 };
 

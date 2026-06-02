@@ -271,14 +271,11 @@ const InstancesLanding = (props: {
                     </span>
                   )}
 
-                  <Link
-                    href={buildInstanceAwareUrl(
-                      `/admin/login?manual=1&returnUrl=${encodeURIComponent(props.returnUrl)}`
-                    )}
-                    className="rounded-full border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
-                  >
-                    Admin Login
-                  </Link>
+                  {!props.entraEnabled && (
+                    <span className="text-sm text-slate-400">
+                      Microsoft SSO muss konfiguriert sein, bevor du dich anmelden kannst.
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-slate-400">
                   Hinweis: Wenn du automatisch per SSO eingeloggt werden möchtest, setze
@@ -1838,7 +1835,6 @@ const AdminInstancesGate = () => {
     return raw.split('#')[0] || '/admin/instances';
   }, [router.asPath]);
 
-  const manual = String(router.query.manual || '') === '1';
   const autoEntraSso =
     String(process.env.NEXT_PUBLIC_ENTRA_AUTO_LOGIN || '').toLowerCase() === 'true' ||
     String(router.query.autoSso || '') === '1';
@@ -1914,7 +1910,6 @@ const AdminInstancesGate = () => {
     if (authed) return;
     if (!entraEnabled) return;
     if (!autoEntraSso) return;
-    if (manual) return;
 
     // Don't auto-retry if an error is present
     if (
@@ -1929,16 +1924,7 @@ const AdminInstancesGate = () => {
       `/api/auth/entra/login?returnUrl=${encodeURIComponent(returnUrl)}`
     );
     window.location.assign(loginUrl);
-  }, [
-    router.isReady,
-    checking,
-    authed,
-    entraEnabled,
-    autoEntraSso,
-    manual,
-    returnUrl,
-    router.query,
-  ]);
+  }, [router.isReady, checking, authed, entraEnabled, autoEntraSso, returnUrl, router.query]);
 
   const startSso = () => {
     const loginUrl = buildInstanceAwareUrl(

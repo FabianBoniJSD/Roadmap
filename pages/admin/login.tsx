@@ -9,7 +9,7 @@ const AdminLogin: React.FC = () => {
   const router = useRouter();
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
-  const [status, setStatus] = useState<string>('Prüfe Admin-Konfiguration …');
+  const [status, setStatus] = useState<string>('Prüfe SSO-Konfiguration …');
   const [entraStatus, setEntraStatus] = useState<{
     enabled: boolean;
     allowlistConfigured: boolean;
@@ -25,7 +25,6 @@ const AdminLogin: React.FC = () => {
   };
 
   const returnUrl = normalizeReturnUrl(router.query.returnUrl, '/admin');
-  const manual = String(router.query.manual || '') === '1';
   const autoEntraSso =
     String(process.env.NEXT_PUBLIC_ENTRA_AUTO_LOGIN || '').toLowerCase() === 'true' ||
     String(router.query.autoSso || '') === '1';
@@ -59,7 +58,7 @@ const AdminLogin: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      setStatus('Prüfe Admin-Session …');
+      setStatus('Prüfe SSO-Session …');
 
       try {
         const alreadyAuthed = await hasValidAdminSession();
@@ -91,9 +90,7 @@ const AdminLogin: React.FC = () => {
     if (!router.isReady) return;
     if (typeof window === 'undefined') return;
     if (!autoEntraSso) return;
-    if (manual) return;
     if (loading) return;
-    if (!error) return;
     if (!entraStatus.enabled) return;
 
     if (
@@ -111,7 +108,7 @@ const AdminLogin: React.FC = () => {
     );
     window.location.assign(loginUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.isReady, autoEntraSso, manual, loading, error, entraStatus.enabled, returnUrl]);
+  }, [router.isReady, autoEntraSso, loading, entraStatus.enabled, returnUrl]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -219,8 +216,7 @@ const AdminLogin: React.FC = () => {
               Roadmap-Instanzen verwalten
             </h1>
             <p className="text-sm text-slate-300 sm:text-base">
-              Der Zugriff erfolgt über Service-Account-Berechtigung in SharePoint oder alternativ
-              per Microsoft SSO.
+              Der Zugriff erfolgt ausschließlich per Microsoft SSO.
             </p>
           </header>
 
@@ -233,33 +229,40 @@ const AdminLogin: React.FC = () => {
 
             {loading ? (
               <div className="flex flex-col items-center gap-6 py-10">
-                <JSDoITLoader sizeRem={2.5} message={status || 'Service Account wird geprüft …'} />
+                <JSDoITLoader sizeRem={2.5} message={status || 'SSO-Session wird geprüft …'} />
                 <p className="text-xs text-slate-300">
-                  Bitte einen Moment warten, während der Service Account validiert wird.
+                  Bitte einen Moment warten, während die bestehende SSO-Session geprüft wird.
                 </p>
               </div>
             ) : (
               <div className="space-y-6 text-sm text-slate-300">
                 <p>
-                  Der Service Account hat keine ausreichenden Rechte oder konnte nicht validiert
-                  werden. Bitte prüfe die Mitgliedschaft in der Owners- oder Site-Admin-Gruppe und
-                  versuche es erneut.
+                  Melde dich mit Microsoft SSO an, um deine Roadmap-Berechtigungen zu prüfen und den
+                  Adminbereich zu öffnen.
                 </p>
 
-                {entraStatus.enabled && (
+                {entraStatus.enabled ? (
                   <button
                     onClick={startEntraPopupLogin}
                     className="w-full rounded-full bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
                   >
                     Mit Microsoft anmelden (SSO)
                   </button>
+                ) : (
+                  <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                    Microsoft SSO ist nicht konfiguriert. Bitte aktiviere die Entra-Konfiguration,
+                    bevor du dich anmelden kannst.
+                  </div>
                 )}
 
                 <button
-                  onClick={() => fetchAuthMode()}
+                  onClick={() => {
+                    fetchAuthMode();
+                    fetchEntraStatus();
+                  }}
                   className="w-full rounded-full border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
                 >
-                  Erneut prüfen
+                  Status erneut prüfen
                 </button>
 
                 {status && <p className="text-center text-xs text-slate-300">{status}</p>}
@@ -267,18 +270,11 @@ const AdminLogin: React.FC = () => {
             )}
 
             <div className="mt-8 space-y-2 rounded-2xl border border-slate-800 bg-slate-950/70 p-5 text-xs text-slate-300">
-              <p className="font-semibold text-slate-200">Service Account Authentifizierung</p>
+              <p className="font-semibold text-slate-200">Microsoft SSO</p>
               <p>
-                Der Service Account muss Site Collection Administrator oder Mitglied der Owners
-                Gruppe sein. Zugangsdaten werden über die Umgebungsvariablen SP_USERNAME und
-                SP_PASSWORD verwaltet.
+                Nach erfolgreicher Entra-Anmeldung wird eine Admin-Session erstellt und gegen die
+                hinterlegten Rollen und Instanzfreigaben geprüft.
               </p>
-              {entraStatus.enabled && (
-                <p>
-                  Alternativ ist Microsoft SSO verfügbar. Standardmäßig können sich alle erfolgreich
-                  per Entra authentifizierten Benutzer anmelden.
-                </p>
-              )}
             </div>
           </div>
 

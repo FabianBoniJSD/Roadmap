@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSDOIT Roadmap Center · Designsystem Reference</title>
+  <style>
+    :root {
+      color-scheme: dark;
+
+      --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+      --radius-xs: 8px;
+      --radius-sm: 12px;
+      --radius-md: 18px;
+      --radius-lg: 24px;
+      --radius-xl: 32px;
+      --radius-pill: 999px;
+
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-10: 40px;
+      --space-12: 48px;
+      --space-16: 64px;
+
+      --duration-fast: 140ms;
+      --duration-base: 220ms;
+      --ease-out: cubic-bezier(.16, 1, .3, 1);
+    }
+
+    html[data-theme="dark"] {
+      color-scheme: dark;
+
+      --bg-page: #050b18;
+      --bg-page-2: #081426;
+      --bg-elevated: rgba(9, 18, 34, .74);
+      --bg-elevated-strong: rgba(12, 24, 43, .88);
+      --bg-soft: rgba(255, 255, 255, .045);
+      --bg-muted: rgba(255, 255, 255, .075);
+      --bg-inverse: #f7fbff;
+
+      --text-strong: #f8fbff;
+      --text-default: #dce7f7;
+      --text-muted: #93a4ba;
+      --text-subtle: #667892;
+      --text-inverse: #071120;
+
+      --border-subtle: rgba(160, 190, 230, .14);
+      --border-default: rgba(170, 205, 245, .22);
+      --border-strong: rgba(97, 222, 255, .52);
+
+      --accent: #20d6ff;
+      --accent-2: #37f2d0;
+      --accent-soft: rgba(32, 214, 255, .14);
+      --accent-strong: #60f3ff;
+      --success: #45e0a8;
+      --warning: #ffcc66;
+      --danger: #ff6b87;
+
+      --shadow-soft: 0 24px 80px rgba(0, 0, 0, .28);
+      --shadow-card: 0 18px 50px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255,255,255,.04);
+      --shadow-glow: 0 0 32px rgba(32, 214, 255, .18);
+
+      --grid-line: rgba(145, 190, 230, .075);
+      --hero-glow-a: rgba(27, 195, 255, .24);
+      --hero-glow-b: rgba(77, 242, 208, .10);
+      --hero-glow-c: rgba(255, 221, 120, .07);
+    }
+
+    html[data-theme="light"] {
+      color-scheme: light;
+
+      --bg-page: #f5f9ff;
+      --bg-page-2: #eaf3ff;
+      --bg-elevated: rgba(255, 255, 255, .78);
+      --bg-elevated-strong: rgba(255, 255, 255, .94);
+      --bg-soft: rgba(9, 31, 58, .045);
+      --bg-muted: rgba(9, 31, 58, .075);
+      --bg-inverse: #071120;
+
+      --text-strong: #071120;
+      --text-default: #22334d;
+      --text-muted: #687890;
+      --text-subtle: #8795a8;
+      --text-inverse: #f8fbff;
+
+      --border-subtle: rgba(20, 55, 95, .10);
+      --border-default: rgba(20, 55, 95, .16);
+      --border-strong: rgba(0, 155, 210, .42);
+
+      --accent: #008fd1;
+      --accent-2: #00bfa6;
+      --accent-soft: rgba(0, 143, 209, .10);
+      --accent-strong: #00a8f0;
+      --success: #15996f;
+      --warning: #b87500;
+      --danger: #d9365b;
+
+      --shadow-soft: 0 24px 80px rgba(20, 55, 95, .12);
+      --shadow-card: 0 18px 50px rgba(20, 55, 95, .12), inset 0 1px 0 rgba(255,255,255,.72);
+      --shadow-glow: 0 0 32px rgba(0, 143, 209, .10);
+
+      --grid-line: rgba(22, 67, 110, .075);
+      --hero-glow-a: rgba(0, 168, 240, .18);
+      --hero-glow-b: rgba(0, 191, 166, .12);
+      --hero-glow-c: rgba(255, 201, 92, .14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      background:
+        radial-gradient(circle at 7% 18%, var(--hero-glow-a), transparent 31%),
+        radial-gradient(circle at 70% 8%, var(--hero-glow-b), transparent 28%),
+        radial-gradient(circle at 48% 86%, var(--hero-glow-c), transparent 26%),
+        linear-gradient(135deg, var(--bg-page), var(--bg-page-2));
+      color: var(--text-default);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: linear-gradient(to bottom, black, rgba(0,0,0,.72), transparent 98%);
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: auto -10% -25% -10%;
+      height: 38vh;
+      background: radial-gradient(ellipse at center, rgba(32, 214, 255, .18), transparent 62%);
+      pointer-events: none;
+      filter: blur(12px);
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; }
+
+    .app-shell { position: relative; z-index: 1; min-height: 100vh; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      height: 78px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 clamp(24px, 5vw, 96px);
+      border-bottom: 1px solid var(--border-default);
+      background: color-mix(in srgb, var(--bg-page) 76%, transparent);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand { display: flex; align-items: center; gap: 14px; }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #9ef5c8 0%, #20d6ff 50%, #5487ff 100%);
+      color: #05111f;
+      font-weight: 850;
+      letter-spacing: -.04em;
+      box-shadow: 0 0 36px rgba(32, 214, 255, .24);
+    }
+
+    .brand-name { font-size: 18px; font-weight: 750; color: var(--text-strong); letter-spacing: -.02em; }
+
+    .nav { display: flex; align-items: center; gap: 14px; }
+
+    .nav-link {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 15px;
+      border-radius: var(--radius-pill);
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 650;
+      transition: color var(--duration-base) var(--ease-out), background var(--duration-base) var(--ease-out);
+    }
+
+    .nav-link:hover { color: var(--text-strong); background: var(--bg-soft); }
+
+    .nav-link.is-active {
+      color: var(--text-strong);
+      background: var(--accent-soft);
+      box-shadow: inset 0 0 0 1px var(--border-default);
+    }
+
+    .nav-link.is-active::after {
+      content: "";
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: -15px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      box-shadow: 0 0 18px var(--accent);
+    }
+
+    .theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px 8px 8px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-default);
+      background: var(--bg-elevated);
+      color: var(--text-strong);
+      cursor: pointer;
+      box-shadow: var(--shadow-card);
+    }
+
+    .theme-icon {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--text-inverse);
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      font-weight: 900;
+    }
+
+    .theme-label { font-size: 11px; font-weight: 850; letter-spacing: .24em; text-transform: uppercase; }
+
+    .container {
+      width: min(1280px, calc(100% - 48px));
+      margin: 0 auto;
+    }
+
+    .hero {
+      min-height: calc(100vh - 78px);
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr);
+      align-items: center;
+      gap: clamp(40px, 6vw, 86px);
+      padding: clamp(56px, 7vw, 96px) 0;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 15px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-strong);
+      background: var(--accent-soft);
+      color: var(--text-strong);
+      box-shadow: var(--shadow-glow);
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow svg { color: var(--accent-strong); }
+
+    .hero-title {
+      max-width: 760px;
+      margin: 28px 0 22px;
+      color: var(--text-strong);
+      font-size: clamp(42px, 5.8vw, 76px);
+      line-height: .98;
+      letter-spacing: -.06em;
+      font-weight: 860;
+      text-wrap: balance;
+    }
+
+    .hero-title .accent-text {
+      background: linear-gradient(90deg, var(--text-strong), var(--accent-strong), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero-copy {
+      max-width: 660px;
+      margin: 0;
+      color: var(--text-default);
+      font-size: 17px;
+      line-height: 1.75;
+    }
+
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 30px; }
+
+    .btn {
+      min-height: 54px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 0 22px;
+      border-radius: 16px;
+      border: 1px solid transparent;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform var(--duration-fast) var(--ease-out), box-shadow var(--duration-base) var(--ease-out), border var(--duration-base) var(--ease-out);
+    }
+
+    .btn:hover { transform: translateY(-2px); }
+    .btn:active { transform: translateY(0); }
+
+    .btn-primary {
+      color: #031321;
+      background: linear-gradient(135deg, #21bdff, #25f0d1 58%, #f4f29b);
+      box-shadow: 0 18px 46px rgba(32, 214, 255, .25);
+    }
+
+    .btn-secondary {
+      color: var(--text-strong);
+      background: var(--bg-elevated);
+      border-color: var(--border-default);
+      box-shadow: var(--shadow-card);
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 34px;
+      max-width: 760px;
+    }
+
+    .card {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background: linear-gradient(180deg, var(--bg-elevated-strong), var(--bg-elevated));
+      box-shadow: var(--shadow-card);
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 12% 0%, rgba(32, 214, 255, .13), transparent 35%);
+      pointer-events: none;
+    }
+
+    .feature-card {
+      min-height: 164px;
+      padding: 22px;
+    }
+
+    .icon-box {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 13px;
+      color: var(--accent-strong);
+      background: var(--accent-soft);
+      border: 1px solid var(--border-default);
+      margin-bottom: 22px;
+    }
+
+    .kicker {
+      margin: 0 0 9px;
+      color: var(--text-strong);
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    .small-text { margin: 0; color: var(--text-default); font-size: 14px; line-height: 1.55; }
+
+    .logic-panel {
+      padding: 30px;
+      border-radius: var(--radius-xl);
+      border-color: var(--border-strong);
+      box-shadow: 0 28px 90px rgba(0,0,0,.24), 0 0 60px rgba(32,214,255,.12), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .panel-label {
+      margin: 0 0 12px;
+      color: var(--accent-strong);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .23em;
+      text-transform: uppercase;
+    }
+
+    .panel-title {
+      margin: 0;
+      color: var(--text-strong);
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1.15;
+      letter-spacing: -.04em;
+    }
+
+    .panel-icon {
+      flex: 0 0 auto;
+      width: 68px;
+      height: 68px;
+      display: grid;
+      place-items: center;
+      border-radius: 24px;
+      color: var(--accent-strong);
+      background: radial-gradient(circle, var(--accent-soft), transparent 74%);
+      border: 1px solid var(--border-strong);
+      box-shadow: 0 0 40px rgba(32, 214, 255, .22);
+    }
+
+    .steps { position: relative; display: grid; gap: 14px; }
+
+    .step {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 20px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-default);
+      background: color-mix(in srgb, var(--bg-elevated-strong) 80%, transparent);
+    }
+
+    .step-number {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--accent-strong);
+      background: var(--accent-soft);
+      border: 1px solid var(--border-strong);
+      font-size: 16px;
+      font-weight: 900;
+      box-shadow: 0 0 26px rgba(32, 214, 255, .13);
+    }
+
+    .step-title { margin: 0 0 8px; color: var(--text-strong); font-size: 16px; font-weight: 850; }
+    .step-copy { margin: 0; color: var(--text-default); font-size: 14px; line-height: 1.55; }
+
+    .note {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 16px;
+      align-items: center;
+      margin-top: 18px;
+      padding: 18px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-default);
+      background: linear-gradient(135deg, var(--accent-soft), color-mix(in srgb, var(--bg-elevated) 86%, transparent));
+    }
+
+    .note-icon {
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--accent-strong);
+      border: 1px solid var(--border-strong);
+      background: var(--accent-soft);
+      font-weight: 900;
+    }
+
+    .section {
+      padding: 70px 0 96px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .section-title { margin: 0; color: var(--text-strong); font-size: 32px; letter-spacing: -.04em; }
+    .section-copy { max-width: 620px; margin: 10px 0 0; line-height: 1.65; color: var(--text-muted); }
+
+    .tokens-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .token-card { padding: 20px; }
+    .token-name { margin: 0 0 14px; color: var(--text-strong); font-size: 13px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .swatch { height: 64px; border-radius: var(--radius-sm); border: 1px solid var(--border-default); margin-bottom: 12px; }
+    .token-value { margin: 0; color: var(--text-muted); font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .component-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .component-card { padding: 22px; }
+
+    .input {
+      width: 100%;
+      height: 48px;
+      padding: 0 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border-default);
+      background: var(--bg-elevated);
+      color: var(--text-strong);
+      outline: none;
+    }
+
+    .input:focus { border-color: var(--border-strong); box-shadow: 0 0 0 4px var(--accent-soft); }
+
+    .badge-row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-default);
+      background: var(--bg-soft);
+      color: var(--text-default);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .badge.success { color: var(--success); background: color-mix(in srgb, var(--success) 13%, transparent); }
+    .badge.warning { color: var(--warning); background: color-mix(in srgb, var(--warning) 13%, transparent); }
+    .badge.danger { color: var(--danger); background: color-mix(in srgb, var(--danger) 13%, transparent); }
+
+    @media (max-width: 1100px) {
+      .hero { grid-template-columns: 1fr; }
+      .logic-panel { max-width: 760px; }
+      .tokens-grid, .component-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 760px) {
+      .topbar { height: auto; min-height: 78px; align-items: flex-start; flex-direction: column; padding: 18px 24px; gap: 16px; }
+      .nav { width: 100%; overflow-x: auto; padding-bottom: 8px; }
+      .theme-toggle { position: absolute; right: 24px; top: 18px; }
+      .theme-label { display: none; }
+      .container { width: min(100% - 32px, 1280px); }
+      .hero { padding: 42px 0; }
+      .feature-grid, .tokens-grid, .component-grid { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 1fr; }
+      .panel-header { flex-direction: column-reverse; }
+      .actions .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#">
+        <div class="brand-mark">JS</div>
+        <div class="brand-name">JSDOIT Roadmap Center</div>
+      </a>
+
+      <nav class="nav" aria-label="Hauptnavigation">
+        <a class="nav-link is-active" href="#">Start</a>
+        <a class="nav-link" href="#">Instanzübersicht</a>
+        <a class="nav-link" href="#">Hilfe</a>
+        <a class="nav-link" href="#">Feedback</a>
+      </nav>
+
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Theme wechseln">
+        <span class="theme-icon" id="themeIcon">☾</span>
+        <span class="theme-label" id="themeLabel">Dunkel</span>
+      </button>
+    </header>
+
+    <main>
+      <section class="container hero">
+        <div class="hero-content">
+          <div class="eyebrow">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z" stroke="currentColor" stroke-width="1.8"/></svg>
+            JSDOIT Roadmap Center
+          </div>
+
+          <h1 class="hero-title">Roadmaps, Prioritäten und Instanzen – <span class="accent-text">klar verbunden.</span></h1>
+
+          <p class="hero-copy">Die Anwendung verbindet SharePoint-basierte Roadmap-Daten mit einer zentralen, verständlichen Oberfläche. Fachbereiche, Steuerung und Administration starten von hier aus in die richtige Instanz und behalten gleichzeitig den Gesamtzweck der Plattform im Blick.</p>
+
+          <div class="actions">
+            <button class="btn btn-primary" type="button">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" stroke="currentColor" stroke-width="1.8"/></svg>
+              Instanzübersicht öffnen
+              <span aria-hidden="true">↗</span>
+            </button>
+            <button class="btn btn-secondary" type="button">Mehr zur Nutzung</button>
+          </div>
+
+          <div class="feature-grid">
+            <article class="card feature-card">
+              <div class="icon-box">◇</div>
+              <h3 class="kicker">Mehrinstanzfähig</h3>
+              <p class="small-text">Polizei, Feuerwehr, Rettungsdienste und weitere Organisationen.</p>
+            </article>
+
+            <article class="card feature-card">
+              <div class="icon-box">▣</div>
+              <h3 class="kicker">Datenhaltung</h3>
+              <p class="small-text">Roadmap-Daten sicher in Microsoft SharePoint gespeichert.</p>
+            </article>
+
+            <article class="card feature-card">
+              <div class="icon-box">⌘</div>
+              <h3 class="kicker">Zugriffsmodell</h3>
+              <p class="small-text">Rollenbasiert mit klaren Berechtigungen und Nachvollziehbarkeit.</p>
+            </article>
+          </div>
+        </div>
+
+        <aside class="card logic-panel" aria-label="Plattformlogik">
+          <div class="panel-header">
+            <div>
+              <p class="panel-label">Plattformlogik</p>
+              <h2 class="panel-title">Ein sauberer Einstieg statt verstreuter Links.</h2>
+            </div>
+            <div class="panel-icon" aria-hidden="true">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M12 3v5m0 0H7v4m5-4h5v4M7 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm10 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12 14a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+
+          <div class="steps">
+            <article class="step">
+              <div class="step-number">01</div>
+              <div>
+                <h3 class="step-title">Zugang prüfen</h3>
+                <p class="step-copy">Benutzer melden sich an und sehen nur die Instanzen, für die Freigaben bestehen.</p>
+              </div>
+            </article>
+
+            <article class="step">
+              <div class="step-number">02</div>
+              <div>
+                <h3 class="step-title">Instanz öffnen</h3>
+                <p class="step-copy">Die passende Roadmap wird gezielt im separaten Übersichtsfenster ausgewählt.</p>
+              </div>
+            </article>
+
+            <article class="step">
+              <div class="step-number">03</div>
+              <div>
+                <h3 class="step-title">Vorhaben steuern</h3>
+                <p class="step-copy">Status, Kategorien, Zuständigkeiten und Prioritäten bleiben für alle Rollen sichtbar.</p>
+              </div>
+            </article>
+          </div>
+
+          <div class="note">
+            <div class="note-icon">i</div>
+            <p class="small-text">Die Instanzübersicht öffnet sich bewusst separat. Dadurch bleibt diese Seite der allgemeine Einstieg für Information, Orientierung und Navigation.</p>
+          </div>
+        </aside>
+      </section>
+
+      <section class="container section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Designsystem Referenz</h2>
+            <p class="section-copy">Diese Sektion dient als kompakte Referenz für Farben, Karten, Badges, Buttons, Eingaben und den Dark-/Light-Mode.</p>
+          </div>
+        </div>
+
+        <div class="tokens-grid">
+          <article class="card token-card">
+            <h3 class="token-name">Page Background</h3>
+            <div class="swatch" style="background: linear-gradient(135deg, var(--bg-page), var(--bg-page-2));"></div>
+            <p class="token-value">--bg-page / --bg-page-2</p>
+          </article>
+          <article class="card token-card">
+            <h3 class="token-name">Elevated</h3>
+            <div class="swatch" style="background: var(--bg-elevated-strong);"></div>
+            <p class="token-value">--bg-elevated-strong</p>
+          </article>
+          <article class="card token-card">
+            <h3 class="token-name">Accent</h3>
+            <div class="swatch" style="background: linear-gradient(135deg, var(--accent), var(--accent-2));"></div>
+            <p class="token-value">--accent / --accent-2</p>
+          </article>
+          <article class="card token-card">
+            <h3 class="token-name">Border</h3>
+            <div class="swatch" style="background: var(--bg-elevated); border-color: var(--border-strong);"></div>
+            <p class="token-value">--border-default / --border-strong</p>
+          </article>
+        </div>
+
+        <div class="component-grid">
+          <article class="card component-card">
+            <h3 class="kicker">Buttons</h3>
+            <div class="actions" style="margin-top: 14px;">
+              <button class="btn btn-primary" type="button">Primäre Aktion</button>
+              <button class="btn btn-secondary" type="button">Sekundär</button>
+            </div>
+          </article>
+
+          <article class="card component-card">
+            <h3 class="kicker">Status Badges</h3>
+            <div class="badge-row" style="margin-top: 16px;">
+              <span class="badge success">● Aktiv</span>
+              <span class="badge warning">● Offen</span>
+              <span class="badge danger">● Blockiert</span>
+            </div>
+          </article>
+
+          <article class="card component-card">
+            <h3 class="kicker">Input</h3>
+            <input class="input" style="margin-top: 16px;" value="Roadmap suchen..." aria-label="Beispiel Input" />
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const root = document.documentElement;
+    const toggle = document.getElementById('themeToggle');
+    const label = document.getElementById('themeLabel');
+    const icon = document.getElementById('themeIcon');
+
+    function setTheme(theme) {
+      root.setAttribute('data-theme', theme);
+      label.textContent = theme === 'dark' ? 'Dunkel' : 'Hell';
+      icon.textContent = theme === 'dark' ? '☾' : '☀';
+    }
+
+    toggle.addEventListener('click', () => {
+      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      setTheme(next);
+    });
+  </script>
+</body>
+</html>

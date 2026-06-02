@@ -2,7 +2,12 @@ import clsx from 'clsx';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useMemo, useEffect, useState } from 'react';
-import { hasAdminAccessToCurrentInstance, hasValidAdminSession } from '@/utils/auth';
+import {
+  ADMIN_SESSION_CHANGED_EVENT,
+  getAdminSessionToken,
+  hasAdminAccessToCurrentInstance,
+  hasValidAdminSession,
+} from '@/utils/auth';
 import ColorModeToggle from '@/components/ColorModeToggle';
 import { INSTANCE_QUERY_PARAM, INSTANCE_COOKIE_NAME } from '@/utils/instanceConfig';
 
@@ -55,6 +60,7 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
 
   const [cookieSlug, setCookieSlug] = useState<string>('');
   const [showAdminLink, setShowAdminLink] = useState(false);
+  const [showFeedbackLink, setShowFeedbackLink] = useState(false);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -71,6 +77,14 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
   const maybeQuery = instanceSlug ? { [INSTANCE_QUERY_PARAM]: instanceSlug } : undefined;
   const adminLinkSlug = querySlug || (currentRoute === 'admin' ? cookieSlug : '');
   const hasAdminHref = Boolean(adminLinkSlug);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const updateFeedbackLink = () => setShowFeedbackLink(Boolean(getAdminSessionToken()));
+    updateFeedbackLink();
+    window.addEventListener(ADMIN_SESSION_CHANGED_EVENT, updateFeedbackLink);
+    return () => window.removeEventListener(ADMIN_SESSION_CHANGED_EVENT, updateFeedbackLink);
+  }, [router.asPath]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,7 +131,7 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
         </Link>
 
         <nav className="hidden items-center gap-5 lg:flex">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter((item) => item.key !== 'feedback' || showFeedbackLink).map((item) => {
             const isActive = currentRoute === item.key;
             return (
               <Link

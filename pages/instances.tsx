@@ -15,8 +15,7 @@ import {
   FiStar,
 } from 'react-icons/fi';
 import prisma from '@/lib/prisma';
-import SiteFooter from '@/components/SiteFooter';
-import SiteHeader from '@/components/SiteHeader';
+import ColorModeToggle from '@/components/ColorModeToggle';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import {
   ADMIN_SESSION_CHANGED_EVENT,
@@ -217,7 +216,6 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
     return raw.split('#')[0] || '/instances';
   }, [router.asPath]);
 
-  const manual = String(router.query.manual || '') === '1';
   const autoEntraSso =
     String(process.env.NEXT_PUBLIC_ENTRA_AUTO_LOGIN || '').toLowerCase() === 'true' ||
     String(router.query.autoSso || '') === '1';
@@ -342,7 +340,6 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
     if (authed) return;
     if (!entraEnabled) return;
     if (!autoEntraSso) return;
-    if (manual) return;
 
     if (
       typeof router.query.error === 'string' ||
@@ -356,16 +353,7 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
       `/api/auth/entra/login?returnUrl=${encodeURIComponent(returnUrl)}`
     );
     window.location.assign(loginUrl);
-  }, [
-    router.isReady,
-    authChecked,
-    authed,
-    entraEnabled,
-    autoEntraSso,
-    manual,
-    returnUrl,
-    router.query,
-  ]);
+  }, [router.isReady, authChecked, authed, entraEnabled, autoEntraSso, returnUrl, router.query]);
 
   const startSso = () => {
     const loginUrl = buildInstanceAwareUrl(
@@ -437,179 +425,145 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
       <Head>
         <title>JSDoIT Instanzübersicht</title>
       </Head>
-      <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
-        <SiteHeader activeRoute="instances" />
-        <main className="flex-1">
-          <section className="theme-showcase-hero relative isolate overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.16),_transparent_24%),radial-gradient(circle_at_82%_18%,_rgba(251,191,36,0.14),_transparent_20%),linear-gradient(180deg,_#08111f_0%,_#0f172a_52%,_#09111b_100%)]">
-            <div className="pointer-events-none absolute inset-0 overflow-hidden">
-              <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:68px_68px]" />
-              <div className="absolute left-[10%] top-[-10%] h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" />
-              <div className="absolute right-[-10%] top-[20%] h-96 w-96 rounded-full bg-sky-500/20 blur-3xl" />
-              <div className="absolute bottom-[-12%] left-1/3 h-72 w-72 rounded-full bg-amber-400/10 blur-3xl" />
-            </div>
-            <div className="relative mx-auto grid max-w-6xl gap-10 px-6 py-20 sm:px-8 lg:grid-cols-[1.12fr_0.88fr] lg:items-center lg:py-24">
-              <div className="max-w-3xl space-y-8">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.34em] text-cyan-200 backdrop-blur">
-                  <FiStar className="h-4 w-4" />
-                  Instanzübersicht
-                </div>
+      <div className="ds-page-shell">
+        <header className="ds-topbar">
+          <Link className="ds-brand" href="/landing">
+            <span className="ds-brand-mark">JS</span>
+            <span className="ds-brand-name">JSDOIT Roadmap Center</span>
+          </Link>
 
-                <div className="space-y-6">
-                  <h1 className="text-4xl font-semibold leading-[1.05] text-white sm:text-5xl lg:text-6xl">
-                    Verbinde dich mit der passenden Roadmap-Instanz
-                  </h1>
-                  <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                    Wähle deine Organisationseinheit, öffne die passende Roadmap und behalte
-                    gleichzeitig Zugriff, Herkunft und Betriebsmodell jeder Instanz im Blick.
-                  </p>
-                </div>
+          <nav className="ds-nav" aria-label="Hauptnavigation">
+            <Link className="ds-nav-link" href="/landing">
+              Start
+            </Link>
+            <Link className="ds-nav-link is-active" href="/instances">
+              Instanzübersicht
+            </Link>
+            <Link className="ds-nav-link" href="/help">
+              Hilfe
+            </Link>
+            {authed && (
+              <Link className="ds-nav-link" href="/feedback">
+                Feedback
+              </Link>
+            )}
+          </nav>
 
-                <div className="flex flex-wrap items-center gap-4">
-                  {authed ? (
-                    <button
-                      type="button"
-                      onClick={() => openInstance(defaultInstance)}
-                      disabled={!visibleInstances.length || selectingSlug !== null}
-                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-amber-200 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_50px_rgba(34,211,238,0.22)] transition hover:translate-y-[-1px] hover:shadow-[0_22px_60px_rgba(34,211,238,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {!visibleInstances.length
-                        ? 'Keine Instanzen vorhanden'
-                        : selectingSlug
-                          ? 'Weiterleitung wird vorbereitet ...'
-                          : 'Roadmap starten'}
-                      {visibleInstances.length ? <FiArrowRight className="h-4 w-4" /> : null}
-                    </button>
-                  ) : entraEnabled ? (
-                    <button
-                      type="button"
-                      onClick={startSso}
-                      className="rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-amber-200 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_50px_rgba(34,211,238,0.22)] transition hover:translate-y-[-1px]"
-                    >
-                      Mit Microsoft anmelden (SSO)
-                    </button>
-                  ) : (
-                    <Link
-                      href={`/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}`}
-                      className="rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-amber-200 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_50px_rgba(34,211,238,0.22)] transition hover:translate-y-[-1px]"
-                    >
-                      Anmelden
-                    </Link>
-                  )}
-                  <Link
-                    href="/help"
-                    className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-slate-100 backdrop-blur transition hover:border-cyan-300/40 hover:bg-white/10"
+          <ColorModeToggle className="ds-color-mode-toggle" />
+        </header>
+
+        <main className="ds-page-main">
+          <section className="ds-container ds-hero ds-instance-hero">
+            <div className="ds-hero-content">
+              <div className="ds-eyebrow">
+                <FiStar className="ds-icon-sm" />
+                Instanzübersicht
+              </div>
+
+              <h1 className="ds-hero-title">
+                Verbinde dich mit der passenden{' '}
+                <span className="ds-accent-text">Roadmap-Instanz</span>
+              </h1>
+              <p className="ds-hero-copy">
+                Wähle deine Organisationseinheit, öffne die passende Roadmap und behalte
+                gleichzeitig Zugriff, Herkunft und Betriebsmodell jeder Instanz im Blick.
+              </p>
+
+              <div className="ds-actions">
+                {authed ? (
+                  <button
+                    type="button"
+                    onClick={() => openInstance(defaultInstance)}
+                    disabled={!visibleInstances.length || selectingSlug !== null}
+                    className="ds-button ds-button-primary"
                   >
-                    Hilfe entdecken
-                  </Link>
-                </div>
+                    {!visibleInstances.length
+                      ? 'Keine Instanzen vorhanden'
+                      : selectingSlug
+                        ? 'Weiterleitung wird vorbereitet ...'
+                        : 'Roadmap starten'}
+                    {visibleInstances.length ? <FiArrowRight className="ds-icon-sm" /> : null}
+                  </button>
+                ) : entraEnabled ? (
+                  <button type="button" onClick={startSso} className="ds-button ds-button-primary">
+                    Anmelden
+                  </button>
+                ) : (
+                  <span className="ds-button ds-button-secondary ds-button-disabled">
+                    Microsoft SSO ist nicht konfiguriert
+                  </span>
+                )}
+                <Link href="/help" className="ds-button ds-button-secondary">
+                  Hilfe entdecken
+                </Link>
+              </div>
+            </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-4 backdrop-blur">
-                    <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                      Freigegebene Instanzen
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-white">
-                      {visibleInstances.length}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-4 backdrop-blur">
-                    <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                      Bereiche
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-white">{departmentCount}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-4 backdrop-blur">
-                    <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                      Ziel-Hosts
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-white">{hostCount}</p>
-                  </div>
+            <aside className="ds-card ds-logic-panel" aria-label="Zugriff und Orientierung">
+              <div className="ds-panel-header">
+                <div>
+                  <p className="ds-panel-label">Zugriff & Orientierung</p>
+                  <h2 className="ds-panel-title">Welche Instanzen du hier erwarten kannst</h2>
+                </div>
+                <div className="ds-panel-icon" aria-hidden="true">
+                  <FiLock className="ds-icon-md" />
                 </div>
               </div>
 
-              <aside className="theme-showcase-aside rounded-[2rem] border border-white/10 bg-slate-950/55 p-7 shadow-[0_24px_80px_rgba(2,6,23,0.5)] backdrop-blur-xl">
-                <div className="space-y-5">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-cyan-200/80">
-                        Zugriff & Orientierung
-                      </p>
-                      <h2 className="mt-3 text-2xl font-semibold text-white">
-                        Welche Instanzen du hier erwarten kannst
-                      </h2>
-                    </div>
-                    <div className="hidden h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-100 sm:flex">
-                      <FiLock className="h-5 w-5" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-sm leading-6 text-slate-300">
-                      Nur freigegebene Instanzen werden angezeigt. Rollen und Berechtigungen bleiben
-                      aus SharePoint und Admin-Konfiguration ableitbar.
-                    </div>
-                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-sm leading-6 text-slate-300">
-                      Jede Karte zeigt Name, Bereich, SharePoint-Ziel und verfügbare Hosts, damit
-                      die Auswahl nachvollziehbar bleibt.
-                    </div>
-                    <div className="rounded-2xl border border-amber-300/15 bg-gradient-to-br from-amber-300/10 via-transparent to-cyan-300/5 p-4 text-sm leading-6 text-slate-200">
-                      Der Schnellstart oben öffnet direkt die erste verfügbare Instanz. Einzelne
-                      Karten geben dir mehr Kontext vor dem Wechsel.
-                    </div>
-                  </div>
-                </div>
-              </aside>
-            </div>
+              <div className="ds-info-list">
+                <p className="ds-info-item">
+                  Nur freigegebene Instanzen werden angezeigt. Rollen und Berechtigungen bleiben aus
+                  SharePoint und Admin-Konfiguration ableitbar.
+                </p>
+                <p className="ds-info-item">
+                  Jede Karte zeigt Name, Bereich, SharePoint-Ziel und verfügbare Hosts, damit die
+                  Auswahl nachvollziehbar bleibt.
+                </p>
+                <p className="ds-note ds-info-note">
+                  Der Schnellstart oben öffnet direkt die erste verfügbare Instanz. Einzelne Karten
+                  geben dir mehr Kontext vor dem Wechsel.
+                </p>
+              </div>
+            </aside>
           </section>
 
-          <section className="theme-showcase-band border-b border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.96)_0%,_rgba(8,15,28,1)_100%)]">
-            <div className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
-              <div className="mb-10 max-w-3xl space-y-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
-                  Warum diese Übersicht hilft
-                </p>
-                <h2 className="text-2xl font-semibold text-white sm:text-4xl">
-                  Orientierung für Teams und Stakeholder
-                </h2>
-                <p className="text-sm leading-7 text-slate-300">
-                  Die Roadmap vereint Status, Aufgaben und Ansprechpersonen. Die folgenden
-                  Highlights zeigen, wie du schnell ans Ziel kommst.
-                </p>
+          <section className="ds-container ds-section">
+            <div className="ds-section-header">
+              <div>
+                <p className="ds-panel-label">Warum diese Übersicht hilft</p>
+                <h2 className="ds-section-title">Orientierung für Teams und Stakeholder</h2>
               </div>
-              <div className="grid gap-6 md:grid-cols-3">
-                {highlightCards.map((card) => (
-                  <article
-                    key={card.title}
-                    className="theme-showcase-card group rounded-[1.75rem] border border-white/10 bg-gradient-to-b from-slate-900/80 to-slate-950/80 p-6 shadow-[0_18px_50px_rgba(2,6,23,0.35)] transition hover:border-cyan-300/30 hover:translate-y-[-2px]"
-                  >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300/15 to-amber-200/10 text-cyan-100 ring-1 ring-white/10">
-                      <card.icon className="h-5 w-5" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">{card.title}</h3>
-                    <p className="mt-3 text-sm leading-7 text-slate-300">{card.description}</p>
-                  </article>
-                ))}
-              </div>
+              <p className="ds-section-copy">
+                Die Roadmap vereint Status, Aufgaben und Ansprechpersonen. Die folgenden Highlights
+                zeigen, wie du schnell ans Ziel kommst.
+              </p>
+            </div>
+            <div className="ds-value-grid">
+              {highlightCards.map((card) => (
+                <article key={card.title} className="ds-card ds-value-card">
+                  <div className="ds-value-icon">
+                    <card.icon className="ds-icon" />
+                  </div>
+                  <h3 className="ds-value-title">{card.title}</h3>
+                  <p className="ds-value-copy">{card.description}</p>
+                </article>
+              ))}
             </div>
           </section>
 
           {!authChecked ? (
-            <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
-              <div className="flex items-center justify-center">
+            <section className="ds-container ds-section">
+              <div className="ds-centered-state">
                 <JSDoITLoader sizeRem={2.2} message={authStatus || 'Anmeldung wird geprüft ...'} />
               </div>
             </section>
           ) : authed ? (
-            <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
-              <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
-                    Auswahlbereich
-                  </p>
-                  <h2 className="text-2xl font-semibold text-white sm:text-4xl">
-                    Aktive Instanzen
-                  </h2>
-                  <p className="max-w-2xl text-sm leading-7 text-slate-300">
+            <section className="ds-container ds-section">
+              <div className="ds-section-header">
+                <div>
+                  <p className="ds-panel-label">Auswahlbereich</p>
+                  <h2 className="ds-section-title">Aktive Instanzen</h2>
+                  <p className="ds-section-copy">
                     {visibleInstances.length
                       ? 'Wähle eine Instanz, um dich mit der passenden Roadmap zu verbinden.'
                       : canManageInstances
@@ -620,102 +574,80 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
                 {canManageInstances ? (
                   <Link
                     href="/admin/instances"
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-2 text-sm font-medium text-slate-100 backdrop-blur transition hover:border-cyan-300/40 hover:bg-white/10 sm:w-auto"
+                    className="ds-button ds-button-secondary ds-section-action"
                   >
                     Instanzen verwalten
-                    <FiExternalLink className="h-4 w-4" />
+                    <FiExternalLink className="ds-icon-sm" />
                   </Link>
                 ) : null}
               </div>
 
-              {errorMessage && (
-                <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-600/10 px-4 py-4 text-sm text-red-200 backdrop-blur">
-                  {errorMessage}
-                </div>
-              )}
+              {errorMessage && <div className="ds-message ds-message-danger">{errorMessage}</div>}
 
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="ds-instance-grid">
                 {visibleInstances.map((instance, index) => (
-                  <article
-                    key={instance.slug}
-                    className="theme-showcase-card theme-instance-card group relative overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.82)_0%,_rgba(2,6,23,0.92)_100%)] p-6 shadow-[0_24px_70px_rgba(2,6,23,0.38)] transition hover:border-cyan-300/30 hover:translate-y-[-2px]"
-                  >
-                    <div className="pointer-events-none absolute inset-0 opacity-0 transition group-hover:opacity-100">
-                      <div className="absolute right-[-10%] top-[-10%] h-40 w-40 rounded-full bg-cyan-300/10 blur-3xl" />
-                    </div>
-                    <div className="flex items-start justify-between gap-4">
+                  <article key={instance.slug} className="ds-card ds-instance-card">
+                    <div className="ds-instance-card-header">
                       <div>
-                        <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">
-                          Instanz {String(index + 1).padStart(2, '0')}
-                        </p>
-                        <h3 className="text-xl font-semibold text-white">{instance.displayName}</h3>
+                        <p className="ds-kicker">Instanz {String(index + 1).padStart(2, '0')}</p>
+                        <h3 className="ds-instance-title">{instance.displayName}</h3>
                         {instance.department && (
-                          <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-cyan-300/15 bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-100">
-                            <FiMapPin className="h-3.5 w-3.5" />
+                          <p className="ds-badge ds-instance-department">
+                            <FiMapPin className="ds-icon-sm" />
                             {instance.department}
                           </p>
                         )}
                       </div>
-                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
-                        {instance.strategy}
-                      </span>
+                      <span className="ds-badge">{instance.strategy}</span>
                     </div>
 
                     {instance.description && (
-                      <p className="mt-4 text-sm leading-7 text-slate-300">
-                        {instance.description}
-                      </p>
+                      <p className="ds-instance-description">{instance.description}</p>
                     )}
 
-                    <dl className="mt-5 space-y-3 text-xs sm:text-sm">
-                      <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <FiGlobe className="h-4 w-4 text-cyan-200" />
-                          <span className="font-semibold text-slate-200">SharePoint</span>
+                    <dl className="ds-instance-details">
+                      <div className="ds-instance-detail">
+                        <div className="ds-instance-detail-label">
+                          <FiGlobe className="ds-icon-sm" />
+                          <span>SharePoint</span>
                         </div>
-                        <span className="mt-2 block truncate text-slate-300">
-                          {instance.sharePointUrl}
-                        </span>
+                        <dd className="ds-instance-detail-value">{instance.sharePointUrl}</dd>
                       </div>
                       {instance.hosts.length > 0 && (
-                        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                          <div className="flex items-center gap-2 text-slate-400">
-                            <FiExternalLink className="h-4 w-4 text-cyan-200" />
-                            <span className="font-semibold text-slate-200">Hosts</span>
+                        <div className="ds-instance-detail">
+                          <div className="ds-instance-detail-label">
+                            <FiExternalLink className="ds-icon-sm" />
+                            <span>Hosts</span>
                           </div>
-                          <span className="mt-2 block text-slate-300">
-                            {instance.hosts.join(', ')}
-                          </span>
+                          <dd className="ds-instance-detail-value">{instance.hosts.join(', ')}</dd>
                         </div>
                       )}
                     </dl>
 
-                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                    <div className="ds-instance-actions">
                       <button
                         type="button"
                         onClick={() => openInstance(instance)}
                         disabled={selectingSlug === instance.slug}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-400 via-cyan-300 to-amber-200 px-4 py-3 text-center text-sm font-semibold text-slate-950 transition hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-60"
+                        className="ds-button ds-button-primary ds-instance-open"
                       >
                         {selectingSlug === instance.slug ? 'Öffne Roadmap ...' : 'Roadmap öffnen'}
-                        <FiArrowRight className="h-4 w-4" />
+                        <FiArrowRight className="ds-icon-sm" />
                       </button>
-                      <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-slate-300">
-                        {instance.slug}
-                      </div>
+                      <div className="ds-instance-slug">{instance.slug}</div>
                     </div>
                   </article>
                 ))}
               </div>
 
               {!visibleInstances.length && !instancesLoading && (
-                <div className="mt-12 rounded-[2rem] border border-dashed border-white/15 bg-slate-900/70 p-8 text-center text-slate-300">
-                  <p className="text-lg font-medium text-white">
+                <div className="ds-empty-state">
+                  <p className="ds-empty-title">
                     {canManageInstances
                       ? 'Noch keine Instanzen vorhanden'
                       : 'Keine freigegebenen Instanzen'}
                   </p>
-                  <p className="mt-2 text-sm">
+                  <p className="ds-empty-copy">
                     {canManageInstances
                       ? 'Erstelle in der Instanzverwaltung eine neue Roadmap-Instanz und verknüpfe den passenden SharePoint-Endpunkt.'
                       : 'Dir ist aktuell keine Roadmap-Instanz über die explizit freigegebenen Abteilungen zugeordnet.'}
@@ -724,54 +656,57 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
               )}
 
               {!visibleInstances.length && instancesLoading && (
-                <div className="mt-12 flex items-center justify-center">
+                <div className="ds-centered-state">
                   <JSDoITLoader sizeRem={2} message="Instanzen werden geladen ..." />
                 </div>
               )}
             </section>
           ) : (
-            <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
-              <div className="theme-showcase-panel rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.82)_0%,_rgba(2,6,23,0.92)_100%)] p-8 shadow-[0_30px_90px_rgba(2,6,23,0.45)]">
-                <div className="max-w-2xl space-y-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
-                    Anmeldung erforderlich
-                  </p>
-                  <h2 className="text-2xl font-semibold text-white sm:text-4xl">
-                    Instanzzugriff freischalten
-                  </h2>
+            <section className="ds-container ds-section">
+              <div className="ds-card ds-auth-panel">
+                <div>
+                  <p className="ds-panel-label">Anmeldung erforderlich</p>
+                  <h2 className="ds-section-title">Instanzzugriff freischalten</h2>
                 </div>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
+                <p className="ds-section-copy">
                   Die Instanzübersicht ist erst nach Anmeldung sichtbar.
                 </p>
-                <div className="mt-6 flex flex-wrap gap-3">
+                <div className="ds-actions">
                   {entraEnabled ? (
                     <button
                       type="button"
                       onClick={startSso}
-                      className="rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-amber-200 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_50px_rgba(34,211,238,0.22)] transition hover:translate-y-[-1px]"
-                    >
-                      Mit Microsoft anmelden (SSO)
-                    </button>
-                  ) : (
-                    <Link
-                      href={`/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}`}
-                      className="rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-amber-200 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_50px_rgba(34,211,238,0.22)] transition hover:translate-y-[-1px]"
+                      className="ds-button ds-button-primary"
                     >
                       Anmelden
-                    </Link>
+                    </button>
+                  ) : (
+                    <span className="ds-button ds-button-secondary ds-button-disabled">
+                      Microsoft SSO ist nicht konfiguriert
+                    </span>
                   )}
-                  <Link
-                    href={`/admin/login?manual=1&returnUrl=${encodeURIComponent(returnUrl)}`}
-                    className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-slate-100 backdrop-blur transition hover:border-cyan-300/40 hover:bg-white/10"
-                  >
-                    Alternative Anmeldung
-                  </Link>
                 </div>
               </div>
             </section>
           )}
         </main>
-        <SiteFooter />
+
+        <footer className="ds-footer">
+          <div className="ds-container ds-footer-inner">
+            <span>JSDoIT Roadmap Center</span>
+            <div className="ds-footer-links">
+              <Link className="ds-footer-link" href="/landing">
+                Start
+              </Link>
+              <Link className="ds-footer-link" href="/help">
+                Hilfe
+              </Link>
+              <Link className="ds-footer-link" href="/feedback">
+                Feedback
+              </Link>
+            </div>
+          </div>
+        </footer>
       </div>
     </>
   );

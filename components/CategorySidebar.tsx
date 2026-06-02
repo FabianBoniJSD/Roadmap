@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Category } from '../types';
 import { getIconByName } from '../utils/reactIcons';
-// Importieren Sie Fa für die Chevron-Icons
 import * as Fa from 'react-icons/fa';
 
 interface CategorySidebarProps {
@@ -42,46 +41,37 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
     const iconColor = getReadableIconColor(backgroundColor);
 
     if (!iconName) {
-      return <span style={{ color: iconColor }}>❓</span>;
+      return <span style={{ color: iconColor }}>?</span>;
     }
 
-    // Verwenden der getIconByName-Funktion aus utils/reactIcons.ts
     const IconComponent = getIconByName(iconName);
 
     if (IconComponent) {
       return <IconComponent style={{ fontSize: '16px', color: iconColor }} />;
     } else {
-      return <span style={{ color: iconColor }}>❓</span>;
+      return <span style={{ color: iconColor }}>?</span>;
     }
   };
 
   return (
-    <div className="w-full lg:w-64 lg:pr-6">
-      {/* Mobile toggle button */}
-      <div className="flex justify-between items-center mb-2 lg:mb-4">
-        <h2 className="text-xl font-bold">Bereiche</h2>
+    <div className="ds-roadmap-category-sidebar">
+      <div className="ds-roadmap-category-sidebar-header">
+        <h2>Bereiche</h2>
         <button
-          className="lg:hidden bg-gray-700 p-2 rounded-md"
+          className="ds-roadmap-category-collapse"
           onClick={() => setIsCollapsed(!isCollapsed)}
+          type="button"
         >
-          {isCollapsed ? (
-            <Fa.FaChevronDown className="text-white" />
-          ) : (
-            <Fa.FaChevronUp className="text-white" />
-          )}
+          {isCollapsed ? <Fa.FaChevronDown /> : <Fa.FaChevronUp />}
         </button>
       </div>
 
-      {/* Categories list - hidden on mobile when collapsed */}
-      <div className={`space-y-2 ${isCollapsed ? 'hidden lg:block' : 'block'}`}>
+      <div className={`ds-roadmap-category-list ${isCollapsed ? 'is-collapsed' : ''}`}>
         {categories.map((category) => (
-          <div
+          <button
             key={category.id}
-            className={`flex items-center p-2 rounded cursor-pointer transition-all ${
-              activeCategories.includes(category.id)
-                ? 'bg-gray-700 border-l-4'
-                : 'bg-gray-800 opacity-70'
-            }`}
+            type="button"
+            className={`ds-roadmap-category-item ${activeCategories.includes(category.id) ? 'is-active' : ''}`}
             style={{
               borderLeftColor: activeCategories.includes(category.id)
                 ? category.color
@@ -89,14 +79,11 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
             }}
             onClick={() => onToggleCategory(category.id)}
           >
-            <div
-              className="w-6 h-6 md:w-8 md:h-8 rounded flex items-center justify-center mr-2 md:mr-3"
-              style={{ backgroundColor: category.color }}
-            >
+            <div className="ds-roadmap-category-icon" style={{ backgroundColor: category.color }}>
               {renderIcon(category.icon || '', category.color || '#777777')}
             </div>
-            <span className="text-sm md:text-base">{category.name}</span>
-          </div>
+            <span>{category.name}</span>
+          </button>
         ))}
       </div>
     </div>
