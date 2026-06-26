@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import type { GetServerSideProps } from 'next';
 import Roadmap from '../components/Roadmap';
-import ColorModeToggle from '@/components/ColorModeToggle';
+import SiteHeader from '@/components/SiteHeader';
 import { clientDataService } from '@/utils/clientDataService';
 import { extractAdminSessionFromHeaders } from '@/utils/apiAuth';
 import { isReadSessionAllowedForInstance } from '@/utils/instanceAccessServer';
@@ -21,6 +21,8 @@ import {
 } from '@/utils/sampleInstanceData';
 import { getMirroredProjectsForInstance } from '@/utils/instanceMirroring';
 import type { Category, Project, ProjectOrderByCategory } from '../types';
+
+const INSTANCE_CONTEXT_CHANGED_EVENT = 'roadmap-instance-changed';
 
 const parseProjectOrderByCategoryValue = (value: unknown): ProjectOrderByCategory => {
   if (typeof value !== 'string' || !value.trim()) {
@@ -106,10 +108,6 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
   const [loading, setLoading] = useState(false);
   const [showFeedbackLink, setShowFeedbackLink] = useState(false);
 
-  const roadmapHref = currentInstanceSlug
-    ? { pathname: '/roadmap', query: { [INSTANCE_QUERY_PARAM]: currentInstanceSlug } }
-    : '/roadmap';
-
   useEffect(() => {
     setProjectsState(projects);
     setCategoriesState(categories);
@@ -125,6 +123,25 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
     window.addEventListener(ADMIN_SESSION_CHANGED_EVENT, updateFeedbackLink);
     return () => window.removeEventListener(ADMIN_SESSION_CHANGED_EVENT, updateFeedbackLink);
   }, []);
+
+  useEffect(() => {
+    if (!currentInstanceSlug || typeof document === 'undefined' || typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const desired = encodeURIComponent(currentInstanceSlug);
+      const cookies = document.cookie || '';
+      const match = cookies.match(new RegExp('(?:^|;\\s*)roadmap-instance=([^;\\s]+)', 'i'));
+      const current = match?.[1] ?? '';
+      if (current !== desired) {
+        document.cookie = `roadmap-instance=${desired}; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`;
+        window.dispatchEvent(new Event(INSTANCE_CONTEXT_CHANGED_EVENT));
+      }
+    } catch {
+      // ignore cookie sync issues and keep page functional
+    }
+  }, [currentInstanceSlug]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -232,34 +249,7 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
         <title>Roadmap | JSDoIT Roadmap</title>
       </Head>
       <div className="ds-page-shell">
-        <header className="ds-topbar">
-          <Link className="ds-brand" href="/landing">
-            <span className="ds-brand-mark">JS</span>
-            <span className="ds-brand-name">JSDOIT Roadmap Center</span>
-          </Link>
-
-          <nav className="ds-nav" aria-label="Hauptnavigation">
-            <Link className="ds-nav-link" href="/landing">
-              Start
-            </Link>
-            <Link className="ds-nav-link" href="/instances">
-              Instanzübersicht
-            </Link>
-            <Link className="ds-nav-link is-active" href={roadmapHref}>
-              Roadmap
-            </Link>
-            <Link className="ds-nav-link" href="/help">
-              Hilfe
-            </Link>
-            {showFeedbackLink && (
-              <Link className="ds-nav-link" href="/feedback">
-                Feedback
-              </Link>
-            )}
-          </nav>
-
-          <ColorModeToggle className="ds-color-mode-toggle" />
-        </header>
+        <SiteHeader activeRoute="roadmap" />
 
         <main className="ds-page-main ds-roadmap-page-main">
           {loading ? (

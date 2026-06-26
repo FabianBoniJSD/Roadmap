@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { type FC, type ReactNode } from 'react';
-import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 
 type Breadcrumb = {
@@ -18,6 +17,12 @@ type AdminSubpageLayoutProps = {
   maxWidthClassName?: string;
 };
 
+const resolveWidthModifier = (maxWidthClassName: string) => {
+  if (maxWidthClassName.includes('max-w-3xl')) return 'is-narrow';
+  if (maxWidthClassName.includes('max-w-6xl')) return 'is-wide';
+  return '';
+};
+
 const AdminSubpageLayout: FC<AdminSubpageLayoutProps> = ({
   title,
   description,
@@ -27,78 +32,71 @@ const AdminSubpageLayout: FC<AdminSubpageLayoutProps> = ({
   eyebrow = 'Adminbereich',
   maxWidthClassName = 'max-w-5xl',
 }) => {
+  const widthModifier = resolveWidthModifier(maxWidthClassName);
+
   return (
-    <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
+    <div className="ds-page-shell">
       <SiteHeader activeRoute="admin" />
 
-      <main className="relative flex-1">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-[6%] top-[-12%] h-60 w-60 rounded-full bg-sky-500/30 blur-3xl" />
-          <div className="absolute right-[12%] top-1/3 h-72 w-72 rounded-full bg-amber-400/20 blur-3xl" />
-        </div>
-
-        <div className="relative mx-auto w-full px-6 py-12 sm:px-8 lg:py-16">
-          <div className={`mx-auto w-full ${maxWidthClassName} space-y-10`}>
-            {breadcrumbs && breadcrumbs.length > 0 && (
-              <nav
-                aria-label="Breadcrumb"
-                className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-slate-500"
-              >
-                {breadcrumbs.map((crumb, index) => {
-                  const isLast = index === breadcrumbs.length - 1;
-                  if (isLast || !crumb.href) {
-                    return (
-                      <span
-                        key={`${crumb.label}-${index}`}
-                        className={isLast ? 'text-slate-200' : undefined}
-                      >
-                        {crumb.label}
-                      </span>
-                    );
-                  }
-
+      <main className="ds-page-main ds-admin-subpage-main">
+        <div
+          className={`ds-container ds-admin-subpage-inner${widthModifier ? ` ${widthModifier}` : ''}`}
+        >
+          {breadcrumbs && breadcrumbs.length > 0 && (
+            <nav aria-label="Breadcrumb" className="ds-admin-breadcrumbs">
+              {breadcrumbs.map((crumb, index) => {
+                const isLast = index === breadcrumbs.length - 1;
+                if (isLast || !crumb.href) {
                   return (
-                    <span key={`${crumb.label}-${index}`} className="flex items-center gap-2">
-                      <Link
-                        href={crumb.href}
-                        className="font-medium text-slate-300 transition hover:text-white"
-                      >
-                        {crumb.label}
-                      </Link>
-                      <span aria-hidden="true" className="opacity-60">
-                        /
-                      </span>
+                    <span key={`${crumb.label}-${index}`} className="ds-admin-breadcrumb-current">
+                      {crumb.label}
                     </span>
                   );
-                })}
-              </nav>
-            )}
+                }
 
-            <header className="space-y-6 rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-xl shadow-slate-950/40 sm:px-9">
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-sky-300/80">
-                  {eyebrow}
-                </p>
-                <h1 className="text-3xl font-semibold leading-tight text-white sm:text-4xl">
-                  {title}
-                </h1>
-                {description && (
-                  <div className="text-sm text-slate-300 sm:text-base leading-relaxed">
-                    {description}
-                  </div>
-                )}
-              </div>
-              {actions && (
-                <div className="flex flex-wrap gap-3 text-sm text-slate-300">{actions}</div>
-              )}
-            </header>
+                return (
+                  <span key={`${crumb.label}-${index}`} className="ds-admin-breadcrumb-group">
+                    <Link href={crumb.href} className="ds-admin-breadcrumb-link">
+                      {crumb.label}
+                    </Link>
+                    <span aria-hidden="true" className="ds-admin-breadcrumb-separator">
+                      /
+                    </span>
+                  </span>
+                );
+              })}
+            </nav>
+          )}
 
-            <div className="space-y-10">{children}</div>
-          </div>
+          <header className="ds-card ds-admin-subpage-hero">
+            <div>
+              <p className="ds-panel-label">{eyebrow}</p>
+              <h1 className="ds-admin-subpage-title">{title}</h1>
+              {description && <div className="ds-admin-subpage-description">{description}</div>}
+            </div>
+            {actions && <div className="ds-admin-subpage-actions">{actions}</div>}
+          </header>
+
+          <div className="ds-admin-subpage-content">{children}</div>
         </div>
       </main>
 
-      <SiteFooter />
+      <footer className="ds-footer">
+        <div className="ds-container ds-footer-inner">
+          <span>JSDoIT Roadmap Center</span>
+          <div className="ds-footer-links">
+            <Link className="ds-footer-link" href="/admin">
+              Admin
+            </Link>
+            <Link className="ds-footer-link" href="/help/admin">
+              Admin-Handbuch
+            </Link>
+            <Link className="ds-footer-link" href="/instances">
+              Instanzen
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

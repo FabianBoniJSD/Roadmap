@@ -1,11 +1,19 @@
 import clsx from 'clsx';
+import Head from 'next/head';
 import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
+import {
+  FiBookOpen,
+  FiExternalLink,
+  FiLogOut,
+  FiPlus,
+  FiRefreshCw,
+  FiShield,
+} from 'react-icons/fi';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import RichTextContent from '@/components/RichTextContent';
 import SharePointUserPicker from '@/components/SharePointUserPicker';
-import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import withAdminAuth from '@/components/withAdminAuth';
 import { AppSettings, Category, Project } from '@/types';
@@ -16,8 +24,8 @@ import {
   hasValidAdminSession,
   logout,
 } from '@/utils/auth';
-import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import { normalizeCategoryId, resolveCategoryName, UNCATEGORIZED_ID } from '@/utils/categoryUtils';
+import { INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 
 type AdminTab = 'projects' | 'categories' | 'settings';
 
@@ -30,19 +38,40 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  completed: 'border border-emerald-500/40 bg-emerald-500/15 text-emerald-200',
-  'in-progress': 'border border-sky-500/40 bg-sky-500/15 text-sky-200',
-  planned: 'border border-slate-500/40 bg-slate-500/20 text-slate-200',
-  paused: 'border border-amber-500/40 bg-amber-500/15 text-amber-200',
-  cancelled: 'border border-rose-500/40 bg-rose-500/15 text-rose-200',
+  completed: 'ds-admin-status-completed',
+  'in-progress': 'ds-admin-status-active',
+  planned: 'ds-admin-status-planned',
+  paused: 'ds-admin-status-paused',
+  cancelled: 'ds-admin-status-cancelled',
 };
 
 const AdminShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
-    <SiteHeader activeRoute="admin" />
-    {children}
-    <SiteFooter />
-  </div>
+  <>
+    <Head>
+      <title>Admin | JSDoIT Roadmap</title>
+    </Head>
+
+    <div className="ds-page-shell">
+      <SiteHeader activeRoute="admin" />
+      {children}
+      <footer className="ds-footer">
+        <div className="ds-container ds-footer-inner">
+          <span>JSDoIT Roadmap Center</span>
+          <div className="ds-footer-links">
+            <Link className="ds-footer-link" href="/instances">
+              Instanzen
+            </Link>
+            <Link className="ds-footer-link" href="/help/admin">
+              Admin-Handbuch
+            </Link>
+            <Link className="ds-footer-link" href="/roadmap">
+              Roadmap
+            </Link>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </>
 );
 
 const AdminPage: React.FC = () => {
@@ -423,8 +452,12 @@ const AdminPage: React.FC = () => {
   if (loading) {
     return (
       <AdminShell>
-        <main className="flex flex-1 items-center justify-center pt-12">
-          <JSDoITLoader sizeRem={2.8} message="Adminbereich wird geladen …" />
+        <main className="ds-page-main ds-admin-state-main">
+          <section className="ds-container ds-centered-state">
+            <div className="ds-card ds-admin-state-card">
+              <JSDoITLoader sizeRem={2.8} message="Adminbereich wird geladen …" />
+            </div>
+          </section>
         </main>
       </AdminShell>
     );
@@ -433,17 +466,20 @@ const AdminPage: React.FC = () => {
   if (error) {
     return (
       <AdminShell>
-        <main className="flex flex-1 items-center justify-center px-6 pt-12">
-          <div className="max-w-md space-y-5 rounded-3xl border border-red-500/40 bg-red-500/10 p-8 text-center">
-            <h1 className="text-xl font-semibold text-white">Es ist ein Fehler aufgetreten</h1>
-            <p className="text-sm text-red-200">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
-            >
-              Erneut versuchen
-            </button>
-          </div>
+        <main className="ds-page-main ds-admin-state-main">
+          <section className="ds-container ds-centered-state">
+            <div className="ds-card ds-admin-state-card is-danger">
+              <h1>Es ist ein Fehler aufgetreten</h1>
+              <p>{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="ds-button ds-button-primary"
+              >
+                <FiRefreshCw className="ds-icon-sm" />
+                Erneut versuchen
+              </button>
+            </div>
+          </section>
         </main>
       </AdminShell>
     );
@@ -451,83 +487,72 @@ const AdminPage: React.FC = () => {
 
   return (
     <AdminShell>
-      <main className="flex-1 pt-12">
-        <div className="mx-auto w-full max-w-6xl space-y-10 px-6 pb-16">
-          <header className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-8 py-9 shadow-xl shadow-slate-950/40">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-sky-300/80">
-                  Administration
-                </p>
-                <h1 className="text-3xl font-semibold leading-tight text-white sm:text-4xl">
-                  Roadmap Admin-Dashboard
-                </h1>
-                <p className="max-w-2xl text-sm text-slate-300 sm:text-base">
-                  Verwalten Sie Projekte, Kategorien und Instanz-Einstellungen an einem Ort.
-                  Änderungen werden sofort in der Roadmap sichtbar. Denken Sie daran: Transparente
-                  Pflege sorgt für Vertrauen bei allen Stakeholdern.
-                </p>
-                {adminUsername && (
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                    Angemeldet als <span className="text-slate-100">{adminUsername}</span>
-                  </p>
-                )}
+      <main className="ds-page-main ds-admin-page-main">
+        <div className="ds-container ds-admin-dashboard">
+          <header className="ds-card ds-admin-hero">
+            <div className="ds-admin-hero-content">
+              <div className="ds-eyebrow">
+                <FiShield className="ds-icon-sm" />
+                Administration
               </div>
-              <div className="flex flex-col gap-3 text-sm">
-                <Link
-                  href="/help/admin"
-                  className="rounded-full border border-sky-500/60 px-4 py-2 text-center font-semibold text-sky-200 transition hover:border-sky-400 hover:text-white"
-                >
-                  Admin-Handbuch
-                </Link>
-                <Link
-                  href={roadmapHref}
-                  className="rounded-full border border-slate-700 px-4 py-2 text-center font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
-                >
-                  Zur Roadmap
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="rounded-full border border-rose-500/70 px-4 py-2 text-center font-semibold text-rose-200 transition hover:border-rose-400 hover:text-rose-100"
-                >
-                  Abmelden
-                </button>
-              </div>
+              <h1 className="ds-admin-title">Roadmap Admin-Dashboard</h1>
+              <p className="ds-admin-copy">
+                Verwalten Sie Projekte, Kategorien und Instanz-Einstellungen an einem Ort.
+                Änderungen werden sofort in der Roadmap sichtbar. Transparente Pflege sorgt für
+                Vertrauen bei allen Stakeholdern.
+              </p>
+
+              {adminUsername && (
+                <p className="ds-admin-user">
+                  Angemeldet als <span>{adminUsername}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="ds-admin-hero-actions">
+              <Link href="/help/admin" className="ds-button ds-button-primary">
+                <FiBookOpen className="ds-icon-sm" />
+                Admin-Handbuch
+              </Link>
+              <Link href={roadmapHref} className="ds-button ds-button-secondary">
+                <FiExternalLink className="ds-icon-sm" />
+                Zur Roadmap
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="ds-button ds-button-secondary ds-button-danger"
+              >
+                <FiLogOut className="ds-icon-sm" />
+                Abmelden
+              </button>
             </div>
           </header>
 
-          <section className="grid gap-4 sm:grid-cols-3">
+          <section className="ds-admin-stat-grid">
             {stats.map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-5 text-center shadow-lg shadow-slate-950/30"
-              >
-                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">{stat.label}</p>
-                <p className="mt-2 text-3xl font-semibold text-white">{stat.value}</p>
-              </div>
+              <article key={stat.label} className="ds-card ds-admin-stat-card">
+                <p className="ds-admin-stat-label">{stat.label}</p>
+                <p className="ds-admin-stat-value">{stat.value}</p>
+              </article>
             ))}
           </section>
 
-          <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-8 py-7 shadow-lg shadow-slate-950/30">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300/80">
-                  Instanz-Admins
-                </p>
-                <h2 className="text-xl font-semibold text-white">
-                  Adminrechte für diese Instanz vergeben
-                </h2>
-                <p className="max-w-2xl text-sm text-slate-300">
+          <section className="ds-card ds-admin-access-panel">
+            <div className="ds-admin-access-header">
+              <div>
+                <p className="ds-panel-label">Instanz-Admins</p>
+                <h2 className="ds-panel-title">Adminrechte für diese Instanz vergeben</h2>
+                <p className="ds-admin-section-copy">
                   Benutzer mit Abteilungszugriff sehen die Roadmap nur lesend. Adminrechte entstehen
                   ausschließlich über diese Liste, konfigurierte Admin-Gruppen oder
                   Superadminrechte.
                 </p>
-                <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
+                <p className="ds-admin-instance-label">
                   Aktive Instanz: {effectiveInstanceSlug || 'nicht ausgewählt'}
                 </p>
               </div>
 
-              <div className="w-full max-w-xl space-y-3">
+              <div className="ds-admin-user-picker">
                 <SharePointUserPicker
                   instanceSlug={effectiveInstanceSlug || null}
                   disabled={instanceAdminSaving || !effectiveInstanceSlug}
@@ -536,29 +561,24 @@ const AdminPage: React.FC = () => {
                   emptyMessage="Keine passenden SharePoint-Benutzer gefunden."
                 />
                 {instanceAdminError ? (
-                  <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                  <div className="ds-message ds-message-danger ds-admin-inline-message">
                     {instanceAdminError}
                   </div>
                 ) : null}
               </div>
             </div>
 
-            <div className="mt-5 space-y-2">
+            <div className="ds-admin-user-list">
               {instanceAdminLoading ? (
-                <p className="text-sm text-slate-400">Lade Instanz-Admins …</p>
+                <p className="ds-admin-muted">Lade Instanz-Admins …</p>
               ) : instanceAdminUsers.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  Noch keine zusätzlichen Instanz-Admins gepflegt.
-                </p>
+                <p className="ds-admin-muted">Noch keine zusätzlichen Instanz-Admins gepflegt.</p>
               ) : (
                 instanceAdminUsers.map((username) => (
-                  <div
-                    key={username}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3"
-                  >
+                  <div key={username} className="ds-admin-user-row">
                     <div>
-                      <div className="text-sm font-semibold text-white">{username}</div>
-                      <div className="text-xs text-slate-400">
+                      <div className="ds-admin-row-title">{username}</div>
+                      <div className="ds-admin-row-copy">
                         Darf diese Instanz administrieren, auch ohne Superadminrolle.
                       </div>
                     </div>
@@ -567,8 +587,8 @@ const AdminPage: React.FC = () => {
                       onClick={() => void removeInstanceAdmin(username)}
                       disabled={instanceAdminSaving}
                       className={clsx(
-                        'rounded-full border border-rose-500/50 px-4 py-2 text-xs font-semibold text-rose-200 transition hover:border-rose-400 hover:text-white',
-                        instanceAdminSaving && 'cursor-not-allowed opacity-60'
+                        'ds-admin-action-link is-danger',
+                        instanceAdminSaving && 'is-disabled'
                       )}
                     >
                       Entfernen
@@ -579,18 +599,16 @@ const AdminPage: React.FC = () => {
             </div>
           </section>
 
-          <section className="space-y-6">
-            <div className="flex flex-wrap items-center gap-3">
+          <section className="ds-admin-tab-section">
+            <div className="ds-admin-tabs" role="tablist" aria-label="Adminbereiche">
               {(['projects', 'categories', 'settings'] as AdminTab[]).map((tab) => (
                 <button
                   key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab}
                   onClick={() => setActiveTab(tab)}
-                  className={clsx(
-                    'rounded-full border px-4 py-2 text-sm font-semibold transition',
-                    activeTab === tab
-                      ? 'border-sky-400 bg-sky-500/10 text-sky-100 shadow-inner shadow-sky-900/40'
-                      : 'border-slate-700 text-slate-300 hover:border-sky-400 hover:text-white'
-                  )}
+                  className={clsx('ds-admin-tab', activeTab === tab && 'is-active')}
                 >
                   {tab === 'projects' && 'Projekte'}
                   {tab === 'categories' && 'Kategorien'}
@@ -600,87 +618,76 @@ const AdminPage: React.FC = () => {
             </div>
 
             {activeTab === 'projects' && (
-              <div className="space-y-4">
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleAddProject}
-                    className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400"
-                  >
+              <div className="ds-admin-tab-panel" role="tabpanel">
+                <div className="ds-admin-panel-actions">
+                  <button onClick={handleAddProject} className="ds-button ds-button-primary">
+                    <FiPlus className="ds-icon-sm" />
                     Neues Projekt
                   </button>
                 </div>
 
-                <div className="overflow-hidden rounded-3xl border border-slate-800/70 bg-slate-950/60">
-                  <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
-                    <thead className="bg-slate-900/80 text-xs uppercase tracking-[0.25em] text-slate-400">
+                <div className="ds-admin-table-card">
+                  <table className="ds-admin-table">
+                    <thead>
                       <tr>
-                        <th className="px-6 py-3">Titel</th>
-                        <th className="px-6 py-3">Kategorie</th>
-                        <th className="px-6 py-3">Zeitraum</th>
-                        <th className="px-6 py-3">Status</th>
-                        <th className="px-6 py-3 text-right">Aktionen</th>
+                        <th>Titel</th>
+                        <th>Kategorie</th>
+                        <th>Zeitraum</th>
+                        <th>Status</th>
+                        <th className="is-right">Aktionen</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800 text-sm text-slate-200">
+                    <tbody>
                       {projects.map((project) => (
-                        <tr key={project.id} className="transition hover:bg-slate-900/80">
-                          <td className="px-6 py-4">
-                            <div className="font-medium text-white flex items-center gap-2">
+                        <tr key={project.id}>
+                          <td>
+                            <div className="ds-admin-table-title">
                               {project.title || '(Ohne Titel)'}
                               {project.isReadOnlyMirror && (
-                                <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100">
-                                  Read-only Spiegelung
-                                </span>
+                                <span className="ds-admin-mirror-badge">Read-only Spiegelung</span>
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="text-slate-300">
-                              {getCategoryName(project.category)}
-                            </div>
+                          <td>{getCategoryName(project.category)}</td>
+                          <td>
+                            {project.startQuarter || project.startDate || '—'} –{' '}
+                            {project.endQuarter || project.endDate || '—'}
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="text-slate-300">
-                              {project.startQuarter || project.startDate || '—'} –{' '}
-                              {project.endQuarter || project.endDate || '—'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
+                          <td>
                             <span
                               className={clsx(
-                                'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em]',
+                                'ds-admin-status',
                                 getStatusBadgeClass(project.status)
                               )}
                             >
                               {getStatusLabel(project.status)}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-right text-sm font-medium">
+                          <td className="is-right">
                             {project.isReadOnlyMirror ? (
-                              <span className="text-slate-500">Nur lesen</span>
+                              <span className="ds-admin-muted">Nur lesen</span>
                             ) : (
-                              <>
+                              <div className="ds-admin-table-actions">
                                 <button
                                   onClick={() => handleEditProject(project.id)}
-                                  className="text-sky-300 transition hover:text-sky-200"
+                                  className="ds-admin-action-link"
                                 >
                                   Bearbeiten
                                 </button>
-                                <span className="mx-2 text-slate-600">|</span>
                                 <button
                                   onClick={() => handleDeleteProject(project.id)}
-                                  className="text-rose-300 transition hover:text-rose-200"
+                                  className="ds-admin-action-link is-danger"
                                 >
                                   Löschen
                                 </button>
-                              </>
+                              </div>
                             )}
                           </td>
                         </tr>
                       ))}
                       {projects.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="px-6 py-6 text-center text-sm text-slate-400">
+                          <td colSpan={5} className="ds-admin-empty-row">
                             Noch keine Projekte vorhanden.
                           </td>
                         </tr>
@@ -692,66 +699,65 @@ const AdminPage: React.FC = () => {
             )}
 
             {activeTab === 'categories' && (
-              <div className="space-y-4">
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleAddCategory}
-                    className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400"
-                  >
+              <div className="ds-admin-tab-panel" role="tabpanel">
+                <div className="ds-admin-panel-actions">
+                  <button onClick={handleAddCategory} className="ds-button ds-button-primary">
+                    <FiPlus className="ds-icon-sm" />
                     Neue Kategorie
                   </button>
                 </div>
 
-                <div className="overflow-hidden rounded-3xl border border-slate-800/70 bg-slate-950/60">
-                  <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
-                    <thead className="bg-slate-900/80 text-xs uppercase tracking-[0.25em] text-slate-400">
+                <div className="ds-admin-table-card">
+                  <table className="ds-admin-table">
+                    <thead>
                       <tr>
-                        <th className="px-6 py-3">Name</th>
-                        <th className="px-6 py-3">Farbe</th>
-                        <th className="px-6 py-3">Icon</th>
-                        <th className="px-6 py-3 text-right">Aktionen</th>
+                        <th>Name</th>
+                        <th>Farbe</th>
+                        <th>Icon</th>
+                        <th className="is-right">Aktionen</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800 text-sm text-slate-200">
+                    <tbody>
                       {categories.map((category) => (
-                        <tr key={category.id} className="transition hover:bg-slate-900/80">
-                          <td className="px-6 py-4 font-medium text-white">{category.name}</td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
+                        <tr key={category.id}>
+                          <td>
+                            <span className="ds-admin-table-title">{category.name}</span>
+                          </td>
+                          <td>
+                            <div className="ds-admin-color-value">
                               <span
-                                className="h-5 w-5 rounded-full border border-white/20"
+                                className="ds-admin-color-swatch"
                                 style={{ backgroundColor: category.color }}
                                 aria-hidden="true"
                               />
-                              <span className="text-slate-300">{category.color}</span>
+                              <span>{category.color}</span>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-slate-300">{category.icon || '—'}</td>
-                          <td className="px-6 py-4 text-right text-sm font-medium">
-                            <button
-                              onClick={() => handleEditCategory(category.id)}
-                              className="text-sky-300 transition hover:text-sky-200"
-                            >
-                              Bearbeiten
-                            </button>
-                            <span className="mx-2 text-slate-600">|</span>
-                            <button
-                              onClick={() => handleDeleteCategory(category.id)}
-                              className={clsx(
-                                'transition',
-                                deleteConfirmation === category.id
-                                  ? 'text-rose-400 hover:text-rose-300'
-                                  : 'text-rose-300 hover:text-rose-200'
-                              )}
-                            >
-                              {deleteConfirmation === category.id ? 'Bestätigen' : 'Löschen'}
-                            </button>
+                          <td>{category.icon || '—'}</td>
+                          <td className="is-right">
+                            <div className="ds-admin-table-actions">
+                              <button
+                                onClick={() => handleEditCategory(category.id)}
+                                className="ds-admin-action-link"
+                              >
+                                Bearbeiten
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCategory(category.id)}
+                                className={clsx(
+                                  'ds-admin-action-link is-danger',
+                                  deleteConfirmation === category.id && 'is-confirming'
+                                )}
+                              >
+                                {deleteConfirmation === category.id ? 'Bestätigen' : 'Löschen'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
                       {categories.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="px-6 py-6 text-center text-sm text-slate-400">
+                          <td colSpan={4} className="ds-admin-empty-row">
                             Noch keine Kategorien vorhanden.
                           </td>
                         </tr>
@@ -763,76 +769,80 @@ const AdminPage: React.FC = () => {
             )}
 
             {activeTab === 'settings' && (
-              <div className="overflow-hidden rounded-3xl border border-slate-800/70 bg-slate-950/60">
-                <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
-                  <thead className="bg-slate-900/80 text-xs uppercase tracking-[0.25em] text-slate-400">
-                    <tr>
-                      <th className="px-6 py-3">Schlüssel</th>
-                      <th className="px-6 py-3">Wert</th>
-                      <th className="px-6 py-3">Beschreibung</th>
-                      <th className="px-6 py-3 text-right">Aktionen</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 text-sm text-slate-200">
-                    {settings.map((setting) => (
-                      <tr key={setting.id} className="transition hover:bg-slate-900/80">
-                        <td className="px-6 py-4 font-medium text-white">{setting.key}</td>
-                        <td className="px-6 py-4">
-                          {editingSetting?.id === setting.id ? (
-                            <input
-                              type="text"
-                              value={newSettingValue}
-                              onChange={(event) => setNewSettingValue(event.target.value)}
-                              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30"
-                            />
-                          ) : (
-                            <span className="text-slate-300">{setting.value}</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-slate-300">
-                          <RichTextContent
-                            value={setting.description}
-                            emptyText="—"
-                            className="rich-text-content-compact text-slate-300"
-                          />
-                        </td>
-                        <td className="px-6 py-4 text-right text-sm font-medium">
-                          {editingSetting?.id === setting.id ? (
-                            <div className="flex justify-end gap-3">
-                              <button
-                                onClick={handleSaveSetting}
-                                className="text-sky-300 transition hover:text-sky-200"
-                              >
-                                Speichern
-                              </button>
-                              <button
-                                onClick={handleCancelEdit}
-                                className="text-slate-400 transition hover:text-slate-200"
-                              >
-                                Abbrechen
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleEditSetting(setting)}
-                              className="text-sky-300 transition hover:text-sky-200"
-                            >
-                              Bearbeiten
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {settings.length === 0 && (
+              <div className="ds-admin-tab-panel" role="tabpanel">
+                <div className="ds-admin-table-card">
+                  <table className="ds-admin-table">
+                    <thead>
                       <tr>
-                        <td colSpan={4} className="px-6 py-6 text-center text-sm text-slate-400">
-                          Keine Einstellungen vorhanden. Legen Sie beispielsweise „roadmapTitle“ an,
-                          um den Titel der Instanz zu setzen.
-                        </td>
+                        <th>Schlüssel</th>
+                        <th>Wert</th>
+                        <th>Beschreibung</th>
+                        <th className="is-right">Aktionen</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {settings.map((setting) => (
+                        <tr key={setting.id}>
+                          <td>
+                            <span className="ds-admin-table-title">{setting.key}</span>
+                          </td>
+                          <td>
+                            {editingSetting?.id === setting.id ? (
+                              <input
+                                type="text"
+                                value={newSettingValue}
+                                onChange={(event) => setNewSettingValue(event.target.value)}
+                                className="ds-input ds-admin-setting-input"
+                              />
+                            ) : (
+                              <span>{setting.value}</span>
+                            )}
+                          </td>
+                          <td>
+                            <RichTextContent
+                              value={setting.description}
+                              emptyText="—"
+                              className="rich-text-content-compact ds-admin-rich-text"
+                            />
+                          </td>
+                          <td className="is-right">
+                            {editingSetting?.id === setting.id ? (
+                              <div className="ds-admin-table-actions">
+                                <button
+                                  onClick={handleSaveSetting}
+                                  className="ds-admin-action-link"
+                                >
+                                  Speichern
+                                </button>
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className="ds-admin-action-link is-muted"
+                                >
+                                  Abbrechen
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleEditSetting(setting)}
+                                className="ds-admin-action-link"
+                              >
+                                Bearbeiten
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {settings.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="ds-admin-empty-row">
+                            Keine Einstellungen vorhanden. Legen Sie beispielsweise „roadmapTitle“
+                            an, um den Titel der Instanz zu setzen.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </section>

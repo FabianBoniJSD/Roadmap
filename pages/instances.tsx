@@ -15,8 +15,8 @@ import {
   FiStar,
 } from 'react-icons/fi';
 import prisma from '@/lib/prisma';
-import ColorModeToggle from '@/components/ColorModeToggle';
 import JSDoITLoader from '@/components/JSDoITLoader';
+import SiteHeader from '@/components/SiteHeader';
 import {
   ADMIN_SESSION_CHANGED_EVENT,
   buildInstanceAwareUrl,
@@ -426,31 +426,7 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
         <title>JSDoIT Instanzübersicht</title>
       </Head>
       <div className="ds-page-shell">
-        <header className="ds-topbar">
-          <Link className="ds-brand" href="/landing">
-            <span className="ds-brand-mark">JS</span>
-            <span className="ds-brand-name">JSDOIT Roadmap Center</span>
-          </Link>
-
-          <nav className="ds-nav" aria-label="Hauptnavigation">
-            <Link className="ds-nav-link" href="/landing">
-              Start
-            </Link>
-            <Link className="ds-nav-link is-active" href="/instances">
-              Instanzübersicht
-            </Link>
-            <Link className="ds-nav-link" href="/help">
-              Hilfe
-            </Link>
-            {authed && (
-              <Link className="ds-nav-link" href="/feedback">
-                Feedback
-              </Link>
-            )}
-          </nav>
-
-          <ColorModeToggle className="ds-color-mode-toggle" />
-        </header>
+        <SiteHeader activeRoute="instances" />
 
         <main className="ds-page-main">
           <section className="ds-container ds-hero ds-instance-hero">

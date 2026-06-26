@@ -10,6 +10,7 @@ import {
 } from '@/utils/auth';
 import ColorModeToggle from '@/components/ColorModeToggle';
 import { INSTANCE_QUERY_PARAM, INSTANCE_COOKIE_NAME } from '@/utils/instanceConfig';
+import Image from 'next/image';
 
 type RouteKey = 'home' | 'instances' | 'roadmap' | 'help' | 'docs' | 'admin' | 'feedback';
 
@@ -18,26 +19,22 @@ type SiteHeaderProps = {
   brandLabel?: string;
 };
 
+const INSTANCE_CONTEXT_CHANGED_EVENT = 'roadmap-instance-changed';
+
 const NAV_ITEMS: Array<{
   key: RouteKey;
   href: string;
   label: string;
-  target?: '_blank';
-  rel?: string;
 }> = [
-  { key: 'home', href: '/', label: 'Start' },
-  {
-    key: 'instances',
-    href: '/instances',
-    label: 'Instanzübersicht',
-    target: '_blank',
-    rel: 'noopener noreferrer',
-  },
+  { key: 'home', href: '/landing', label: 'Start' },
+  { key: 'instances', href: '/instances', label: 'Instanzübersicht' },
+  { key: 'roadmap', href: '/roadmap', label: 'Roadmap' },
   { key: 'help', href: '/help', label: 'Hilfe' },
   { key: 'feedback', href: '/feedback', label: 'Feedback' },
 ];
 
 const deriveRouteKey = (pathname: string): RouteKey => {
+  if (pathname === '/' || pathname.startsWith('/landing')) return 'home';
   if (pathname.startsWith('/instances')) return 'instances';
   if (pathname.startsWith('/roadmap')) return 'roadmap';
   if (pathname.startsWith('/help')) return 'help';
@@ -48,7 +45,7 @@ const deriveRouteKey = (pathname: string): RouteKey => {
 
 const SiteHeader: React.FC<SiteHeaderProps> = ({
   activeRoute,
-  brandLabel = 'JSDoIT Roadmap Center',
+  brandLabel = 'Kantonale Roadmap',
 }) => {
   const router = useRouter();
   const pathname = router.pathname || '';
@@ -63,20 +60,37 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
   const [showFeedbackLink, setShowFeedbackLink] = useState(false);
 
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    try {
-      const cookies = document.cookie || '';
-      const match = cookies.match(new RegExp(`(?:^|;\\s*)${INSTANCE_COOKIE_NAME}=([^;\\s]+)`, 'i'));
-      if (match && match[1]) setCookieSlug(decodeURIComponent(match[1]));
-    } catch {
-      /* ignore */
-    }
-  }, []);
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+
+    const updateCookieSlug = () => {
+      try {
+        const cookies = document.cookie || '';
+        const match = cookies.match(
+          new RegExp(`(?:^|;\\s*)${INSTANCE_COOKIE_NAME}=([^;\\s]+)`, 'i')
+        );
+        setCookieSlug(match?.[1] ? decodeURIComponent(match[1]) : '');
+      } catch {
+        setCookieSlug('');
+      }
+    };
+
+    updateCookieSlug();
+    window.addEventListener('focus', updateCookieSlug);
+    window.addEventListener(ADMIN_SESSION_CHANGED_EVENT, updateCookieSlug);
+    window.addEventListener(INSTANCE_CONTEXT_CHANGED_EVENT, updateCookieSlug);
+
+    return () => {
+      window.removeEventListener('focus', updateCookieSlug);
+      window.removeEventListener(ADMIN_SESSION_CHANGED_EVENT, updateCookieSlug);
+      window.removeEventListener(INSTANCE_CONTEXT_CHANGED_EVENT, updateCookieSlug);
+    };
+  }, [router.asPath]);
 
   const instanceSlug = querySlug || cookieSlug || '';
   const maybeQuery = instanceSlug ? { [INSTANCE_QUERY_PARAM]: instanceSlug } : undefined;
-  const adminLinkSlug = querySlug || (currentRoute === 'admin' ? cookieSlug : '');
+  const adminLinkSlug = querySlug || cookieSlug;
   const hasAdminHref = Boolean(adminLinkSlug);
+  const brandHref = maybeQuery ? { pathname: '/landing', query: maybeQuery } : '/landing';
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -118,52 +132,41 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({
   }, [currentRoute, hasAdminHref]);
 
   return (
-    <header className="site-header-shell sticky top-0 z-40">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-5 sm:px-8">
-        <Link
-          href={maybeQuery ? { pathname: '/', query: maybeQuery } : '/'}
-          className="flex items-center gap-2 text-lg font-semibold text-slate-100"
-        >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-sky-500 via-sky-300 to-amber-200 text-base font-bold text-slate-900 shadow-lg shadow-sky-900/30">
-            JS
-          </span>
-          <span className="tracking-wide text-slate-100">{brandLabel}</span>
-        </Link>
+    <header className="ds-topbar">
+      <Link className="ds-brand" href={brandHref}>
+        <Image src="/logo.png" alt="Roadmap Logo" width={32} height={32} />
+        <span className="ds-brand-name">{brandLabel}</span>
+      </Link>
 
-        <nav className="hidden items-center gap-5 lg:flex">
-          {NAV_ITEMS.filter((item) => item.key !== 'feedback' || showFeedbackLink).map((item) => {
+      <nav className="ds-nav" aria-label="Hauptnavigation">
+        {NAV_ITEMS.filter((item) => item.key !== 'roadmap' || currentRoute === 'roadmap')
+          .filter((item) => item.key !== 'feedback' || showFeedbackLink)
+          .map((item) => {
             const isActive = currentRoute === item.key;
             return (
               <Link
                 key={item.href}
                 href={maybeQuery ? { pathname: item.href, query: maybeQuery } : item.href}
-                target={item.target}
-                rel={item.rel}
-                className={clsx(
-                  'site-header-nav-link rounded-full px-4 py-2 text-sm font-medium',
-                  isActive && 'site-header-nav-link-active'
-                )}
+                className={clsx('ds-nav-link', isActive && 'is-active')}
+                data-active={isActive ? 'true' : undefined}
               >
                 {item.label}
               </Link>
             );
           })}
-        </nav>
+      </nav>
 
-        <div className="flex items-center gap-3">
-          <ColorModeToggle />
-          {hasAdminHref && showAdminLink ? (
-            <Link
-              href={{ pathname: '/admin', query: { [INSTANCE_QUERY_PARAM]: adminLinkSlug } }}
-              className={clsx(
-                'site-header-admin-link rounded-full border px-4 py-2 text-sm font-semibold',
-                currentRoute === 'admin' && 'site-header-admin-link-active'
-              )}
-            >
-              Adminbereich
-            </Link>
-          ) : null}
-        </div>
+      <div className="ds-topbar-actions">
+        <ColorModeToggle className="ds-color-mode-toggle" />
+        {hasAdminHref && showAdminLink ? (
+          <Link
+            href={{ pathname: '/admin', query: { [INSTANCE_QUERY_PARAM]: adminLinkSlug } }}
+            className={clsx('ds-nav-link', currentRoute === 'admin' && 'is-active')}
+            data-active={currentRoute === 'admin' ? 'true' : undefined}
+          >
+            Adminbereich
+          </Link>
+        ) : null}
       </div>
     </header>
   );

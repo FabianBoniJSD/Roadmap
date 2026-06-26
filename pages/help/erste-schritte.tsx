@@ -1,6 +1,5 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import {
   FiArrowRight,
   FiBookOpen,
@@ -13,11 +12,10 @@ import {
   FiSearch,
 } from 'react-icons/fi';
 import CategorySidebar from '@/components/CategorySidebar';
-import ColorModeToggle from '@/components/ColorModeToggle';
 import CompactProjectCard from '@/components/CompactProjectCard';
 import RoadmapFilters from '@/components/RoadmapFilters';
 import RoadmapYearNavigation from '@/components/RoadmapYearNavigation';
-import { ADMIN_SESSION_CHANGED_EVENT, getAdminSessionToken } from '@/utils/auth';
+import SiteHeader from '@/components/SiteHeader';
 import type { Category, Project } from '@/types';
 
 type Step = {
@@ -438,46 +436,13 @@ const steps: Step[] = [
 ];
 
 const ErsteSchritte = () => {
-  const [showFeedbackLink, setShowFeedbackLink] = useState(false);
-
-  useEffect(() => {
-    const updateFeedbackLink = () => setShowFeedbackLink(Boolean(getAdminSessionToken()));
-    updateFeedbackLink();
-    window.addEventListener(ADMIN_SESSION_CHANGED_EVENT, updateFeedbackLink);
-    return () => window.removeEventListener(ADMIN_SESSION_CHANGED_EVENT, updateFeedbackLink);
-  }, []);
-
   return (
     <>
       <Head>
         <title>Erste Schritte | JSDoIT Roadmap</title>
       </Head>
       <div className="ds-page-shell">
-        <header className="ds-topbar">
-          <Link className="ds-brand" href="/landing">
-            <span className="ds-brand-mark">JS</span>
-            <span className="ds-brand-name">JSDOIT Roadmap Center</span>
-          </Link>
-
-          <nav className="ds-nav" aria-label="Hauptnavigation">
-            <Link className="ds-nav-link" href="/landing">
-              Start
-            </Link>
-            <Link className="ds-nav-link" href="/instances">
-              Instanzübersicht
-            </Link>
-            <Link className="ds-nav-link is-active" href="/help">
-              Hilfe
-            </Link>
-            {showFeedbackLink && (
-              <Link className="ds-nav-link" href="/feedback">
-                Feedback
-              </Link>
-            )}
-          </nav>
-
-          <ColorModeToggle className="ds-color-mode-toggle" />
-        </header>
+        <SiteHeader activeRoute="help" />
 
         <main className="ds-page-main">
           <section className="ds-container ds-hero ds-help-hero">

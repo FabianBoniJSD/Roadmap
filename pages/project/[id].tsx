@@ -6,7 +6,6 @@ import type { GetServerSideProps } from 'next';
 import { FiArrowLeft, FiExternalLink, FiInfo } from 'react-icons/fi';
 import JSDoITLoader from '@/components/JSDoITLoader';
 import RichTextContent from '@/components/RichTextContent';
-import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import { Project, TeamMember } from '@/types';
 import { hasAdminAccessToCurrentInstance, hasValidAdminSession } from '@/utils/auth';
@@ -20,11 +19,11 @@ import {
 } from '@/utils/instanceSelection';
 
 const statusStyles: Record<string, string> = {
-  completed: 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-200',
-  'in-progress': 'border border-sky-500/50 bg-sky-500/15 text-sky-200',
-  planned: 'border border-slate-600 bg-slate-700/30 text-slate-200',
-  paused: 'border border-amber-500/60 bg-amber-500/15 text-amber-200',
-  cancelled: 'border border-rose-500/60 bg-rose-500/15 text-rose-200',
+  completed: 'ds-project-status is-completed',
+  'in-progress': 'ds-project-status is-active',
+  planned: 'ds-project-status is-planned',
+  paused: 'ds-project-status is-paused',
+  cancelled: 'ds-project-status is-cancelled',
 };
 
 const statusLabels: Record<string, string> = {
@@ -62,10 +61,25 @@ const sanitizeProjectFields = (raw?: string | string[] | null): string[] => {
 };
 
 const PageShell: FC<{ children: ReactNode }> = ({ children }) => (
-  <div className="theme-page-shell flex min-h-screen flex-col bg-slate-950 text-slate-100">
+  <div className="ds-page-shell">
     <SiteHeader activeRoute="roadmap" />
     {children}
-    <SiteFooter />
+    <footer className="ds-footer">
+      <div className="ds-container ds-footer-inner">
+        <span>JSDoIT Roadmap Center</span>
+        <div className="ds-footer-links">
+          <Link className="ds-footer-link" href="/instances">
+            Instanzen
+          </Link>
+          <Link className="ds-footer-link" href="/help">
+            Hilfe
+          </Link>
+          <Link className="ds-footer-link" href="/roadmap">
+            Roadmap
+          </Link>
+        </div>
+      </div>
+    </footer>
   </div>
 );
 
@@ -208,19 +222,16 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
   if (accessDeniedState) {
     return (
       <PageShell>
-        <main className="flex flex-1 items-center justify-center px-6 py-16">
-          <div className="max-w-lg rounded-3xl border border-amber-500/30 bg-amber-500/10 p-10 text-center shadow-xl shadow-slate-950/40">
-            <FiInfo className="mx-auto h-10 w-10 text-amber-200" aria-hidden="true" />
-            <h1 className="mt-4 text-xl font-semibold text-white">Kein Zugriff</h1>
-            <p className="mt-3 text-sm text-slate-200">
-              Du hast keinen Zugriff auf diese Roadmap-Instanz. Sichtbarkeit wird pro Instanz anhand
-              deiner Abteilung oder expliziter Admin-Berechtigungen gesteuert.
-            </p>
-            <div className="mt-6">
-              <Link
-                href="/roadmap"
-                className="inline-flex items-center justify-center rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
-              >
+        <main className="ds-page-main ds-project-page-main">
+          <div className="ds-container ds-centered-state">
+            <div className="ds-card ds-project-state-card is-warning">
+              <FiInfo className="ds-project-state-icon" aria-hidden="true" />
+              <h1>Kein Zugriff</h1>
+              <p>
+                Du hast keinen Zugriff auf diese Roadmap-Instanz. Sichtbarkeit wird pro Instanz
+                anhand deiner Abteilung oder expliziter Admin-Berechtigungen gesteuert.
+              </p>
+              <Link href="/roadmap" className="ds-button ds-button-primary ds-project-state-action">
                 Zur Roadmap
               </Link>
             </div>
@@ -233,8 +244,10 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
   if (loading) {
     return (
       <PageShell>
-        <main className="flex flex-1 items-center justify-center px-6 py-16">
-          <JSDoITLoader message="Projektinformationen werden geladen …" />
+        <main className="ds-page-main ds-project-page-main">
+          <div className="ds-container ds-centered-state">
+            <JSDoITLoader message="Projektinformationen werden geladen …" />
+          </div>
         </main>
       </PageShell>
     );
@@ -243,20 +256,19 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
   if (!project) {
     return (
       <PageShell>
-        <main className="flex flex-1 flex-col items-center justify-center px-6 py-20 text-center">
-          <div className="max-w-md space-y-6 rounded-3xl border border-slate-800/70 bg-slate-950/70 p-10 shadow-xl shadow-slate-950/40">
-            <FiInfo className="mx-auto h-10 w-10 text-slate-400" aria-hidden="true" />
-            <h1 className="text-xl font-semibold text-white">Projekt nicht gefunden</h1>
-            <p className="text-sm text-slate-300">
-              Das angefragte Projekt existiert nicht oder Sie haben keine Berechtigung. Bitte kehren
-              Sie zur Roadmap zurück und wählen Sie ein anderes Projekt.
-            </p>
-            <Link
-              href="/roadmap"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
-            >
-              Zur Roadmap
-            </Link>
+        <main className="ds-page-main ds-project-page-main">
+          <div className="ds-container ds-centered-state">
+            <div className="ds-card ds-project-state-card">
+              <FiInfo className="ds-project-state-icon" aria-hidden="true" />
+              <h1>Projekt nicht gefunden</h1>
+              <p>
+                Das angefragte Projekt existiert nicht oder Sie haben keine Berechtigung. Bitte
+                kehren Sie zur Roadmap zurück und wählen Sie ein anderes Projekt.
+              </p>
+              <Link href="/roadmap" className="ds-button ds-button-primary ds-project-state-action">
+                Zur Roadmap
+              </Link>
+            </div>
           </div>
         </main>
       </PageShell>
@@ -270,48 +282,33 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
 
   return (
     <PageShell>
-      <main className="relative flex-1">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-[8%] top-[-10%] h-64 w-64 rounded-full bg-sky-500/25 blur-3xl" />
-          <div className="absolute right-[12%] top-1/3 h-72 w-72 rounded-full bg-amber-400/20 blur-3xl" />
-        </div>
-
-        <div className="relative mx-auto w-full max-w-6xl px-6 py-12 sm:px-8 lg:py-16 space-y-10">
-          <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-xl shadow-slate-950/40 sm:px-9">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-5">
-                <Link
-                  href="/roadmap"
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-300 transition hover:text-white"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700/80 bg-slate-900/70">
-                    <FiArrowLeft className="h-4 w-4" />
+      <main className="ds-page-main ds-project-page-main">
+        <div className="ds-container ds-project-detail-shell">
+          <section className="ds-card ds-project-hero-card">
+            <div className="ds-project-hero-layout">
+              <div className="ds-project-hero-content">
+                <Link href="/roadmap" className="ds-project-back-link">
+                  <span className="ds-project-back-icon">
+                    <FiArrowLeft className="ds-icon-sm" />
                   </span>
                   Zur Roadmap
                 </Link>
 
-                <div className="space-y-3">
-                  <h1 className="text-3xl font-semibold leading-tight text-white sm:text-4xl">
-                    {project.title || 'Unbenanntes Projekt'}
-                  </h1>
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
-                    <span
-                      className={`inline-flex items-center rounded-full px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] ${
-                        statusStyles[project.status] || statusStyles.planned
-                      }`}
-                    >
+                <div>
+                  <p className="ds-panel-label">Projektübersicht</p>
+                  <h1 className="ds-project-title">{project.title || 'Unbenanntes Projekt'}</h1>
+                  <div className="ds-project-meta-row">
+                    <span className={statusStyles[project.status] || statusStyles.planned}>
                       {statusLabels[project.status] || 'Unbekannt'}
                     </span>
-                    <span className="rounded-full border border-slate-700/80 px-4 py-1 text-xs uppercase tracking-[0.25em] text-slate-400">
+                    <span className="ds-project-pill">
                       Zeitraum: {formatDate(project.startDate)} – {formatDate(project.endDate)}
                     </span>
                     {project.projektphase && (
-                      <span className="rounded-full border border-slate-700/80 px-4 py-1 text-xs uppercase tracking-[0.25em] text-slate-400">
-                        Phase: {project.projektphase}
-                      </span>
+                      <span className="ds-project-pill">Phase: {project.projektphase}</span>
                     )}
                     {project.isReadOnlyMirror && (
-                      <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-1 text-xs uppercase tracking-[0.25em] text-amber-100">
+                      <span className="ds-project-pill is-warning">
                         Gespiegelt aus{' '}
                         {project.mirrorSourceInstanceName || project.mirrorSourceInstanceSlug}
                       </span>
@@ -320,32 +317,29 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 text-sm">
+              <div className="ds-project-actions">
                 {isAdmin && (
                   <Link
                     href={`/admin/projects/edit/${project.id}`}
-                    className="rounded-full border border-sky-500/60 px-4 py-2 text-center font-semibold text-sky-200 transition hover:border-sky-400 hover:text-white"
+                    className="ds-button ds-button-secondary"
                   >
                     Projekt bearbeiten
                   </Link>
                 )}
-                <a
-                  href="#anhange"
-                  className="rounded-full border border-slate-700 px-4 py-2 text-center font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
-                >
+                <a href="#anhange" className="ds-button ds-button-secondary">
                   Anhänge ansehen
                 </a>
               </div>
             </div>
           </section>
 
-          <section className="grid gap-6 lg:grid-cols-3">
-            <div className="space-y-6">
+          <section className="ds-project-content-grid">
+            <div className="ds-project-column">
               <InfoCard title="Beschreibung">
                 <RichTextContent
                   value={project.description}
                   emptyText="Keine Beschreibung hinterlegt."
-                  className="text-sm text-slate-300 leading-relaxed"
+                  className="ds-project-rich-text"
                 />
               </InfoCard>
 
@@ -353,7 +347,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
                 <RichTextContent
                   value={project.bisher}
                   emptyText="Keine Informationen hinterlegt."
-                  className="text-sm text-slate-300 leading-relaxed"
+                  className="ds-project-rich-text"
                 />
               </InfoCard>
 
@@ -361,27 +355,24 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
                 <RichTextContent
                   value={project.zukunft}
                   emptyText="Keine Informationen hinterlegt."
-                  className="text-sm text-slate-300 leading-relaxed"
+                  className="ds-project-rich-text"
                 />
               </InfoCard>
 
               {project.links && project.links.length > 0 && (
                 <InfoCard title="Referenzen & Links">
-                  <ul className="space-y-3">
+                  <ul className="ds-project-list">
                     {project.links.map((link) => (
-                      <li
-                        key={link.id}
-                        className="rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm"
-                      >
-                        <div className="font-semibold text-white">{link.title || link.url}</div>
+                      <li key={link.id} className="ds-project-list-item">
+                        <div className="ds-project-list-title">{link.title || link.url}</div>
                         <a
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="mt-1 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-sky-300 transition hover:text-sky-200"
+                          className="ds-project-inline-link"
                         >
                           Öffnen
-                          <FiExternalLink className="h-4 w-4" aria-hidden="true" />
+                          <FiExternalLink className="ds-icon-sm" aria-hidden="true" />
                         </a>
                       </li>
                     ))}
@@ -390,26 +381,23 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
               )}
             </div>
 
-            <div className="space-y-6">
+            <div className="ds-project-column">
               <InfoCard title="Projektfelder">
                 {projectFields.length > 0 ? (
-                  <ul className="space-y-2 text-sm text-slate-300">
+                  <ul className="ds-project-chip-list">
                     {projectFields.map((field, index) => (
-                      <li
-                        key={`${field}-${index}`}
-                        className="rounded-full border border-slate-800/70 bg-slate-900/70 px-4 py-2"
-                      >
+                      <li key={`${field}-${index}`} className="ds-project-chip">
                         {field}
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-slate-400">Keine Felder hinterlegt.</p>
+                  <p className="ds-project-empty">Keine Felder hinterlegt.</p>
                 )}
               </InfoCard>
 
               <InfoCard title="Team">
-                <div className="space-y-4">
+                <div className="ds-project-list">
                   {project.projektleitung && (
                     <TeamCard
                       name={project.projektleitung}
@@ -436,56 +424,47 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
                       />
                     ))
                   ) : (
-                    <p className="text-sm text-slate-400">
-                      Keine weiteren Teammitglieder eingetragen.
-                    </p>
+                    <p className="ds-project-empty">Keine weiteren Teammitglieder eingetragen.</p>
                   )}
                 </div>
               </InfoCard>
             </div>
 
-            <div className="space-y-6">
+            <div className="ds-project-column">
               <InfoCard title="Geplante Umsetzung">
-                <p className="text-sm text-slate-300 leading-relaxed">
+                <p className="ds-project-copy">
                   {project.geplante_umsetzung || 'Keine Angaben zur Umsetzung vorhanden.'}
                 </p>
               </InfoCard>
 
               {project.naechster_meilenstein && (
                 <InfoCard title="Nächster Meilenstein">
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    {project.naechster_meilenstein}
-                  </p>
+                  <p className="ds-project-copy">{project.naechster_meilenstein}</p>
                 </InfoCard>
               )}
 
               <InfoCard title="Budget">
-                <p className="text-2xl font-semibold text-white">
+                <p className="ds-project-budget">
                   {project.budget ? `${project.budget} CHF` : 'Keine Budgetangabe'}
                 </p>
               </InfoCard>
 
               <InfoCard title="Anhänge" id="anhange">
-                <ul className="space-y-2 text-sm text-slate-300">
+                <ul className="ds-project-list">
                   {attachments.length === 0 && (
-                    <li className="rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-slate-400">
-                      Keine Anhänge vorhanden.
-                    </li>
+                    <li className="ds-project-list-item is-empty">Keine Anhänge vorhanden.</li>
                   )}
                   {attachments.map((attachment) => (
-                    <li
-                      key={attachment.ServerRelativeUrl}
-                      className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FiExternalLink className="h-4 w-4 text-sky-300" aria-hidden="true" />
+                    <li key={attachment.ServerRelativeUrl} className="ds-project-attachment-item">
+                      <div className="ds-project-attachment-label">
+                        <FiExternalLink className="ds-icon-sm" aria-hidden="true" />
                         <span className="truncate">{attachment.FileName}</span>
                       </div>
                       <a
                         href={buildAttachmentDownloadUrl(String(id), attachment.FileName)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300 transition hover:text-sky-200"
+                        className="ds-project-inline-link"
                       >
                         Öffnen
                       </a>
@@ -496,9 +475,9 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
             </div>
           </section>
 
-          <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-xl shadow-slate-950/40 sm:px-9">
-            <h2 className="text-lg font-semibold text-white sm:text-xl">Projektphase</h2>
-            <div className="mt-5">{timeline}</div>
+          <section className="ds-card ds-project-phase-card">
+            <h2>Projektphase</h2>
+            <div>{timeline}</div>
           </section>
         </div>
       </main>
@@ -570,14 +549,11 @@ type InfoCardProps = {
 };
 
 const InfoCard: FC<InfoCardProps> = ({ title, children, id }) => (
-  <section
-    id={id}
-    className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-5 py-6 shadow-lg shadow-slate-950/40 sm:px-6"
-  >
-    <header className="border-b border-slate-800/60 pb-4">
-      <h3 className="text-lg font-semibold text-white">{title}</h3>
+  <section id={id} className="ds-card ds-project-info-card">
+    <header className="ds-project-info-card-header">
+      <h3>{title}</h3>
     </header>
-    <div className="pt-4">{children}</div>
+    <div className="ds-project-info-card-body">{children}</div>
   </section>
 );
 
@@ -590,7 +566,7 @@ type TeamCardProps = {
 };
 
 const TeamCard: FC<TeamCardProps> = ({ name, role, imageUrl, fallbackInitial, onImageError }) => (
-  <div className="flex items-center gap-4 rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-3">
+  <div className="ds-project-team-card">
     {imageUrl ? (
       <Image
         src={imageUrl}
@@ -598,18 +574,16 @@ const TeamCard: FC<TeamCardProps> = ({ name, role, imageUrl, fallbackInitial, on
         width={48}
         height={48}
         loading="eager"
-        className="h-12 w-12 flex-shrink-0 rounded-full border border-slate-700 object-cover"
+        className="ds-project-avatar"
         onError={onImageError}
         unoptimized
       />
     ) : (
-      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-base font-semibold text-slate-100">
-        {fallbackInitial || name.charAt(0)}
-      </div>
+      <div className="ds-project-avatar is-fallback">{fallbackInitial || name.charAt(0)}</div>
     )}
-    <div className="min-w-0">
-      <p className="truncate text-sm font-semibold text-white">{name}</p>
-      <p className="truncate text-xs text-slate-400">{role}</p>
+    <div className="ds-project-team-text">
+      <p>{name}</p>
+      <span>{role}</span>
     </div>
   </div>
 );
@@ -651,32 +625,19 @@ const renderPhaseTimeline = (phase?: string | null) => {
   const activeKey = normalized.replace('ue', 'u').replace('oe', 'o').replace('ae', 'a');
 
   return (
-    <div className="grid gap-3 md:grid-cols-5">
+    <div className="ds-project-phase-grid">
       {steps.map((step, index) => {
         const matchKey = step.key.replace('ue', 'u').replace('oe', 'o').replace('ae', 'a');
         const isActive = activeKey === matchKey;
 
         return (
-          <div
-            key={step.key}
-            className={`relative overflow-hidden rounded-2xl border px-4 py-5 text-sm transition ${
-              isActive
-                ? 'border-sky-500/60 bg-sky-500/15 text-sky-100 shadow-lg shadow-sky-900/40'
-                : 'border-slate-800/70 bg-slate-900/70 text-slate-300'
-            }`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
-                {index + 1}
-              </span>
-              {isActive && (
-                <span className="rounded-full border border-sky-400/60 bg-sky-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.35em] text-sky-100">
-                  Aktiv
-                </span>
-              )}
+          <div key={step.key} className={`ds-project-phase-step ${isActive ? 'is-active' : ''}`}>
+            <div className="ds-project-phase-step-topline">
+              <span>{index + 1}</span>
+              {isActive && <span className="ds-project-phase-active-badge">Aktiv</span>}
             </div>
-            <h3 className="mt-3 text-base font-semibold">{step.label}</h3>
-            <p className="mt-2 text-xs leading-relaxed text-slate-300">{step.desc}</p>
+            <h3>{step.label}</h3>
+            <p>{step.desc}</p>
           </div>
         );
       })}
