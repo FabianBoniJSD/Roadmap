@@ -189,20 +189,20 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
       <Head>
         <title>Roadmap | JSDoIT Roadmap</title>
       </Head>
-      <div className="ds-page-shell before:[position:absolute] before:[inset:0] before:[z-index:0] before:[pointer-events:none] before:[background-image:linear-gradient(var(--ds-grid-line)_1px,_transparent_1px),_linear-gradient(90deg,_var(--ds-grid-line)_1px,_transparent_1px)] before:[background-size:56px_56px] before:[mask-image:linear-gradient(to_bottom,_black,_rgba(0,_0,_0,_0.72),_transparent_98%)] after:[position:absolute] after:[right:-10%] after:[bottom:-25%] after:[left:-10%] after:[z-index:0] after:[height:38vh] after:[pointer-events:none] after:[background:radial-gradient(ellipse_at_center,_var(--ds-hero-glow-a),_transparent_62%)] after:[filter:blur(12px)] [position:relative] [isolation:isolate] [display:flex] [min-height:100vh] [flex-direction:column] [overflow:hidden] [background:radial-gradient(circle_at_7%_18%,_var(--ds-hero-glow-a),_transparent_31%),_radial-gradient(circle_at_70%_8%,_var(--ds-hero-glow-b),_transparent_28%),_radial-gradient(circle_at_48%_86%,_var(--ds-hero-glow-c),_transparent_26%),_linear-gradient(135deg,_var(--ds-bg-page),_var(--ds-bg-page-2))] [color:var(--ds-text-default)] [font-family:var(--ds-font-sans)] [&>*]:[position:relative] [&>*]:[z-index:1]">
+      <div className="ds-page-shell before:[position:absolute] before:[inset:0] before:[z-index:0] before:[pointer-events:none] before:[background-size:56px_56px] after:[position:absolute] after:[right:-10%] after:[bottom:-25%] after:[left:-10%] after:[z-index:0] after:[height:38vh] after:[pointer-events:none] [position:relative] [isolation:isolate] [display:flex] [min-height:100vh] [flex-direction:column] [overflow:hidden] [background:var(--ds-bg-page)] [color:var(--ds-text-default)] [font-family:var(--ds-font-sans)] [&>*]:[position:relative] [&>*]:[z-index:1]">
         <SiteHeader activeRoute="roadmap" authenticated initialIsAdmin={isAdminState} />
 
         <main className="ds-page-main [flex:1] ds-roadmap-page-main [padding-block:clamp(26px,_4vw,_48px)_88px] max-[760px]:[padding-top:var(--ds-space-5)]">
           {loading ? (
             <div className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] ds-roadmap-state [padding-block:clamp(48px,_9vw,_96px)]">
-              <div className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-roadmap-state-card [max-width:760px] [padding:clamp(24px,_4vw,_36px)] [border-radius:var(--ds-radius-xl)] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_46%,_var(--ds-border-default))] [&.is-warning]:[background:linear-gradient(_180deg,_color-mix(in_srgb,_var(--ds-warning)_12%,_var(--ds-bg-elevated-strong)),_var(--ds-bg-elevated)_)] [&_h1]:[margin:0] [&_h1]:[color:var(--ds-text-strong)] [&_h1]:[font-size:clamp(1.25rem,_3vw,_1.75rem)] [&_p]:[margin:12px_0_0] [&_p]:[color:var(--ds-text-default)] [&_p]:[line-height:1.65]">
+              <div className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-roadmap-state-card [max-width:760px] [padding:clamp(24px,_4vw,_36px)] [border-radius:var(--ds-radius-xl)] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_46%,_var(--ds-border-default))] [&.is-warning]:[background:var(--ds-bg-elevated-strong)] [&_h1]:[margin:0] [&_h1]:[color:var(--ds-text-strong)] [&_h1]:[font-size:clamp(1.25rem,_3vw,_1.75rem)] [&_p]:[margin:12px_0_0] [&_p]:[color:var(--ds-text-default)] [&_p]:[line-height:1.65]">
                 <h1>Lade Roadmap ...</h1>
                 <p>Projekte werden für die ausgewählte Instanz geladen.</p>
               </div>
             </div>
           ) : accessDeniedState ? (
             <div className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] ds-roadmap-state [padding-block:clamp(48px,_9vw,_96px)]">
-              <div className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-roadmap-state-card [max-width:760px] [padding:clamp(24px,_4vw,_36px)] [border-radius:var(--ds-radius-xl)] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_46%,_var(--ds-border-default))] [&.is-warning]:[background:linear-gradient(_180deg,_color-mix(in_srgb,_var(--ds-warning)_12%,_var(--ds-bg-elevated-strong)),_var(--ds-bg-elevated)_)] [&_h1]:[margin:0] [&_h1]:[color:var(--ds-text-strong)] [&_h1]:[font-size:clamp(1.25rem,_3vw,_1.75rem)] [&_p]:[margin:12px_0_0] [&_p]:[color:var(--ds-text-default)] [&_p]:[line-height:1.65] is-warning">
+              <div className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-roadmap-state-card [max-width:760px] [padding:clamp(24px,_4vw,_36px)] [border-radius:var(--ds-radius-xl)] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_46%,_var(--ds-border-default))] [&.is-warning]:[background:var(--ds-bg-elevated-strong)] [&_h1]:[margin:0] [&_h1]:[color:var(--ds-text-strong)] [&_h1]:[font-size:clamp(1.25rem,_3vw,_1.75rem)] [&_p]:[margin:12px_0_0] [&_p]:[color:var(--ds-text-default)] [&_p]:[line-height:1.65] is-warning">
                 <h1>Kein Zugriff</h1>
                 <p>
                   Du hast keinen Zugriff auf diese Roadmap-Instanz. Sichtbarkeit wird pro Instanz
@@ -222,24 +222,24 @@ const RoadmapPage: React.FC<RoadmapPageProps> = ({
           )}
         </main>
 
-        <footer className="ds-footer [border-top:1px_solid_var(--ds-border-subtle)] [background:color-mix(in_srgb,_var(--ds-bg-page)_82%,_transparent)] [backdrop-filter:blur(18px)]">
+        <footer className="ds-footer [border-top:1px_solid_var(--ds-border-subtle)] [background:color-mix(in_srgb,_var(--ds-bg-page)_82%,_transparent)] ">
           <div className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] ds-footer-inner [display:flex] [align-items:center] [justify-content:space-between] [gap:var(--ds-space-4)] [padding-block:24px] [color:var(--ds-text-muted)] [font-size:0.875rem] max-[760px]:[align-items:flex-start] max-[760px]:[flex-direction:column]">
             <span>JSDoIT Roadmap Center</span>
             <div className="ds-footer-links [display:flex] [flex-wrap:wrap] [align-items:center] [gap:var(--ds-space-4)]">
               <Link
-                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                 href="/instances"
               >
                 Instanzen
               </Link>
               <Link
-                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                 href="/help"
               >
                 Hilfe
               </Link>
               <Link
-                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                 href="/feedback"
               >
                 Feedback

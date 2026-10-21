@@ -6,7 +6,6 @@
   border-bottom: 1px solid rgba(255, 204, 102, 0.72);
   background: #4a2c05;
   color: #fff8e7;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
 }
 
 .content {
@@ -58,7 +57,8 @@
 }
 
 .retry:focus-visible {
-  box-shadow: 0 0 0 3px rgba(255, 224, 163, 0.4);
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
 }
 
 .retry:disabled {

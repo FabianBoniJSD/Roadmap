@@ -162,7 +162,7 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({ projects, categories 
             style={{ top: `${row * 50}px` }} // 50px spacing between rows
           >
             <div
-              className="absolute h-10 rounded flex items-center px-3 cursor-pointer overflow-hidden whitespace-nowrap text-ellipsis shadow-md transition-all duration-300 text-white"
+              className="absolute h-10 rounded flex items-center px-3 cursor-pointer overflow-hidden whitespace-nowrap text-ellipsis transition-colors duration-300 text-white"
               style={{
                 left: `${startPosition}%`,
                 width: `${width}%`,
@@ -184,7 +184,7 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({ projects, categories 
       {/* Custom tooltip */}
       {tooltipVisible && activeProject && (
         <div
-          className="fixed bg-gray-800 text-white p-3 rounded-lg border border-gray-700 shadow-lg z-[1000] pointer-events-none"
+          className="fixed bg-gray-800 text-white p-3 rounded-lg border border-gray-700 z-[1000] pointer-events-none"
           style={{
             left: tooltipPosition.x + 10, // Offset slightly from cursor
             top: tooltipPosition.y + 10,

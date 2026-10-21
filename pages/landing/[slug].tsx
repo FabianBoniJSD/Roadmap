@@ -5,6 +5,7 @@ import type { GetServerSideProps } from 'next';
 import prisma from '@/lib/prisma';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
+import { FiCheck } from 'react-icons/fi';
 
 type LandingPreset = {
   title: string;
@@ -212,13 +213,13 @@ const LandingPage = ({ slug, preset, instance }: LandingPageProps) => {
             </div>
             <div className="relative mx-auto flex max-w-5xl flex-col gap-10 px-6 py-20 sm:px-8 lg:flex-row lg:items-center">
               <div className="max-w-2xl space-y-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-sky-300/80">
+                <p className="text-xs font-semibold normal-case tracking-normal text-sky-300/80">
                   Roadmap Landing
                 </p>
                 <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl">
                   {title}
                 </h1>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
+                <p className="text-sm font-semibold normal-case tracking-normal text-slate-400">
                   {subtitle}
                 </p>
                 <p className="text-base text-slate-300 sm:text-lg">{description}</p>
@@ -252,7 +253,7 @@ const LandingPage = ({ slug, preset, instance }: LandingPageProps) => {
                   </p>
                 )}
               </div>
-              <div className="flex-1 space-y-4 rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 shadow-xl shadow-slate-950/40">
+              <div className="flex-1 space-y-4 rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 ">
                 <h2 className="text-lg font-semibold text-white sm:text-xl">
                   Was erwartet Sie in der Roadmap?
                 </h2>
@@ -260,10 +261,10 @@ const LandingPage = ({ slug, preset, instance }: LandingPageProps) => {
                   {highlights.map((highlight) => (
                     <li key={highlight} className="flex items-start gap-3">
                       <span
-                        className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200"
+                        className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold normal-case tracking-normal text-slate-200"
                         aria-hidden="true"
                       >
-                        ✓
+                        <FiCheck className="h-4 w-4" />
                       </span>
                       <span>{highlight}</span>
                     </li>
@@ -290,7 +291,7 @@ const LandingPage = ({ slug, preset, instance }: LandingPageProps) => {
           </section>
 
           <section className="mx-auto max-w-5xl px-6 py-12 sm:px-8 lg:py-16">
-            <div className="grid gap-6 rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 shadow-xl shadow-slate-950/40 sm:grid-cols-[1.1fr_0.9fr] sm:p-8">
+            <div className="grid gap-6 rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 sm:grid-cols-[1.1fr_0.9fr] sm:p-8">
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-white sm:text-xl">Nächste Schritte</h2>
                 <p className="text-sm text-slate-300 sm:text-base">

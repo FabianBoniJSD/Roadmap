@@ -49,7 +49,6 @@ export default function withAdminAuth<P extends object>(WrappedComponent: React.
 
           setIsLoading(false);
         } catch (error) {
-          // eslint-disable-next-line no-console
           console.error('Auth check error:', error);
           if (dbg()) {
             // eslint-disable-next-line no-console
@@ -73,7 +72,7 @@ export default function withAdminAuth<P extends object>(WrappedComponent: React.
     if (forbiddenMessage) {
       return (
         <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-6">
-          <div className="w-full max-w-lg rounded-3xl border border-amber-500/40 bg-amber-500/10 p-8 shadow-xl shadow-slate-950/40">
+          <div className="w-full max-w-lg rounded-3xl border border-amber-500/40 bg-amber-500/10 p-8 ">
             <h1 className="text-xl font-semibold text-white">Zugriff eingeschränkt</h1>
             <p className="mt-3 text-sm text-amber-100">{forbiddenMessage}</p>
             <div className="mt-6 flex flex-wrap gap-2">

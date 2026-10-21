@@ -17,7 +17,7 @@ SharePoint-backed roadmap application built with Next.js 15 (pages router), Type
 - **Category normalization**: trim and collapse values like `7.0` → `7` across API and client data service.
 - **Quarter → date derivation**: shared helper maps Q1–Q4 to start/end ISO dates; do not change logic.
 - **Authorization**: exact Entra/UPN/on-prem identities plus live SharePoint role checks; display names never grant access.
-- **Rate limits**: shared, persistent Prisma buckets for public APIs and support chat.
+- **Rate limits**: shared, persistent Prisma buckets for public APIs.
 
 ## Setup
 
@@ -72,18 +72,16 @@ The seed creates the `sample` instance, sample feedback including one completed 
 - [`docs/ENTRA_SSO_IMPLEMENTATION.md`](docs/ENTRA_SSO_IMPLEMENTATION.md): architecture narrative and implementation history.
 - [`docs/SECURITY_AUDIT_REPORT.md`](docs/SECURITY_AUDIT_REPORT.md): authoritative findings, remediations, residual external actions, and verification evidence.
 
-## Local Support Chat
+## Support via Orbit
 
-- The floating chat widget is available throughout the application; only superadmins can open and answer the inbox at `/admin/support-chat`.
-- Chat conversations are stored through Prisma in the PostgreSQL database configured through `DATABASE_URL`. No external chat service is used.
-- The browser receives only a random `HttpOnly` conversation token. The database stores its SHA-256 hash, not the token itself.
-- New deployments must apply the chat tables with `yarn prisma:deploy` before the application is restarted.
-- The widget and support inbox poll the local Next.js API while open, so the existing `next start`/PM2 setup requires no additional realtime process.
+- The floating Support link opens `https://orbit.jsd.bs.ch` in a separate tab. The activity button sits directly above it.
+- The local chat widget, polling, inbox and message handling have been retired. `/admin/support-chat` redirects to Orbit; legacy chat API routes return `410 Gone` without accessing the database or creating cookies.
+- Historical chat tables and migrations are retained to preserve existing records. No chat data is forwarded to Orbit.
 
 ## Recent Activity
 
 - Successful authenticated create, update, reorder, upload, vote, and delete requests are stored in `AuditEvent`; request bodies, headers, query values, and IP addresses are never copied into the audit record.
-- The global bottom-left indicator polls every 15 seconds while the tab is visible. Its feed is authenticated, permission-checked, and limited to `visibility = instance` events for the active roadmap instance.
+- The activity indicator above Orbit polls every 15 seconds while the tab is visible. Its feed is authenticated, permission-checked, and limited to `visibility = instance` events for the active roadmap instance.
 - Admin, support, and security events remain outside the shared instance feed. New deployments must apply the audit table with `yarn prisma:deploy` before restarting the application.
 
 ## Conventions and Guardrails

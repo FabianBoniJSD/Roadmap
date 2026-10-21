@@ -15,7 +15,6 @@ import {
   FiPlus,
   FiRotateCcw,
   FiTrash2,
-  FiTrendingUp,
   FiX,
 } from 'react-icons/fi';
 import JSDoITLoader from '@/components/JSDoITLoader';
@@ -63,6 +62,8 @@ const FeedbackPage = () => {
   const [entraStatus, setEntraStatus] = useState<EntraStatus>({ enabled: false });
   const [items, setItems] = useState<FeedbackItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [hasLoadedItems, setHasLoadedItems] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [votingId, setVotingId] = useState<number | null>(null);
   const [managingId, setManagingId] = useState<number | null>(null);
@@ -103,6 +104,8 @@ const FeedbackPage = () => {
 
   const loadFeedback = useCallback(async () => {
     setLoadingItems(true);
+    setHasLoadedItems(false);
+    setLoadError('');
     setError('');
     try {
       const response = await fetch(buildInstanceAwareUrl('/api/feedback'), {
@@ -118,7 +121,9 @@ const FeedbackPage = () => {
       }
       const data = (await response.json()) as { items?: FeedbackItem[] };
       setItems(Array.isArray(data.items) ? data.items : []);
+      setHasLoadedItems(true);
     } catch (err) {
+      setLoadError('Feedback konnte nicht geladen werden.');
       setError(err instanceof Error ? err.message : 'Feedback konnte nicht geladen werden.');
     } finally {
       setLoadingItems(false);
@@ -174,7 +179,7 @@ const FeedbackPage = () => {
     const trimmedDescription = description.trim();
 
     if (trimmedTitle.length < 4) {
-      setError('Bitte gib einen Titel mit mindestens 4 Zeichen ein.');
+      setError('Bitte geben Sie einen Titel mit mindestens 4 Zeichen ein.');
       return;
     }
 
@@ -194,7 +199,7 @@ const FeedbackPage = () => {
       if (response.status === 401) {
         setAuthenticated(false);
         setIsSuperAdmin(false);
-        throw new Error('Bitte melde dich erneut an.');
+        throw new Error('Bitte melden Sie sich erneut an.');
       }
       if (!response.ok || !data?.item) {
         throw new Error(data?.error || 'Feature-Wunsch konnte nicht gespeichert werden.');
@@ -225,7 +230,7 @@ const FeedbackPage = () => {
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
       if (response.status === 401) {
         setAuthenticated(false);
-        throw new Error('Bitte melde dich erneut an.');
+        throw new Error('Bitte melden Sie sich erneut an.');
       }
       if (!response.ok) {
         throw new Error(data?.error || 'Stimme konnte nicht gespeichert werden.');
@@ -254,7 +259,7 @@ const FeedbackPage = () => {
       if (response.status === 401) {
         setAuthenticated(false);
         setIsSuperAdmin(false);
-        throw new Error('Bitte melde dich erneut an.');
+        throw new Error('Bitte melden Sie sich erneut an.');
       }
       if (!response.ok) {
         throw new Error(data?.error || 'Feedback konnte nicht aktualisiert werden.');
@@ -279,7 +284,7 @@ const FeedbackPage = () => {
   const saveEdit = async (item: FeedbackItem) => {
     const trimmedTitle = editTitle.trim();
     if (trimmedTitle.length < 4) {
-      setError('Bitte gib einen Titel mit mindestens 4 Zeichen ein.');
+      setError('Bitte geben Sie einen Titel mit mindestens 4 Zeichen ein.');
       return;
     }
     const updated = await updateFeedback(item, {
@@ -302,7 +307,7 @@ const FeedbackPage = () => {
       if (response.status === 401) {
         setAuthenticated(false);
         setIsSuperAdmin(false);
-        throw new Error('Bitte melde dich erneut an.');
+        throw new Error('Bitte melden Sie sich erneut an.');
       }
       if (!response.ok) throw new Error(data?.error || 'Feedback konnte nicht gelöscht werden.');
       setItems((current) => current.filter((entry) => entry.id !== item.id));
@@ -322,14 +327,14 @@ const FeedbackPage = () => {
     return (
       <article
         key={item.id}
-        className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-feedback-item [display:grid] [grid-template-columns:76px_minmax(0,_1fr)] [gap:var(--ds-space-4)] [padding:24px] [border-radius:var(--ds-radius-xl)] max-[760px]:[grid-template-columns:1fr]"
+        className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-feedback-item [display:grid] [grid-template-columns:76px_minmax(0,_1fr)] [gap:var(--ds-space-4)] [padding:24px] [border-radius:var(--ds-radius-xl)] max-[760px]:[grid-template-columns:1fr]"
       >
         {isCompleted ? (
           <div className="[display:grid] [align-content:start] [justify-items:center] [gap:8px] max-[760px]:[grid-template-columns:auto_auto] max-[760px]:[justify-content:start] max-[760px]:[align-items:center]">
             <span className="[display:grid] [width:48px] [height:48px] [place-items:center] [border-radius:16px] [background:color-mix(in_srgb,_var(--ds-success)_16%,_transparent)] [color:var(--ds-success)]">
               <FiCheckCircle className="[width:1.5rem] [height:1.5rem]" />
             </span>
-            <span className="[color:var(--ds-success)] [font-size:0.7rem] [font-weight:900] [letter-spacing:0.12em] [text-transform:uppercase]">
+            <span className="[color:var(--ds-success)] [font-size:0.7rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
               Neu
             </span>
           </div>
@@ -340,19 +345,19 @@ const FeedbackPage = () => {
           >
             <button
               type="button"
-              className={`ds-vote-button [display:grid] [width:42px] [height:42px] [place-items:center] [border:1px_solid_var(--ds-border-default)] [border-radius:14px] [background:var(--ds-bg-soft)] [color:var(--ds-text-muted)] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_border-color_var(--ds-duration-fast)_var(--ds-ease-out),_background_var(--ds-duration-fast)_var(--ds-ease-out),_color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[transform:translateY(-1px)] hover:[border-color:var(--ds-border-strong)] hover:[color:var(--ds-text-strong)] disabled:[cursor:wait] disabled:[opacity:0.6] disabled:[transform:none] [&.is-active]:[border-color:var(--ds-border-strong)] [&.is-active]:[background:var(--ds-accent-soft)] [&.is-active]:[color:var(--ds-accent-strong)] ${item.userVote === 1 ? 'is-active' : ''}`}
+              className={`ds-vote-button [display:grid] [width:42px] [height:42px] [place-items:center] [border:1px_solid_var(--ds-border-default)] [border-radius:14px] [background:var(--ds-bg-soft)] [color:var(--ds-text-muted)] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_border-color_var(--ds-duration-fast)_var(--ds-ease-out),_background_var(--ds-duration-fast)_var(--ds-ease-out),_color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[border-color:var(--ds-border-strong)] hover:[color:var(--ds-text-strong)] disabled:[cursor:wait] disabled:[opacity:0.6] disabled:[transform:none] [&.is-active]:[border-color:var(--ds-border-strong)] [&.is-active]:[background:var(--ds-accent-soft)] [&.is-active]:[color:var(--ds-accent-strong)] ${item.userVote === 1 ? 'is-active' : ''}`}
               onClick={() => vote(item, 1)}
               disabled={votingId === item.id || isManaging}
               aria-label="Upvote"
             >
               <FiArrowUp className="ds-icon-sm [width:1rem] [height:1rem]" />
             </button>
-            <span className="ds-vote-score [color:var(--ds-text-strong)] [font-size:1.35rem] [font-weight:880] [line-height:1]">
+            <span className="ds-vote-score [color:var(--ds-text-strong)] [font-size:1.35rem] [font-weight:600] [line-height:1]">
               {item.score}
             </span>
             <button
               type="button"
-              className={`ds-vote-button [display:grid] [width:42px] [height:42px] [place-items:center] [border:1px_solid_var(--ds-border-default)] [border-radius:14px] [background:var(--ds-bg-soft)] [color:var(--ds-text-muted)] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_border-color_var(--ds-duration-fast)_var(--ds-ease-out),_background_var(--ds-duration-fast)_var(--ds-ease-out),_color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[transform:translateY(-1px)] hover:[border-color:var(--ds-border-strong)] hover:[color:var(--ds-text-strong)] disabled:[cursor:wait] disabled:[opacity:0.6] disabled:[transform:none] [&.is-active]:[border-color:var(--ds-border-strong)] [&.is-active]:[background:var(--ds-accent-soft)] [&.is-active]:[color:var(--ds-accent-strong)] ${item.userVote === -1 ? 'is-active' : ''}`}
+              className={`ds-vote-button [display:grid] [width:42px] [height:42px] [place-items:center] [border:1px_solid_var(--ds-border-default)] [border-radius:14px] [background:var(--ds-bg-soft)] [color:var(--ds-text-muted)] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_border-color_var(--ds-duration-fast)_var(--ds-ease-out),_background_var(--ds-duration-fast)_var(--ds-ease-out),_color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[border-color:var(--ds-border-strong)] hover:[color:var(--ds-text-strong)] disabled:[cursor:wait] disabled:[opacity:0.6] disabled:[transform:none] [&.is-active]:[border-color:var(--ds-border-strong)] [&.is-active]:[background:var(--ds-accent-soft)] [&.is-active]:[color:var(--ds-accent-strong)] ${item.userVote === -1 ? 'is-active' : ''}`}
               onClick={() => vote(item, -1)}
               disabled={votingId === item.id || isManaging}
               aria-label="Downvote"
@@ -363,7 +368,7 @@ const FeedbackPage = () => {
         )}
 
         <div className="ds-feedback-body [min-width:0]">
-          <div className="ds-feedback-meta [display:flex] [flex-wrap:wrap] [gap:8px_14px] [margin-bottom:8px] [color:var(--ds-text-muted)] [font-size:0.75rem] [font-weight:750] [letter-spacing:0.06em] [text-transform:uppercase]">
+          <div className="ds-feedback-meta [display:flex] [flex-wrap:wrap] [gap:8px_14px] [margin-bottom:8px] [color:var(--ds-text-muted)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
             <span>
               {isCompleted && item.completedAt ? 'Umgesetzt am ' : ''}
               {formatDate(isCompleted && item.completedAt ? item.completedAt : item.createdAt)}
@@ -390,7 +395,7 @@ const FeedbackPage = () => {
               <div className="[display:flex] [flex-wrap:wrap] [gap:10px]">
                 <button
                   type="button"
-                  className="ds-button [display:inline-flex] [min-height:40px] [align-items:center] [gap:8px] [padding-inline:14px] [border:1px_solid_transparent] [border-radius:12px] [background:var(--ds-accent)] [color:var(--ds-text-inverse)] [font-weight:800] disabled:[opacity:0.6]"
+                  className="ds-button [display:inline-flex] [min-height:40px] [align-items:center] [gap:8px] [padding-inline:14px] [border:1px_solid_transparent] [border-radius:12px] [background:var(--ds-accent)] [color:var(--ds-text-inverse)] [font-weight:600] disabled:[opacity:0.6]"
                   onClick={() => saveEdit(item)}
                   disabled={isManaging || editTitle.trim().length < 4}
                 >
@@ -398,7 +403,7 @@ const FeedbackPage = () => {
                 </button>
                 <button
                   type="button"
-                  className="ds-button [display:inline-flex] [min-height:40px] [align-items:center] [gap:8px] [padding-inline:14px] [border:1px_solid_var(--ds-border-default)] [border-radius:12px] [background:var(--ds-bg-soft)] [color:var(--ds-text-strong)] [font-weight:800]"
+                  className="ds-button [display:inline-flex] [min-height:40px] [align-items:center] [gap:8px] [padding-inline:14px] [border:1px_solid_var(--ds-border-default)] [border-radius:12px] [background:var(--ds-bg-soft)] [color:var(--ds-text-strong)] [font-weight:600]"
                   onClick={() => setEditingId(null)}
                   disabled={isManaging}
                 >
@@ -408,7 +413,7 @@ const FeedbackPage = () => {
             </div>
           ) : (
             <>
-              <h3 className="ds-feedback-title [margin:0] [color:var(--ds-text-strong)] [font-size:1.2rem] [font-weight:850] [line-height:1.25]">
+              <h3 className="ds-feedback-title [margin:0] [color:var(--ds-text-strong)] [font-size:1.2rem] [font-weight:600] [line-height:1.25]">
                 {item.title}
               </h3>
               {item.description && (
@@ -418,15 +423,15 @@ const FeedbackPage = () => {
               )}
               <div className="ds-badge-row [display:flex] [flex-wrap:wrap] [gap:10px]">
                 {isCompleted ? (
-                  <span className="ds-badge [display:inline-flex] [align-items:center] [gap:8px] [padding:7px_10px] [border-radius:var(--ds-radius-pill)] [background:color-mix(in_srgb,_var(--ds-success)_13%,_transparent)] [color:var(--ds-success)] [font-size:0.75rem] [font-weight:800]">
+                  <span className="ds-badge [display:inline-flex] [align-items:center] [gap:8px] [padding:7px_10px] [border-radius:var(--ds-radius-pill)] [background:color-mix(in_srgb,_var(--ds-success)_13%,_transparent)] [color:var(--ds-success)] [font-size:0.75rem] [font-weight:600]">
                     <FiCheckCircle /> Neues Feature
                   </span>
                 ) : (
                   <>
-                    <span className="ds-badge [display:inline-flex] [padding:7px_10px] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-success)] [font-size:0.75rem] [font-weight:750]">
+                    <span className="ds-badge [display:inline-flex] [padding:7px_10px] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-success)] [font-size:0.75rem] [font-weight:600]">
                       {item.upVotes} Upvotes
                     </span>
-                    <span className="ds-badge [display:inline-flex] [padding:7px_10px] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-danger)] [font-size:0.75rem] [font-weight:750]">
+                    <span className="ds-badge [display:inline-flex] [padding:7px_10px] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-danger)] [font-size:0.75rem] [font-weight:600]">
                       {item.downVotes} Downvotes
                     </span>
                   </>
@@ -439,7 +444,7 @@ const FeedbackPage = () => {
             <div className="[display:flex] [flex-wrap:wrap] [gap:8px] [margin-top:18px] [padding-top:16px] [border-top:1px_solid_var(--ds-border-default)]">
               <button
                 type="button"
-                className="ds-button [display:inline-flex] [min-height:38px] [align-items:center] [gap:7px] [padding-inline:12px] [border:1px_solid_var(--ds-border-default)] [border-radius:11px] [background:var(--ds-bg-soft)] [color:var(--ds-text-strong)] [font-size:0.8rem] [font-weight:800] disabled:[opacity:0.6]"
+                className="ds-button [display:inline-flex] [min-height:38px] [align-items:center] [gap:7px] [padding-inline:12px] [border:1px_solid_var(--ds-border-default)] [border-radius:11px] [background:var(--ds-bg-soft)] [color:var(--ds-text-strong)] [font-size:0.8rem] [font-weight:600] disabled:[opacity:0.6]"
                 onClick={() => startEditing(item)}
                 disabled={isManaging}
               >
@@ -447,7 +452,7 @@ const FeedbackPage = () => {
               </button>
               <button
                 type="button"
-                className="ds-button [display:inline-flex] [min-height:38px] [align-items:center] [gap:7px] [padding-inline:12px] [border:1px_solid_var(--ds-border-default)] [border-radius:11px] [background:var(--ds-bg-soft)] [color:var(--ds-success)] [font-size:0.8rem] [font-weight:800] disabled:[opacity:0.6]"
+                className="ds-button [display:inline-flex] [min-height:38px] [align-items:center] [gap:7px] [padding-inline:12px] [border:1px_solid_var(--ds-border-default)] [border-radius:11px] [background:var(--ds-bg-soft)] [color:var(--ds-success)] [font-size:0.8rem] [font-weight:600] disabled:[opacity:0.6]"
                 onClick={() => updateFeedback(item, { status: isCompleted ? 'OPEN' : 'COMPLETED' })}
                 disabled={isManaging}
               >
@@ -456,7 +461,7 @@ const FeedbackPage = () => {
               </button>
               <button
                 type="button"
-                className="ds-button [display:inline-flex] [min-height:38px] [align-items:center] [gap:7px] [padding-inline:12px] [border:1px_solid_color-mix(in_srgb,_var(--ds-danger)_32%,_transparent)] [border-radius:11px] [background:color-mix(in_srgb,_var(--ds-danger)_9%,_transparent)] [color:var(--ds-danger)] [font-size:0.8rem] [font-weight:800] disabled:[opacity:0.6]"
+                className="ds-button [display:inline-flex] [min-height:38px] [align-items:center] [gap:7px] [padding-inline:12px] [border:1px_solid_color-mix(in_srgb,_var(--ds-danger)_32%,_transparent)] [border-radius:11px] [background:color-mix(in_srgb,_var(--ds-danger)_9%,_transparent)] [color:var(--ds-danger)] [font-size:0.8rem] [font-weight:600] disabled:[opacity:0.6]"
                 onClick={() => deleteFeedback(item)}
                 disabled={isManaging}
               >
@@ -480,39 +485,39 @@ const FeedbackPage = () => {
           <div className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] py-12 sm:py-16">
             <section className="ds-feedback-hero [display:grid] [grid-template-columns:minmax(0,_1fr)_minmax(280px,_360px)] [gap:clamp(28px,_5vw,_64px)] [align-items:end] [padding-block:clamp(36px,_6vw,_74px)] max-[1100px]:[grid-template-columns:1fr]">
               <div>
-                <div className="ds-eyebrow [display:inline-flex] [width:fit-content] [align-items:center] [gap:10px] [padding:9px_15px] [border:1px_solid_var(--ds-border-strong)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-accent-soft)] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-text-strong)] [font-size:0.75rem] [font-weight:850] [letter-spacing:0.22em] [text-transform:uppercase] [&_svg]:[color:var(--ds-accent-strong)]">
+                <div className="ds-eyebrow [display:inline-flex] [width:fit-content] [align-items:center] [gap:10px] [padding:9px_15px] [border:1px_solid_var(--ds-border-strong)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-accent-soft)] [color:var(--ds-text-strong)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none] [&_svg]:[color:var(--ds-accent-strong)]">
                   <FiMessageSquare className="ds-icon-sm [flex:0_0_auto] [width:1rem] [height:1rem]" />
                   Feature Feedback
                 </div>
-                <h1 className="ds-hero-title [max-width:760px] [margin:28px_0_22px] [color:var(--ds-text-strong)] [font-size:clamp(2.625rem,_5.8vw,_4.75rem)] [font-weight:860] [letter-spacing:-0.06em] [line-height:0.98] [text-wrap:balance]">
-                  Wünsche sammeln, priorisieren, sichtbar machen.
+                <h1 className="ds-hero-title [max-width:760px] [margin:28px_0_22px] [color:var(--ds-text-strong)] [font-size:clamp(2.625rem,_5.8vw,_4.75rem)] [font-weight:600] [letter-spacing:-0.06em] [line-height:0.98] [text-wrap:balance]">
+                  Feature-Wünsche
                 </h1>
                 <p className="ds-hero-copy [max-width:660px] [margin:0] [color:var(--ds-text-default)] [font-size:1.0625rem] [line-height:1.75]">
-                  Poste einen Feature-Wunsch und stimme für die Ideen ab, die den Roadmap-Alltag am
-                  stärksten verbessern würden.
+                  Reichen Sie einen Feature-Wunsch ein und stimmen Sie für Ideen, die den
+                  Roadmap-Alltag am stärksten verbessern würden.
                 </p>
               </div>
-              <div
-                className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-feedback-summary [display:grid] [gap:var(--ds-space-3)] [padding:28px] [border-radius:var(--ds-radius-xl)]"
-                aria-label="Feedback Übersicht"
-              >
+              {authenticated && !checkingSession && (
                 <div
-                  className="ds-panel-icon [display:grid] [flex:0_0_auto] [width:68px] [height:68px] [place-items:center] [border:1px_solid_var(--ds-border-strong)] [border-radius:24px] [background:radial-gradient(circle,_var(--ds-accent-soft),_transparent_74%)] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-accent-strong)]"
-                  aria-hidden="true"
+                  className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-feedback-summary [display:grid] [gap:var(--ds-space-3)] [padding:28px] [border-radius:var(--ds-radius-xl)]"
+                  aria-label="Feedback Übersicht"
                 >
-                  <FiTrendingUp className="ds-icon-md [flex:0_0_auto] [width:1.5rem] [height:1.5rem]" />
+                  <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
+                    Aktive Wünsche
+                  </p>
+                  <p
+                    aria-live="polite"
+                    aria-busy={loadingItems}
+                    className="ds-feedback-count [margin:0] [color:var(--ds-text-strong)] [font-size:clamp(3rem,_8vw,_5rem)] [font-weight:600] [letter-spacing:-0.04em] [line-height:0.9]"
+                  >
+                    {hasLoadedItems && !loadingItems ? activeItems.length : loadError ? '–' : '…'}
+                  </p>
+                  <p className="ds-empty-copy [max-width:680px] [margin:10px_auto_0] [color:var(--ds-text-muted)] [font-size:0.875rem] [line-height:1.6]">
+                    {loadError ||
+                      'Stimmen sortieren die Liste nach Relevanz. Jede Person hat pro Wunsch eine Stimme.'}
+                  </p>
                 </div>
-                <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:900] [letter-spacing:0.23em] [text-transform:uppercase]">
-                  Aktive Wünsche
-                </p>
-                <p className="ds-feedback-count [margin:0] [color:var(--ds-text-strong)] [font-size:clamp(3rem,_8vw,_5rem)] [font-weight:880] [letter-spacing:-0.04em] [line-height:0.9]">
-                  {activeItems.length}
-                </p>
-                <p className="ds-empty-copy [max-width:680px] [margin:10px_auto_0] [color:var(--ds-text-muted)] [font-size:0.875rem] [line-height:1.6]">
-                  Votes sortieren die Liste automatisch nach Relevanz. Jede Person hat pro Wunsch
-                  genau eine Stimme.
-                </p>
-              </div>
+              )}
             </section>
 
             {checkingSession ? (
@@ -520,15 +525,15 @@ const FeedbackPage = () => {
                 <JSDoITLoader sizeRem={2.25} message="Anmeldung wird geprüft ..." />
               </div>
             ) : !authenticated ? (
-              <section className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-auth-panel [display:grid] [gap:var(--ds-space-4)] [padding:32px] [border-radius:var(--ds-radius-xl)] ds-feedback-auth-panel [max-width:760px] [margin-inline:auto]">
+              <section className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-auth-panel [display:grid] [gap:var(--ds-space-4)] [padding:32px] [border-radius:var(--ds-radius-xl)] ds-feedback-auth-panel [max-width:760px] [margin-inline:auto]">
                 <div
-                  className="ds-panel-icon [display:grid] [flex:0_0_auto] [width:68px] [height:68px] [place-items:center] [border:1px_solid_var(--ds-border-strong)] [border-radius:24px] [background:radial-gradient(circle,_var(--ds-accent-soft),_transparent_74%)] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-accent-strong)]"
+                  className="ds-panel-icon [display:grid] [flex:0_0_auto] [width:68px] [height:68px] [place-items:center] [border:1px_solid_var(--ds-border-strong)] [border-radius:24px] [background:var(--ds-accent)] [color:var(--ds-accent-strong)]"
                   aria-hidden="true"
                 >
                   <FiLock className="ds-icon-md [flex:0_0_auto] [width:1.5rem] [height:1.5rem]" />
                 </div>
                 <div>
-                  <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:900] [letter-spacing:0.23em] [text-transform:uppercase]">
+                  <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
                     Anmeldung erforderlich
                   </p>
                   <h2 className="ds-section-title [margin:0] [color:var(--ds-text-strong)] [font-size:2rem] [letter-spacing:-0.04em]">
@@ -536,18 +541,19 @@ const FeedbackPage = () => {
                   </h2>
                 </div>
                 <p className="ds-section-copy [max-width:620px] [margin:10px_0_0] [color:var(--ds-text-muted)] [line-height:1.65]">
-                  Melde dich mit Microsoft SSO an, um Feature-Wünsche zu posten und abzustimmen.
+                  Melden Sie sich mit Microsoft SSO an, um Feature-Wünsche einzureichen und
+                  abzustimmen.
                 </p>
                 {entraStatus.enabled ? (
                   <button
                     type="button"
                     onClick={startSso}
-                    className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:800] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] hover:[transform:translateY(-2px)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-primary [background:linear-gradient(_135deg,_var(--ds-accent),_var(--ds-accent-2)_58%,_var(--ds-accent-strong)_)] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-text-inverse)]"
+                    className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:600] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-primary [background:var(--ds-accent)] [color:var(--ds-text-inverse)]"
                   >
                     Mit Microsoft anmelden
                   </button>
                 ) : (
-                  <p className="ds-note [display:grid] [grid-template-columns:48px_1fr] [align-items:center] [gap:var(--ds-space-4)] [margin-top:18px] [padding:18px] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(_135deg,_var(--ds-accent-soft),_color-mix(in_srgb,_var(--ds-bg-elevated)_86%,_transparent)_)]">
+                  <p className="ds-note [display:grid] [grid-template-columns:48px_1fr] [align-items:center] [gap:var(--ds-space-4)] [margin-top:18px] [padding:18px] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)]">
                     Microsoft SSO ist nicht konfiguriert. Feedback kann erst nach aktivierter
                     Entra-Anmeldung genutzt werden.
                   </p>
@@ -555,54 +561,6 @@ const FeedbackPage = () => {
               </section>
             ) : (
               <div className="ds-feedback-layout [display:grid] [grid-template-columns:minmax(280px,_420px)_minmax(0,_1fr)] [gap:clamp(24px,_4vw,_42px)] [align-items:start] max-[1100px]:[grid-template-columns:1fr]">
-                <form
-                  className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-feedback-form [position:sticky] [top:104px] [display:grid] [gap:var(--ds-space-4)] [padding:28px] [border-radius:var(--ds-radius-xl)] max-[1100px]:[position:static]"
-                  onSubmit={submitFeedback}
-                >
-                  <div>
-                    <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:900] [letter-spacing:0.23em] [text-transform:uppercase]">
-                      Neuer Wunsch
-                    </p>
-                    <h2 className="ds-section-title [margin:0] [color:var(--ds-text-strong)] [font-size:2rem] [letter-spacing:-0.04em]">
-                      Feature-Wunsch posten
-                    </h2>
-                  </div>
-                  <label className="ds-field [display:grid] [gap:var(--ds-space-2)] [color:var(--ds-text-default)] [font-size:0.8125rem] [font-weight:800]">
-                    <span>Titel</span>
-                    <input
-                      className="ds-input [width:100%] [height:48px] [padding-inline:14px] [border:1px_solid_var(--ds-border-default)] [border-radius:14px] [outline:none] [background:var(--ds-bg-elevated)] [color:var(--ds-text-strong)] focus:[border-color:var(--ds-border-strong)] focus:[box-shadow:0_0_0_4px_var(--ds-accent-soft)]"
-                      value={title}
-                      onChange={(event) => setTitle(event.target.value)}
-                      maxLength={120}
-                      placeholder="Zum Beispiel: Export der Roadmap als PDF"
-                    />
-                  </label>
-                  <label className="ds-field [display:grid] [gap:var(--ds-space-2)] [color:var(--ds-text-default)] [font-size:0.8125rem] [font-weight:800]">
-                    <span>Beschreibung</span>
-                    <textarea
-                      className="ds-input [width:100%] [height:48px] [padding-inline:14px] [border:1px_solid_var(--ds-border-default)] [border-radius:14px] [outline:none] [background:var(--ds-bg-elevated)] [color:var(--ds-text-strong)] focus:[border-color:var(--ds-border-strong)] focus:[box-shadow:0_0_0_4px_var(--ds-accent-soft)] ds-textarea [min-height:148px] [height:auto] [padding-block:13px] [resize:vertical] [line-height:1.55]"
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                      maxLength={1200}
-                      rows={6}
-                      placeholder="Was soll die Funktion lösen, und wann wäre sie hilfreich?"
-                    />
-                  </label>
-                  {error && (
-                    <p className="ds-form-error [margin:0] [padding:12px_14px] [border:1px_solid_color-mix(in_srgb,_var(--ds-danger)_36%,_transparent)] [border-radius:var(--ds-radius-sm)] [background:color-mix(in_srgb,_var(--ds-danger)_12%,_transparent)] [color:var(--ds-danger)] [font-size:0.875rem] [line-height:1.5]">
-                      {error}
-                    </p>
-                  )}
-                  <button
-                    type="submit"
-                    className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:800] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] hover:[transform:translateY(-2px)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-primary [background:linear-gradient(_135deg,_var(--ds-accent),_var(--ds-accent-2)_58%,_var(--ds-accent-strong)_)] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-text-inverse)]"
-                    disabled={saving || title.trim().length < 4}
-                  >
-                    <FiPlus className="ds-icon-sm [flex:0_0_auto] [width:1rem] [height:1rem]" />
-                    {saving ? 'Wird gespeichert ...' : 'Feature-Wunsch posten'}
-                  </button>
-                </form>
-
                 <section className="ds-feedback-list [min-width:0]" aria-label="Feature-Wünsche">
                   {error && (
                     <p
@@ -615,7 +573,7 @@ const FeedbackPage = () => {
                   {completedItems.length > 0 && (
                     <div className="[margin-bottom:42px]" aria-labelledby="new-features-heading">
                       <div className="[margin-bottom:18px]">
-                        <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-success)] [font-size:0.75rem] [font-weight:900] [letter-spacing:0.23em] [text-transform:uppercase]">
+                        <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-success)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
                           Umgesetzt
                         </p>
                         <h2
@@ -633,7 +591,7 @@ const FeedbackPage = () => {
 
                   <div className="ds-section-header [display:flex] [align-items:end] [justify-content:space-between] [gap:var(--ds-space-6)] [margin-bottom:24px] ds-feedback-list-header [margin-bottom:18px]">
                     <div>
-                      <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:900] [letter-spacing:0.23em] [text-transform:uppercase]">
+                      <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
                         Voting
                       </p>
                       <h2 className="ds-section-title [margin:0] [color:var(--ds-text-strong)] [font-size:2rem] [letter-spacing:-0.04em]">
@@ -642,7 +600,7 @@ const FeedbackPage = () => {
                     </div>
                     <button
                       type="button"
-                      className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:800] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] hover:[transform:translateY(-2px)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-secondary [border-color:var(--ds-border-default)] [background:var(--ds-bg-elevated)] [box-shadow:var(--ds-shadow-card)] [color:var(--ds-text-strong)] ds-feedback-refresh [min-height:46px] [padding-inline:18px]"
+                      className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:600] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-secondary [border-color:var(--ds-border-default)] [background:var(--ds-bg-elevated)] [color:var(--ds-text-strong)] ds-feedback-refresh [min-height:46px] [padding-inline:18px]"
                       onClick={loadFeedback}
                       disabled={loadingItems}
                     >
@@ -654,22 +612,73 @@ const FeedbackPage = () => {
                     <div className="ds-centered-state [display:flex] [justify-content:center] [padding-block:var(--ds-space-8)]">
                       <JSDoITLoader sizeRem={2} message="Feature-Wünsche werden geladen ..." />
                     </div>
+                  ) : loadError ? (
+                    <p role="status" className="ds-feedback-load-error">
+                      {loadError} Bitte erneut aktualisieren.
+                    </p>
                   ) : activeItems.length ? (
                     <div className="ds-feedback-items [display:grid] [gap:var(--ds-space-4)]">
                       {activeItems.map(renderFeedbackItem)}
                     </div>
                   ) : (
                     <div className="ds-empty-state [margin-top:48px] [padding:32px] [border:1px_dashed_var(--ds-border-default)] [border-radius:var(--ds-radius-xl)] [background:color-mix(in_srgb,_var(--ds-bg-elevated-strong)_72%,_transparent)] [color:var(--ds-text-default)] [text-align:center]">
-                      <p className="ds-empty-title [margin:0] [color:var(--ds-text-strong)] [font-size:1.125rem] [font-weight:800]">
+                      <p className="ds-empty-title [margin:0] [color:var(--ds-text-strong)] [font-size:1.125rem] [font-weight:600]">
                         Noch keine Feature-Wünsche
                       </p>
                       <p className="ds-empty-copy [max-width:680px] [margin:10px_auto_0] [color:var(--ds-text-muted)] [font-size:0.875rem] [line-height:1.6]">
-                        Starte mit dem ersten Vorschlag. Je konkreter der Nutzen, desto leichter
-                        können andere abstimmen.
+                        Reichen Sie den ersten Vorschlag ein. Je konkreter der Nutzen, desto
+                        leichter können andere abstimmen.
                       </p>
                     </div>
                   )}
                 </section>
+                <form
+                  className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-feedback-form [position:sticky] [top:104px] [display:grid] [gap:var(--ds-space-4)] [padding:28px] [border-radius:var(--ds-radius-xl)] max-[1100px]:[position:static]"
+                  onSubmit={submitFeedback}
+                >
+                  <div>
+                    <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
+                      Neuer Wunsch
+                    </p>
+                    <h2 className="ds-section-title [margin:0] [color:var(--ds-text-strong)] [font-size:2rem] [letter-spacing:-0.04em]">
+                      Feature-Wunsch posten
+                    </h2>
+                  </div>
+                  <label className="ds-field [display:grid] [gap:var(--ds-space-2)] [color:var(--ds-text-default)] [font-size:0.8125rem] [font-weight:600]">
+                    <span>Titel</span>
+                    <input
+                      className="ds-input [width:100%] [height:48px] [padding-inline:14px] [border:1px_solid_var(--ds-border-default)] [border-radius:14px] [outline:none] [background:var(--ds-bg-elevated)] [color:var(--ds-text-strong)] focus:[border-color:var(--ds-border-strong)] "
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      maxLength={120}
+                      placeholder="Zum Beispiel: Export der Roadmap als PDF"
+                    />
+                  </label>
+                  <label className="ds-field [display:grid] [gap:var(--ds-space-2)] [color:var(--ds-text-default)] [font-size:0.8125rem] [font-weight:600]">
+                    <span>Beschreibung</span>
+                    <textarea
+                      className="ds-input [width:100%] [height:48px] [padding-inline:14px] [border:1px_solid_var(--ds-border-default)] [border-radius:14px] [outline:none] [background:var(--ds-bg-elevated)] [color:var(--ds-text-strong)] focus:[border-color:var(--ds-border-strong)] ds-textarea [min-height:148px] [height:auto] [padding-block:13px] [resize:vertical] [line-height:1.55]"
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      maxLength={1200}
+                      rows={6}
+                      placeholder="Was soll die Funktion lösen, und wann wäre sie hilfreich?"
+                    />
+                  </label>
+                  {error && (
+                    <p className="ds-form-error [margin:0] [padding:12px_14px] [border:1px_solid_color-mix(in_srgb,_var(--ds-danger)_36%,_transparent)] [border-radius:var(--ds-radius-sm)] [background:color-mix(in_srgb,_var(--ds-danger)_12%,_transparent)] [color:var(--ds-danger)] [font-size:0.875rem] [line-height:1.5]">
+                      {error}
+                    </p>
+                  )}
+                  <button
+                    type="submit"
+                    className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:600] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-primary [background:var(--ds-accent)] [color:var(--ds-text-inverse)]"
+                    disabled={saving || title.trim().length < 4}
+                  >
+                    <FiPlus className="ds-icon-sm [flex:0_0_auto] [width:1rem] [height:1rem]" />
+                    {saving ? 'Wird gespeichert ...' : 'Feature-Wunsch posten'}
+                  </button>
+                </form>
               </div>
             )}
           </div>

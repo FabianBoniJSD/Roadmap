@@ -56,7 +56,7 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
 
       {searchTerm ? (
         <div>
-          <h3 className="mt-4 text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
+          <h3 className="mt-4 text-sm font-semibold normal-case tracking-normal text-slate-400">
             Suchergebnisse ({results.length})
           </h3>
           <div className="mt-2 grid max-h-60 grid-cols-6 gap-2 overflow-y-auto">
@@ -73,7 +73,7 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
                   title={iconName}
                 >
                   {renderIcon(iconName)}
-                  <span className="mt-1 w-full truncate text-[10px] uppercase tracking-[0.25em] text-slate-400">
+                  <span className="mt-1 w-full truncate text-xs normal-case tracking-normal text-slate-400">
                     {iconName}
                   </span>
                 </div>
@@ -87,12 +87,12 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
         </div>
       ) : (
         <div>
-          <h3 className="mt-4 text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
+          <h3 className="mt-4 text-sm font-semibold normal-case tracking-normal text-slate-400">
             Beispiele nach Bibliothek
           </h3>
           {Object.entries(samples).map(([library, icons]) => (
             <div key={library} className="mt-3 space-y-2">
-              <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+              <h4 className="text-xs font-semibold normal-case tracking-normal text-slate-500">
                 {library} Icons
               </h4>
               <div className="grid grid-cols-6 gap-2">
@@ -108,7 +108,7 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
                     title={iconName}
                   >
                     {renderIcon(iconName)}
-                    <span className="mt-1 w-full truncate text-[10px] uppercase tracking-[0.25em] text-slate-400">
+                    <span className="mt-1 w-full truncate text-xs normal-case tracking-normal text-slate-400">
                       {iconName}
                     </span>
                   </div>

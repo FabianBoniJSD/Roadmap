@@ -79,26 +79,9 @@
   --app-hover-surface: var(--ds-bg-soft);
 }
 
-/* Local support chat */
-
-.support-chat-panel .cs-message-input__content-editor[data-placeholder]:empty::before,
-.support-chat-admin-chat .cs-message-input__content-editor[data-placeholder]:empty::before {
-  color: var(--ds-text-muted);
-}
-
 html[data-color-mode='dark'],
 html[data-theme='dark'] {
   color-scheme: dark;
-}
-
-html[data-color-mode='dark'] .support-chat-panel .cs-conversation-header__user-name,
-html[data-theme='dark'] .support-chat-panel .cs-conversation-header__user-name,
-html[data-color-mode='dark'] .support-chat-panel .cs-conversation-header__user-name *,
-html[data-theme='dark'] .support-chat-panel .cs-conversation-header__user-name * {
-  color: #f8fbff !important;
-}
-html[data-theme='dark'] .cs-conversation-header__info * {
-  color: #f8fbff !important;
 }
 
 html[data-color-mode='light'],
@@ -190,11 +173,7 @@ body {
   min-height: 100vh;
   margin: 0;
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at 7% 18%, var(--ds-hero-glow-a), transparent 31%),
-    radial-gradient(circle at 70% 8%, var(--ds-hero-glow-b), transparent 28%),
-    radial-gradient(circle at 48% 86%, var(--ds-hero-glow-c), transparent 26%),
-    linear-gradient(135deg, var(--ds-bg-page), var(--ds-bg-page-2));
+  background: var(--ds-bg-elevated-strong);
   color: var(--ds-text-default);
   font-family: var(--ds-font-sans);
   transition:
@@ -263,11 +242,7 @@ textarea::placeholder {
 
 html[data-color-mode='light'] .ds-roadmap-shell .roadmap-time-header,
 html[data-theme='light'] .ds-roadmap-shell .roadmap-time-header {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--ds-accent) 15%, var(--ds-bg-elevated-strong)),
-    color-mix(in srgb, var(--ds-accent-2) 10%, var(--ds-bg-elevated))
-  ) !important;
+  background: var(--ds-bg-elevated-strong) !important;
   color: var(--ds-text-strong) !important;
 }
 

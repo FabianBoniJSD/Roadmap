@@ -318,7 +318,7 @@ const InstanceHealthPage = () => {
         </div>
       ) : (
         <>
-          <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
+          <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 ">
             <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/60 pb-4">
               <div>
                 <h2 className="text-lg font-semibold text-white">Statusübersicht</h2>
@@ -342,7 +342,7 @@ const InstanceHealthPage = () => {
               <div className="mt-4 rounded-2xl border border-slate-800/60 bg-slate-900/40 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                    <div className="text-xs font-semibold normal-case tracking-normal text-slate-400">
                       Kompatibilität
                     </div>
                     <div className="mt-1 text-sm text-slate-200">
@@ -391,7 +391,7 @@ const InstanceHealthPage = () => {
             )}
           </section>
 
-          <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
+          <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 ">
             <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800/60 pb-4">
               <div>
                 <h2 className="text-lg font-semibold text-white">Instanz-Zugriff</h2>
@@ -420,7 +420,7 @@ const InstanceHealthPage = () => {
 
             <div className="mt-4 flex flex-wrap items-end gap-3">
               <div className="flex-1 min-w-[240px]">
-                <label className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                <label className="text-xs font-semibold normal-case tracking-normal text-slate-400">
                   Benutzer hinzufügen
                 </label>
                 <input
@@ -466,7 +466,7 @@ const InstanceHealthPage = () => {
 
             <div className="mt-4 flex flex-wrap items-end gap-3">
               <div className="flex-1 min-w-[240px]">
-                <label className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                <label className="text-xs font-semibold normal-case tracking-normal text-slate-400">
                   Gruppe hinzufügen
                 </label>
                 <input
@@ -570,7 +570,7 @@ const InstanceHealthPage = () => {
           </section>
 
           <section className="grid gap-6 md:grid-cols-2">
-            <article className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
+            <article className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 ">
               <h3 className="text-sm font-semibold text-white">Erstellte Listen</h3>
               <p className="mt-1 text-xs text-slate-400">
                 Listen, die automatisch angelegt oder bestätigt wurden.
@@ -591,7 +591,7 @@ const InstanceHealthPage = () => {
               </ul>
             </article>
 
-            <article className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
+            <article className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 ">
               <h3 className="text-sm font-semibold text-white">Fehlende Listen</h3>
               <p className="mt-1 text-xs text-slate-400">
                 Elemente, die nicht angelegt werden konnten und manuell geprüft werden sollten.
@@ -614,7 +614,7 @@ const InstanceHealthPage = () => {
           </section>
 
           <section className="grid gap-6 md:grid-cols-2">
-            <article className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
+            <article className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 ">
               <h3 className="text-sm font-semibold text-white">Bestätigte Listen</h3>
               <p className="mt-1 text-xs text-slate-400">
                 Diese Listen wurden bei der letzten Prüfung gefunden.
@@ -635,7 +635,7 @@ const InstanceHealthPage = () => {
               </ul>
             </article>
 
-            <article className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
+            <article className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 ">
               <h3 className="text-sm font-semibold text-white">Fehlermeldungen</h3>
               <p className="mt-1 text-xs text-slate-400">Details zu aufgetretenen Problemen.</p>
               {lists && Object.keys(lists.errors || {}).length > 0 ? (
@@ -657,7 +657,7 @@ const InstanceHealthPage = () => {
           </section>
 
           {lists && Object.keys(lists.fieldsCreated).length > 0 && (
-            <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
+            <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 ">
               <h3 className="text-sm font-semibold text-white">Neu angelegte Felder</h3>
               <p className="mt-1 text-xs text-slate-400">
                 Überblick über Felder, die während der Provisionierung ergänzt wurden.
@@ -668,7 +668,7 @@ const InstanceHealthPage = () => {
                     key={listName}
                     className="rounded-xl border border-slate-800/60 bg-slate-900/70 p-4"
                   >
-                    <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                    <h4 className="text-xs font-semibold normal-case tracking-normal text-slate-400">
                       {listName}
                     </h4>
                     <ul className="mt-2 list-disc space-y-1 pl-4">
@@ -683,7 +683,7 @@ const InstanceHealthPage = () => {
           )}
 
           {lists?.fieldsUpdated && Object.keys(lists.fieldsUpdated).length > 0 && (
-            <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
+            <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 ">
               <h3 className="text-sm font-semibold text-white">Abgeglichene Felder</h3>
               <p className="mt-1 text-xs text-slate-400">
                 Bestehende SharePoint-Spalten, deren Eigenschaften aktualisiert und anschließend
@@ -695,7 +695,7 @@ const InstanceHealthPage = () => {
                     key={listName}
                     className="rounded-xl border border-slate-800/60 bg-slate-900/70 p-4"
                   >
-                    <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                    <h4 className="text-xs font-semibold normal-case tracking-normal text-slate-400">
                       {listName}
                     </h4>
                     <ul className="mt-2 list-disc space-y-1 pl-4">
@@ -710,7 +710,7 @@ const InstanceHealthPage = () => {
           )}
 
           {(hasSchema || hasIgnoredSchema) && (
-            <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/40">
+            <section className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 ">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold text-white">Schema-Abweichungen</h3>
                 <div className="flex flex-wrap items-center gap-3">
@@ -782,7 +782,7 @@ const InstanceHealthPage = () => {
                     className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-50"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-200">
+                      <h4 className="text-xs font-semibold normal-case tracking-normal text-amber-200">
                         {listName}
                       </h4>
                       <button
@@ -922,7 +922,7 @@ const InstanceHealthPage = () => {
 
               {showIgnored && hasIgnoredSchema && (
                 <div className="mt-6">
-                  <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                  <h4 className="text-xs font-semibold normal-case tracking-normal text-slate-400">
                     Ignorierte Abweichungen
                   </h4>
                   <div className="mt-3 space-y-4 text-sm text-slate-200">
@@ -931,7 +931,7 @@ const InstanceHealthPage = () => {
                         key={listName}
                         className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4"
                       >
-                        <h5 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                        <h5 className="text-xs font-semibold normal-case tracking-normal text-slate-400">
                           {listName}
                         </h5>
 

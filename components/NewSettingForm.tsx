@@ -63,7 +63,7 @@ const NewSettingForm: React.FC<NewSettingFormProps> = ({ onSettingCreated }) => 
   }
 
   return (
-    <div className="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+    <div className="bg-gray-800 p-6 rounded-lg mb-6">
       <h2 className="text-xl font-bold mb-4">Neue Einstellung erstellen</h2>
 
       {error && (

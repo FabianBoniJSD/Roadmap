@@ -52,6 +52,13 @@ const nextConfig = {
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }];
   },
+  async rewrites() {
+    // Serve the existing documentation at its linked entry URLs without changing the address.
+    return [
+      { source: '/docs', destination: '/docs/pages' },
+      { source: '/docs/erste-schritte', destination: '/docs/erste-schritte/uebersicht' },
+    ];
+  },
   async redirects() {
     // Redirect root '/' to the basePath when basePath is set (production) to avoid 404
     if (resolvedBasePath && resolvedBasePath !== '/') {

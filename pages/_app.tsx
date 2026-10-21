@@ -1,15 +1,16 @@
 import { JSX, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import type { AppProps } from 'next/app';
-import '@chatscope/chat-ui-kit-styles/dist/default/styles.min.css';
 import './css/design-system.css';
 import './css/globals.css';
+import './css/workspace.css';
+import './css/control-room.css';
 import { INSTANCE_COOKIE_NAME, INSTANCE_QUERY_PARAM } from '@/utils/instanceConfig';
 import SiteFooter from '@/components/SiteFooter';
 import SiteHeader from '@/components/SiteHeader';
 import Head from 'next/head';
 import { prefixBasePath } from '@/utils/nextBasePath';
-import SupportChatLauncher from '@/components/SupportChatLauncher';
+import OrbitLauncher from '@/components/OrbitLauncher';
 import AiEndpointHealthBanner from '@/components/AiEndpointHealthBanner';
 import ActivityIndicator from '@/components/ActivityIndicator';
 
@@ -112,10 +113,17 @@ function RoadmapApp({ Component, pageProps }: AppProps): JSX.Element {
       <AiEndpointHealthBanner />
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link
+          rel="icon"
+          href={prefixBasePath('/favicon.ico')}
+          type="image/x-icon"
+          sizes="16x16 32x32 48x48"
+        />
+        <link rel="icon" href={prefixBasePath('/logo.svg')} type="image/svg+xml" sizes="any" />
       </Head>
       <Component {...pageProps} />
       <ActivityIndicator />
-      <SupportChatLauncher />
+      <OrbitLauncher />
     </>
   );
 }

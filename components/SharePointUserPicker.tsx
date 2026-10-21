@@ -136,7 +136,7 @@ const SharePointUserPicker: React.FC<SharePointUserPickerProps> = ({
       </div>
 
       {open ? (
-        <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/95 shadow-xl shadow-slate-950/40">
+        <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/95 ">
           {error ? (
             <div className="px-3 py-2 text-xs text-rose-200">{error}</div>
           ) : results.length === 0 ? (

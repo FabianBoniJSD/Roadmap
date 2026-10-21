@@ -1,11 +1,11 @@
 .root {
   position: fixed;
-  bottom: max(22px, env(safe-area-inset-bottom));
-  left: max(22px, env(safe-area-inset-left));
+  bottom: calc(max(22px, env(safe-area-inset-bottom)) + 56px);
+  right: max(22px, env(safe-area-inset-right));
   z-index: 1150;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 10px;
   color: var(--ds-text-default);
   font-family: var(--ds-font-sans);
@@ -20,12 +20,10 @@
   border: 1px solid var(--ds-border-default);
   border-radius: var(--ds-radius-pill);
   background: color-mix(in srgb, var(--ds-bg-elevated-strong) 92%, transparent);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3);
   color: var(--ds-text-default);
   font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.02em;
-  backdrop-filter: blur(18px);
   transition:
     border-color var(--ds-duration-fast) var(--ds-ease-out),
     box-shadow var(--ds-duration-base) var(--ds-ease-out),
@@ -36,17 +34,13 @@
 .trigger:focus-visible,
 .trigger[aria-expanded='true'] {
   border-color: var(--ds-border-strong);
-  box-shadow:
-    0 14px 40px rgba(0, 0, 0, 0.34),
-    var(--ds-shadow-glow);
   outline: none;
   transform: translateY(-1px);
 }
 
 .trigger:focus-visible {
-  box-shadow:
-    0 0 0 3px var(--ds-accent-soft),
-    var(--ds-shadow-glow);
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 4px;
 }
 
 .trigger svg {
@@ -74,20 +68,16 @@
 
 .panel {
   width: min(360px, calc(100vw - 44px));
-  max-height: min(430px, calc(100dvh - 96px));
+  max-height: min(430px, calc(100dvh - 156px - env(safe-area-inset-bottom)));
   overflow: hidden auto;
   border: 1px solid var(--ds-border-default);
   border-radius: var(--ds-radius-lg);
   background: color-mix(in srgb, var(--ds-bg-elevated-strong) 96%, transparent);
-  box-shadow:
-    0 24px 64px rgba(0, 0, 0, 0.42),
-    var(--ds-shadow-glow);
   opacity: 0;
   pointer-events: none;
   transform: translateY(8px) scale(0.98);
-  transform-origin: bottom left;
+  transform-origin: bottom right;
   visibility: hidden;
-  backdrop-filter: blur(22px);
   transition:
     opacity var(--ds-duration-fast) var(--ds-ease-out),
     transform var(--ds-duration-base) var(--ds-ease-out),
@@ -113,7 +103,6 @@
   padding: 15px 17px 12px;
   border-bottom: 1px solid var(--ds-border-subtle);
   background: color-mix(in srgb, var(--ds-bg-elevated-strong) 94%, transparent);
-  backdrop-filter: blur(18px);
 }
 
 .panelHeader strong {
@@ -137,7 +126,6 @@
   height: 6px;
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 0 10px currentColor;
   content: '';
 }
 
@@ -165,8 +153,7 @@
   height: 7px;
   margin-top: 6px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--ds-accent), var(--ds-accent-2));
-  box-shadow: 0 0 10px color-mix(in srgb, var(--ds-accent) 60%, transparent);
+  background: var(--ds-bg-elevated-strong);
 }
 
 .itemBody {
@@ -196,12 +183,14 @@
   line-height: 1.45;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 760px) {
   .root {
-    bottom: max(12px, env(safe-area-inset-bottom));
-    left: max(12px, env(safe-area-inset-left));
+    bottom: 64px;
+    right: 8px;
   }
+}
 
+@media (max-width: 520px) {
   .trigger {
     width: 42px;
     justify-content: center;

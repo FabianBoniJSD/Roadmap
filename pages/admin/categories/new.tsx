@@ -41,7 +41,7 @@ const NewCategoryPage: FC = () => {
       description="Strukturieren Sie die Roadmap, indem Sie Themenbereiche mit eindeutigen Farben und Icons versehen."
       breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Kategorien' }, { label: 'Neu' }]}
     >
-      <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
+      <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 sm:px-9">
         <CategoryForm onSave={handleSave} onCancel={handleCancel} />
       </section>
     </AdminSubpageLayout>

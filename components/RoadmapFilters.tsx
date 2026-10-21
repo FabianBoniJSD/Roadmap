@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 
 type ProgressBucket = 'all' | 'not-started' | 'active' | 'almost-done' | 'completed';
 
@@ -84,7 +84,7 @@ const chipClass = (active: boolean) =>
   }`;
 
 const panelClass =
-  'roadmap-filter-panel rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4 shadow-inner shadow-slate-950/30';
+  'roadmap-filter-panel rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4';
 
 const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
   filterText,
@@ -121,6 +121,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
   onClearCategories,
 }) => {
   const [open, setOpen] = useState<boolean>(false);
+  const inputId = useId();
 
   const activeFilters = [
     ...(filterText
@@ -197,7 +198,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
   ];
 
   return (
-    <div className="roadmap-filters-shell rounded-3xl border border-slate-800/80 bg-slate-900/70 px-4 py-4 shadow-lg shadow-slate-950/30 sm:px-5">
+    <div className="roadmap-filters-shell rounded-3xl border border-slate-800/80 bg-slate-900/70 px-4 py-4 sm:px-5">
       <button
         type="button"
         className="flex w-full items-start justify-between gap-4 text-left"
@@ -226,7 +227,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
             )}
           </div>
           <p className="text-sm text-slate-300">
-            Verfeinere die Timeline nach Inhalt, Badges, Verantwortlichkeit, Fortschritt und
+            Verfeinern Sie die Timeline nach Inhalt, Badges, Verantwortlichkeit, Fortschritt und
             Datenlage.
           </p>
         </div>
@@ -234,11 +235,11 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
         <div className="grid min-w-[140px] grid-cols-2 gap-2 text-center">
           <div className="roadmap-filter-stat rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2">
             <div className="text-lg font-semibold text-white">{resultCount}</div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">Treffer</div>
+            <div className="text-xs normal-case tracking-normal text-slate-400">Treffer</div>
           </div>
           <div className="roadmap-filter-stat rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2">
             <div className="text-lg font-semibold text-white">{totalCount}</div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">Im Jahr</div>
+            <div className="text-xs normal-case tracking-normal text-slate-400">Im Jahr</div>
           </div>
         </div>
       </button>
@@ -263,10 +264,14 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
         <div className="mt-5 space-y-4">
           <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr_1fr]">
             <div className={panelClass}>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <label
+                htmlFor={`${inputId}-search`}
+                className="mb-2 block text-xs font-semibold normal-case tracking-normal text-slate-400"
+              >
                 Suche
               </label>
               <input
+                id={`${inputId}-search`}
                 className="roadmap-filter-input w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
                 placeholder="Titel, Beschreibung, Leitung, Meilenstein oder Team"
                 value={filterText}
@@ -278,15 +283,16 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
             </div>
 
             <div className={panelClass}>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="mb-2 block text-xs font-semibold normal-case tracking-normal text-slate-400">
                 Projektart
-              </label>
+              </p>
               <div className="flex flex-wrap gap-2">
                 {(['short', 'long'] as const).map((projectType) => (
                   <button
                     key={projectType}
                     type="button"
                     onClick={() => onToggleProjectType(projectType)}
+                    aria-pressed={selectedProjectTypes.includes(projectType)}
                     className={chipClass(selectedProjectTypes.includes(projectType))}
                   >
                     {projectTypeLabels[projectType]}
@@ -294,9 +300,9 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                 ))}
               </div>
 
-              <label className="mb-2 mt-4 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="mb-2 mt-4 block text-xs font-semibold normal-case tracking-normal text-slate-400">
                 Fortschritt
-              </label>
+              </p>
               <div className="grid grid-cols-2 gap-2">
                 {(['all', 'not-started', 'active', 'almost-done', 'completed'] as const).map(
                   (bucket) => (
@@ -304,6 +310,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                       key={bucket}
                       type="button"
                       onClick={() => onProgressBucketChange(bucket)}
+                      aria-pressed={progressBucket === bucket}
                       className={chipClass(progressBucket === bucket)}
                     >
                       {progressLabels[bucket]}
@@ -314,15 +321,16 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
             </div>
 
             <div className={panelClass}>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="mb-2 block text-xs font-semibold normal-case tracking-normal text-slate-400">
                 Struktur
-              </label>
+              </p>
               <div className="flex flex-wrap gap-2">
                 {Object.keys(attributeLabels).map((attribute) => (
                   <button
                     key={attribute}
                     type="button"
                     onClick={() => onToggleAttribute(attribute)}
+                    aria-pressed={selectedAttributes.includes(attribute)}
                     className={chipClass(selectedAttributes.includes(attribute))}
                   >
                     {attributeLabels[attribute]}
@@ -349,9 +357,9 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
 
           <div className="grid gap-4 xl:grid-cols-[1fr_1fr_1.2fr]">
             <div className={panelClass}>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="mb-2 block text-xs font-semibold normal-case tracking-normal text-slate-400">
                 Status
-              </label>
+              </p>
               <div className="flex flex-wrap gap-2">
                 {availableStatuses.length === 0 ? (
                   <span className="text-xs text-slate-500">Keine Statuswerte vorhanden</span>
@@ -361,6 +369,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                       key={status}
                       type="button"
                       onClick={() => onToggleStatus(status)}
+                      aria-pressed={selectedStatuses.includes(status)}
                       className={chipClass(selectedStatuses.includes(status))}
                     >
                       {statusLabels[status] || pretty(status)}
@@ -369,9 +378,9 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                 )}
               </div>
 
-              <label className="mb-2 mt-4 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="mb-2 mt-4 block text-xs font-semibold normal-case tracking-normal text-slate-400">
                 Projektphase
-              </label>
+              </p>
               <div className="flex flex-wrap gap-2">
                 {availablePhases.length === 0 ? (
                   <span className="text-xs text-slate-500">Keine Phasenwerte vorhanden</span>
@@ -381,6 +390,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                       key={phase}
                       type="button"
                       onClick={() => onTogglePhase(phase)}
+                      aria-pressed={selectedPhases.includes(phase)}
                       className={chipClass(selectedPhases.includes(phase))}
                     >
                       {phaseLabels[phase] || pretty(phase)}
@@ -391,9 +401,9 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
             </div>
 
             <div className={panelClass}>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="mb-2 block text-xs font-semibold normal-case tracking-normal text-slate-400">
                 Projektleitung
-              </label>
+              </p>
               <div className="max-h-48 overflow-auto pr-1">
                 <div className="flex flex-wrap gap-2">
                   {availableLeads.length === 0 ? (
@@ -404,6 +414,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                         key={lead}
                         type="button"
                         onClick={() => onToggleLead(lead)}
+                        aria-pressed={selectedLeads.includes(lead)}
                         className={chipClass(selectedLeads.includes(lead))}
                         title={lead}
                       >
@@ -416,13 +427,14 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
             </div>
 
             <div className={panelClass}>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="mb-2 block text-xs font-semibold normal-case tracking-normal text-slate-400">
                 Zeitraum, Badges und Tags
-              </label>
+              </p>
               <div className="roadmap-filter-subpanel rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-3">
                 <div className="mb-3 flex items-center gap-2 text-xs text-slate-300">
-                  <span>Von</span>
+                  <label htmlFor={`${inputId}-month-start`}>Von</label>
                   <input
+                    id={`${inputId}-month-start`}
                     type="number"
                     min={1}
                     max={12}
@@ -438,8 +450,9 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                     }
                     className="roadmap-filter-input w-14 rounded-md border border-slate-700 bg-slate-900 px-2 py-1"
                   />
-                  <span>bis</span>
+                  <label htmlFor={`${inputId}-month-end`}>bis</label>
                   <input
+                    id={`${inputId}-month-end`}
                     type="number"
                     min={1}
                     max={12}
@@ -462,6 +475,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
 
                 <div className="flex items-center gap-3">
                   <input
+                    aria-label="Startmonat"
                     type="range"
                     min={1}
                     max={12}
@@ -475,6 +489,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                     className="w-full accent-sky-500"
                   />
                   <input
+                    aria-label="Endmonat"
                     type="range"
                     min={1}
                     max={12}
@@ -491,7 +506,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
               </div>
 
               <div className="mt-4 max-h-36 overflow-auto pr-1">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                <div className="mb-2 text-xs font-semibold normal-case tracking-normal text-slate-400">
                   Badges
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -503,6 +518,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                         key={badge}
                         type="button"
                         onClick={() => onToggleBadge(badge)}
+                        aria-pressed={selectedBadges.includes(badge)}
                         className={chipClass(selectedBadges.includes(badge))}
                         title={badge}
                       >
@@ -514,7 +530,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
               </div>
 
               <div className="mt-4 max-h-40 overflow-auto pr-1">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                <div className="mb-2 text-xs font-semibold normal-case tracking-normal text-slate-400">
                   Tags
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -526,6 +542,7 @@ const RoadmapFilters: React.FC<RoadmapFiltersProps> = ({
                         key={tag}
                         type="button"
                         onClick={() => onToggleTag(tag)}
+                        aria-pressed={selectedTags.includes(tag)}
                         className={chipClass(selectedTags.includes(tag))}
                         title={tag}
                       >

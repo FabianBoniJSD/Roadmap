@@ -144,11 +144,11 @@ const NewProjectPage: FC = () => {
       breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Projekte' }, { label: 'Neu' }]}
     >
       {loading ? (
-        <section className="flex items-center justify-center rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-16 shadow-lg shadow-slate-950/30">
+        <section className="flex items-center justify-center rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-16 ">
           <JSDoITLoader message="Kategorien werden geladen …" />
         </section>
       ) : (
-        <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
+        <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 sm:px-9">
           {error && (
             <div
               className="mb-6 rounded-2xl border border-rose-500/50 bg-rose-500/15 px-4 py-3 text-sm text-rose-100"

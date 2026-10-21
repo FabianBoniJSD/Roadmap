@@ -18,6 +18,7 @@ import {
 import type { RoadmapInstanceSummary } from '@/types/roadmapInstance';
 import { SHAREPOINT_LIST_DEFINITIONS } from '@/utils/sharePointLists';
 import { getInstanceBadge, setInstanceBadgeMetadata } from '@/utils/instanceMirroring';
+import { ORBIT_URL } from '@/utils/orbit';
 
 type ApiInstanceResponse = {
   instances: RoadmapInstanceSummary[];
@@ -389,18 +390,18 @@ const InstancesLanding = (props: {
       <main className="flex-1">
         <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-16 sm:px-8">
           <header className="space-y-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-sky-300/90">
+            <p className="text-xs font-semibold normal-case tracking-normal text-sky-300/90">
               Roadmap Administration
             </p>
             <h1 className="text-3xl font-semibold text-white sm:text-4xl">Instanzen verwalten</h1>
             <p className="max-w-3xl text-sm text-slate-300 sm:text-base">
-              Die Roadmap bündelt Projekte, Status und Planung zentral — mit SharePoint-Integration,
+              Die Roadmap bündelt Projekte, Status und Planung zentral, mit SharePoint-Integration,
               Kategorien, Teamzuordnung und übersichtlicher Timeline. Melde dich an, um Instanzen zu
               erstellen, zu konfigurieren und zu migrieren.
             </p>
           </header>
 
-          <section className="rounded-3xl border border-slate-800/80 bg-slate-900/70 p-8 shadow-xl shadow-slate-950/40 sm:p-10">
+          <section className="rounded-3xl border border-slate-800/80 bg-slate-900/70 p-8 sm:p-10">
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-3">
                 <h2 className="text-lg font-semibold text-white">Warum Roadmap?</h2>
@@ -1212,7 +1213,7 @@ const AdminInstancesPage = () => {
         }
         maxWidthClassName="max-w-3xl"
       >
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 text-sm text-slate-300 shadow-lg shadow-slate-950/40 sm:p-8">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 text-sm text-slate-300 sm:p-8">
           <p>
             Dir fehlt aktuell eine gültige Admin-Session. Nach dem Login kannst du Instanzen
             anlegen, bearbeiten oder löschen.
@@ -1236,10 +1237,12 @@ const AdminInstancesPage = () => {
       actions={
         <div className="flex flex-wrap gap-2">
           <Link
-            href="/admin/support-chat"
+            href={ORBIT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-sky-400 hover:text-white"
           >
-            Support-Postfach
+            Support öffnen
           </Link>
           <button
             type="button"
@@ -1268,7 +1271,7 @@ const AdminInstancesPage = () => {
       <section className="grid gap-8">
         <div
           id="instance-form"
-          className="order-2 scroll-mt-24 rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-lg shadow-slate-950/40"
+          className="order-2 scroll-mt-24 rounded-2xl border border-slate-800 bg-slate-900/60 p-6 "
         >
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-white">
@@ -1389,7 +1392,7 @@ const AdminInstancesPage = () => {
             </div>
 
             <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4 text-sm text-sky-100">
-              <div className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-200">
+              <div className="text-xs font-semibold normal-case tracking-normal text-sky-200">
                 SharePoint Auth
               </div>
               <p className="mt-2">
@@ -1491,7 +1494,7 @@ const AdminInstancesPage = () => {
                 )}
 
                 <div className="mt-4 space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+                  <span className="text-xs font-semibold normal-case tracking-normal text-slate-400">
                     Instanz-Admin per SharePoint auswählen
                   </span>
                   <SharePointUserPicker
@@ -1545,22 +1548,22 @@ const AdminInstancesPage = () => {
           </div>
         </div>
 
-        <div className="order-1 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-lg shadow-slate-950/40 sm:p-6">
+        <div className="order-1 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-6">
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <p className="text-xs font-semibold normal-case tracking-normal text-slate-400">
                 Instanzen
               </p>
               <p className="mt-1 text-3xl font-semibold text-white">{instances.length}</p>
             </div>
             <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-200">
+              <p className="text-xs font-semibold normal-case tracking-normal text-emerald-200">
                 Bereit
               </p>
               <p className="mt-1 text-3xl font-semibold text-white">{healthyInstanceCount}</p>
             </div>
             <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-amber-200">
+              <p className="text-xs font-semibold normal-case tracking-normal text-amber-200">
                 Prüfen
               </p>
               <p className="mt-1 text-3xl font-semibold text-white">{attentionInstanceCount}</p>
@@ -1569,7 +1572,7 @@ const AdminInstancesPage = () => {
 
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-sky-300">
+              <p className="text-xs font-semibold normal-case tracking-normal text-sky-300">
                 Übersicht
               </p>
               <h2 className="mt-1 text-xl font-semibold text-white">Bestehende Instanzen</h2>
@@ -1727,7 +1730,7 @@ const AdminInstancesPage = () => {
                     {bulkProvisionFailures.map((f) => (
                       <li key={f.slug} className="break-words">
                         <span className="font-semibold text-slate-200">{f.slug}</span>
-                        {f.message ? <span className="text-slate-400"> — {f.message}</span> : null}
+                        {f.message ? <span className="text-slate-400">: {f.message}</span> : null}
                       </li>
                     ))}
                   </ul>
@@ -1778,7 +1781,7 @@ const AdminInstancesPage = () => {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <h3 className="text-lg font-semibold text-white">{instance.displayName}</h3>
-                        <p className="text-xs uppercase tracking-wide text-slate-400">
+                        <p className="text-xs normal-case tracking-wide text-slate-400">
                           {instance.slug} • {instance.sharePoint.strategy || 'kerberos'}
                         </p>
                       </div>
@@ -1874,7 +1877,7 @@ const AdminInstancesPage = () => {
                     {panelState.isOpen ? (
                       <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          <h4 className="text-xs font-semibold normal-case tracking-wide text-slate-400">
                             Listenverwaltung
                           </h4>
                           <div className="flex flex-wrap gap-2">
@@ -1911,7 +1914,7 @@ const AdminInstancesPage = () => {
                           <div className="mb-2 rounded border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-200">
                             <div>{panelState.error}</div>
                             {panelState.errorDetails?.length ? (
-                              <ul className="mt-1 list-disc space-y-1 pl-4 text-[10px] text-rose-100/90">
+                              <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-rose-100/90">
                                 {panelState.errorDetails.map((detail, idx) => (
                                   <li key={`detail-${idx}`}>{detail}</li>
                                 ))}
@@ -2098,7 +2101,7 @@ const AdminInstancePicker = () => {
         <div className="mx-auto max-w-4xl px-6 py-16 sm:px-8">
           <div className="space-y-6">
             <header className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.4em] text-sky-300/90">
+              <p className="text-xs font-semibold normal-case tracking-normal text-sky-300/90">
                 Roadmap Administration
               </p>
               <h1 className="text-3xl font-semibold text-white">Zugriff eingeschränkt</h1>
@@ -2108,7 +2111,7 @@ const AdminInstancePicker = () => {
               </p>
             </header>
 
-            <section className="rounded-3xl border border-slate-800/80 bg-slate-900/70 p-8 shadow-xl shadow-slate-950/40">
+            <section className="rounded-3xl border border-slate-800/80 bg-slate-900/70 p-8 ">
               <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6">
                 <h2 className="text-lg font-semibold text-white">Nur für Superadmins</h2>
                 <p className="mt-2 text-sm text-slate-200">

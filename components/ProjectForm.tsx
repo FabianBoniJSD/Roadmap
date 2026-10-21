@@ -3,7 +3,7 @@ import { Project, Category, InstanceBadgeOption, ProjectLink, TeamMember } from 
 const uuidv4 = (): string => crypto.randomUUID();
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { FaTrash, FaPlus } from 'react-icons/fa';
+import { FaTrash, FaPlus, FaCheck } from 'react-icons/fa';
 import SharePointUserPicker, { type SharePointUserOption } from './SharePointUserPicker';
 import { normalizeCategoryId } from '@/utils/categoryUtils';
 import { getCurrentBrowserInstanceSlug } from '@/utils/auth';
@@ -522,7 +522,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                     }`}
                     title={`Spiegelung nach ${targetNames} ${selected ? 'entfernen' : 'aktivieren'}`}
                   >
-                    <span aria-hidden="true">{selected ? '✓ ' : ''}</span>
+                    <span aria-hidden="true">
+                      {selected ? <FaCheck className="inline h-3 w-3" /> : null}
+                    </span>
                     {targetNames}
                     {group.targets.length > 1 && (
                       <span className="ml-1 text-slate-400">({group.targets.length} Roadmaps)</span>
@@ -767,7 +769,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
               type="button"
               role="radio"
               aria-checked={selectedCategory === category.id}
-              className={`flex min-h-11 items-center rounded border-l-4 p-2 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+              className={`flex min-h-11 items-center rounded border-l-4 p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
                 selectedCategory === category.id
                   ? 'bg-slate-900/70 text-white'
                   : 'bg-slate-950/60 text-slate-300 opacity-80 hover:opacity-100'
@@ -1028,7 +1030,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                         href={link.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300 transition hover:text-sky-200"
+                        className="text-xs font-semibold normal-case tracking-normal text-sky-300 transition hover:text-sky-200"
                       >
                         {link.url}
                       </a>
@@ -1311,7 +1313,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300 transition hover:text-sky-200"
+                      className="text-xs font-semibold normal-case tracking-normal text-sky-300 transition hover:text-sky-200"
                     >
                       {link.url}
                     </a>

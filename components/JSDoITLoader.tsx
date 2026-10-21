@@ -82,7 +82,7 @@ const JSDoITLoader: React.FC<JSDoITLoaderProps> = ({
         )}
         <div className="relative flex items-center">
           <div
-            className="jsdoit-loader-typing overflow-hidden whitespace-nowrap border-r border-sky-200/80 pr-2 font-mono font-semibold tracking-[0.18ch]"
+            className="jsdoit-loader-typing overflow-hidden whitespace-nowrap border-r border-sky-200/80 pr-2 font-mono font-semibold tracking-normal"
             style={{
               fontSize: `${sizeRem}rem`,
               minHeight: `${minHeightRem}rem`,
@@ -102,7 +102,7 @@ const JSDoITLoader: React.FC<JSDoITLoaderProps> = ({
       </div>
 
       {message && (
-        <p className="text-sm font-medium uppercase tracking-[0.3em] text-slate-300/80">
+        <p className="text-sm font-medium normal-case tracking-normal text-slate-300/80">
           {message}
         </p>
       )}

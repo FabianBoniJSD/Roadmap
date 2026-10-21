@@ -36,7 +36,7 @@ const AdminSubpageLayout: FC<AdminSubpageLayoutProps> = ({
 
   return (
     <div className="theme-page-shell contents">
-      <div className="ds-page-shell before:[position:absolute] before:[inset:0] before:[z-index:0] before:[pointer-events:none] before:[background-image:linear-gradient(var(--ds-grid-line)_1px,_transparent_1px),_linear-gradient(90deg,_var(--ds-grid-line)_1px,_transparent_1px)] before:[background-size:56px_56px] before:[mask-image:linear-gradient(to_bottom,_black,_rgba(0,_0,_0,_0.72),_transparent_98%)] after:[position:absolute] after:[right:-10%] after:[bottom:-25%] after:[left:-10%] after:[z-index:0] after:[height:38vh] after:[pointer-events:none] after:[background:radial-gradient(ellipse_at_center,_var(--ds-hero-glow-a),_transparent_62%)] after:[filter:blur(12px)] [position:relative] [isolation:isolate] [display:flex] [min-height:100vh] [flex-direction:column] [overflow:hidden] [background:radial-gradient(circle_at_7%_18%,_var(--ds-hero-glow-a),_transparent_31%),_radial-gradient(circle_at_70%_8%,_var(--ds-hero-glow-b),_transparent_28%),_radial-gradient(circle_at_48%_86%,_var(--ds-hero-glow-c),_transparent_26%),_linear-gradient(135deg,_var(--ds-bg-page),_var(--ds-bg-page-2))] [color:var(--ds-text-default)] [font-family:var(--ds-font-sans)] [&>*]:[position:relative] [&>*]:[z-index:1]">
+      <div className="ds-page-shell before:[position:absolute] before:[inset:0] before:[z-index:0] before:[pointer-events:none] before:[background-size:56px_56px] after:[position:absolute] after:[right:-10%] after:[bottom:-25%] after:[left:-10%] after:[z-index:0] after:[height:38vh] after:[pointer-events:none] [position:relative] [isolation:isolate] [display:flex] [min-height:100vh] [flex-direction:column] [overflow:hidden] [background:var(--ds-bg-page)] [color:var(--ds-text-default)] [font-family:var(--ds-font-sans)] [&>*]:[position:relative] [&>*]:[z-index:1]">
         <SiteHeader activeRoute="admin" />
 
         <main className="ds-page-main [flex:1] ds-admin-subpage-main [flex:1] [padding-block:clamp(34px,_5vw,_64px)_72px]">
@@ -46,7 +46,7 @@ const AdminSubpageLayout: FC<AdminSubpageLayoutProps> = ({
             {breadcrumbs && breadcrumbs.length > 0 && (
               <nav
                 aria-label="Breadcrumb"
-                className="ds-admin-breadcrumbs [display:flex] [flex-wrap:wrap] [align-items:center] [gap:var(--ds-space-2)] [color:var(--ds-text-muted)] [font-size:0.75rem] [font-weight:850] [letter-spacing:0.16em] [text-transform:uppercase]"
+                className="ds-admin-breadcrumbs [display:flex] [flex-wrap:wrap] [align-items:center] [gap:var(--ds-space-2)] [color:var(--ds-text-muted)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]"
               >
                 {breadcrumbs.map((crumb, index) => {
                   const isLast = index === breadcrumbs.length - 1;
@@ -81,12 +81,12 @@ const AdminSubpageLayout: FC<AdminSubpageLayoutProps> = ({
               </nav>
             )}
 
-            <header className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-admin-subpage-hero [display:grid] [gap:var(--ds-space-5)] [padding:clamp(24px,_4vw,_36px)] [border-radius:var(--ds-radius-xl)]">
+            <header className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-admin-subpage-hero [display:grid] [gap:var(--ds-space-5)] [padding:clamp(24px,_4vw,_36px)] [border-radius:var(--ds-radius-xl)]">
               <div>
-                <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:900] [letter-spacing:0.23em] [text-transform:uppercase]">
+                <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
                   {eyebrow}
                 </p>
-                <h1 className="ds-admin-subpage-title [margin:0] [color:var(--ds-text-strong)] [font-size:clamp(2rem,_4vw,_3.2rem)] [font-weight:860] [line-height:1.05]">
+                <h1 className="ds-admin-subpage-title [margin:0] [color:var(--ds-text-strong)] [font-size:clamp(2rem,_4vw,_3.2rem)] [font-weight:600] [line-height:1.05]">
                   {title}
                 </h1>
                 {description && (
@@ -108,24 +108,24 @@ const AdminSubpageLayout: FC<AdminSubpageLayoutProps> = ({
           </div>
         </main>
 
-        <footer className="ds-footer [border-top:1px_solid_var(--ds-border-subtle)] [background:color-mix(in_srgb,_var(--ds-bg-page)_82%,_transparent)] [backdrop-filter:blur(18px)]">
+        <footer className="ds-footer [border-top:1px_solid_var(--ds-border-subtle)] [background:color-mix(in_srgb,_var(--ds-bg-page)_82%,_transparent)] ">
           <div className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] ds-footer-inner [display:flex] [align-items:center] [justify-content:space-between] [gap:var(--ds-space-4)] [padding-block:24px] [color:var(--ds-text-muted)] [font-size:0.875rem] max-[760px]:[align-items:flex-start] max-[760px]:[flex-direction:column]">
             <span>JSDoIT Roadmap Center</span>
             <div className="ds-footer-links [display:flex] [flex-wrap:wrap] [align-items:center] [gap:var(--ds-space-4)]">
               <Link
-                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                 href="/admin"
               >
                 Admin
               </Link>
               <Link
-                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                 href="/help/admin"
               >
                 Admin-Handbuch
               </Link>
               <Link
-                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                 href="/instances"
               >
                 Instanzen

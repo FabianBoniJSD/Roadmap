@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { prefixBasePath } from '@/utils/nextBasePath';
 import styles from './AiEndpointHealthBanner.module.css';
+import { FiAlertTriangle } from 'react-icons/fi';
 
 type AiHealthPayload = {
   ok?: boolean;
@@ -105,7 +106,7 @@ export default function AiEndpointHealthBanner({
     <aside className={styles.root} role="alert" aria-live="assertive" data-ai-health="down">
       <div className={styles.content}>
         <span className={styles.icon} aria-hidden="true">
-          ⚠
+          <FiAlertTriangle />
         </span>
         <p className={styles.message}>
           {message}

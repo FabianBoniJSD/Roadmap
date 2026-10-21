@@ -63,7 +63,6 @@ html[data-color-mode='light'] textarea::placeholder {
 .site-header-shell {
   border-bottom: 1px solid var(--app-border);
   background: var(--app-bg-elevated);
-  backdrop-filter: blur(18px);
 }
 
 .site-header-nav-link {
@@ -76,13 +75,11 @@ html[data-color-mode='light'] textarea::placeholder {
 
 .site-header-nav-link:hover {
   color: var(--app-text-strong);
-  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.16);
 }
 
 .site-header-nav-link-active {
   background: var(--app-hover-surface);
   color: var(--app-text-strong);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .site-header-admin-link {
@@ -105,7 +102,6 @@ html[data-color-mode='light'] textarea::placeholder {
   border-color: rgba(56, 189, 248, 0.8);
   color: var(--app-text-strong);
   background: rgba(14, 165, 233, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .site-footer-shell {
@@ -147,7 +143,6 @@ html[data-color-mode='light'] .site-footer-shell {
 
 .docs-back-link:hover {
   background: rgba(71, 85, 105, 0.96);
-  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.16);
 }
 
 html[data-color-mode='light'] .docs-back-link {
@@ -292,19 +287,12 @@ html[data-color-mode='light'] :is(.theme-page-shell, .docs-layout-shell) .bg-blu
 
 html[data-color-mode='light'] .theme-showcase-hero {
   border-color: var(--app-border-soft) !important;
-  background:
-    radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 28%),
-    radial-gradient(circle at 82% 18%, rgba(250, 204, 21, 0.16), transparent 22%),
-    linear-gradient(180deg, #f8fbff 0%, #eef6ff 56%, #f8fafc 100%) !important;
+  background: var(--ds-bg-elevated-strong) !important;
 }
 
 html[data-color-mode='light'] .theme-showcase-band {
   border-color: var(--app-border-soft) !important;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.92) 0%,
-    rgba(241, 245, 249, 0.98) 100%
-  ) !important;
+  background: var(--ds-bg-elevated-strong) !important;
 }
 
 html[data-color-mode='light'] .theme-showcase-aside,
@@ -312,7 +300,6 @@ html[data-color-mode='light'] .theme-showcase-panel,
 html[data-color-mode='light'] .theme-showcase-card,
 html[data-color-mode='light'] .theme-instance-card {
   border-color: var(--app-border-soft) !important;
-  box-shadow: 0 24px 60px rgba(148, 163, 184, 0.18) !important;
 }
 
 html[data-color-mode='light'] .theme-showcase-aside {
@@ -321,30 +308,17 @@ html[data-color-mode='light'] .theme-showcase-aside {
 
 html[data-color-mode='light'] .theme-showcase-card,
 html[data-color-mode='light'] .theme-instance-card {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.96) 0%,
-    rgba(241, 245, 249, 0.97) 100%
-  ) !important;
+  background: var(--ds-bg-elevated-strong) !important;
 }
 
 html[data-color-mode='light'] .theme-showcase-panel {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.96) 0%,
-    rgba(248, 250, 252, 0.99) 100%
-  ) !important;
+  background: var(--ds-bg-elevated-strong) !important;
 }
 
 html[data-color-mode='light'] .theme-roadmap-tooltip {
   border-color: var(--app-border) !important;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.98) 0%,
-    rgba(241, 245, 249, 0.98) 100%
-  ) !important;
+  background: var(--ds-bg-elevated-strong) !important;
   color: var(--app-text-strong) !important;
-  box-shadow: 0 24px 60px rgba(148, 163, 184, 0.24) !important;
 }
 
 html[data-color-mode='light']
@@ -381,14 +355,12 @@ html[data-color-mode='light'] .roadmap-time-header {
   background: #dbeafe !important;
   color: #0f172a !important;
   border: 1px solid rgba(148, 163, 184, 0.36);
-  box-shadow: none !important;
 }
 
 html[data-color-mode='light'] .roadmap-project-bar {
   background: #60a5fa !important;
   border-color: rgba(255, 255, 255, 0.7) !important;
   opacity: 1 !important;
-  box-shadow: none !important;
 }
 
 html[data-color-mode='light'] .roadmap-project-bar:hover {
@@ -413,7 +385,6 @@ html[data-color-mode='light'] .roadmap-filter-footer,
 html[data-color-mode='light'] .roadmap-filter-stat {
   background: rgba(255, 255, 255, 0.96) !important;
   border-color: rgba(148, 163, 184, 0.4) !important;
-  box-shadow: 0 16px 38px rgba(148, 163, 184, 0.08) !important;
 }
 
 html[data-color-mode='light'] .roadmap-filter-chip {
@@ -453,7 +424,6 @@ html[data-color-mode='light'] .roadmap-filter-secondary-button:hover {
 html[data-color-mode='light'] .compact-project-card {
   background: rgba(255, 255, 255, 0.97) !important;
   border-color: rgba(148, 163, 184, 0.42) !important;
-  box-shadow: 0 18px 38px rgba(148, 163, 184, 0.14) !important;
 }
 
 .rich-text-editor-loading {
@@ -473,12 +443,10 @@ html[data-color-mode='light'] .compact-project-card {
   border: 1px solid var(--app-border);
   border-radius: 1rem;
   background: var(--app-surface-soft);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .rich-text-editor-shell-error {
   border-color: rgba(244, 63, 94, 0.8);
-  box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.18);
 }
 
 .rich-text-editor-shell-disabled {
@@ -645,7 +613,6 @@ html[data-color-mode='light'] .compact-project-card {
 }
 
 html[data-color-mode='light'] .rich-text-editor-shell {
-  box-shadow: 0 10px 24px rgba(148, 163, 184, 0.08);
 }
 
 html[data-color-mode='light'] .rich-text-editor-shell .ql-toolbar.ql-snow {

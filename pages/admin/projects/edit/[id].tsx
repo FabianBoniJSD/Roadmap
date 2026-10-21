@@ -333,7 +333,7 @@ const EditProjectPage: FC = () => {
   };
 
   const attachmentsSection = () => (
-    <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
+    <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 sm:px-9">
       <header className="space-y-1 border-b border-slate-800/60 pb-5">
         <h2 className="text-lg font-semibold text-white sm:text-xl">Anhänge verwalten</h2>
         <p className="text-sm text-slate-300">
@@ -457,18 +457,18 @@ const EditProjectPage: FC = () => {
         <button
           type="button"
           onClick={() => router.push({ pathname: '/admin', query: router.query })}
-          className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-300 transition hover:border-sky-400 hover:text-white"
+          className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold normal-case tracking-normal text-slate-300 transition hover:border-sky-400 hover:text-white"
         >
           Zur Übersicht
         </button>
       }
     >
       {loading ? (
-        <section className="flex items-center justify-center rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-16 shadow-lg shadow-slate-950/30">
+        <section className="flex items-center justify-center rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-16 ">
           <JSDoITLoader message="Projekt wird geladen …" />
         </section>
       ) : !project || !id || typeof id !== 'string' ? (
-        <section className="flex items-center justify-center rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-16 text-center shadow-lg shadow-slate-950/30">
+        <section className="flex items-center justify-center rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-16 text-center ">
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-white">
               {error ? 'Projekt konnte nicht geladen werden' : 'Projekt nicht gefunden'}
@@ -498,7 +498,7 @@ const EditProjectPage: FC = () => {
           </div>
         </section>
       ) : project.isReadOnlyMirror ? (
-        <section className="rounded-3xl border border-amber-500/30 bg-amber-500/10 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
+        <section className="rounded-3xl border border-amber-500/30 bg-amber-500/10 px-6 py-8 sm:px-9">
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-white">Gespiegeltes Projekt</h2>
             <p className="text-sm text-slate-200">
@@ -531,7 +531,7 @@ const EditProjectPage: FC = () => {
         </section>
       ) : (
         <>
-          <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
+          <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 sm:px-9">
             {error && (
               <div
                 className="mb-6 rounded-2xl border border-rose-500/50 bg-rose-500/15 px-4 py-3 text-sm text-rose-100"

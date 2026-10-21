@@ -30,18 +30,18 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange }) => {
           className="h-8 w-8 rounded-full border border-slate-700"
           style={{ backgroundColor: value }}
         />
-        <span className="font-mono text-xs uppercase tracking-[0.25em] text-slate-400">
+        <span className="font-mono text-xs normal-case tracking-normal text-slate-400">
           {value}
         </span>
       </div>
 
       {showPicker && (
-        <div className="absolute z-50 mt-2 rounded-3xl border border-slate-800/70 bg-slate-950/95 p-4 shadow-xl shadow-slate-950/40 backdrop-blur">
+        <div className="absolute z-50 mt-2 rounded-3xl border border-slate-800/70 bg-slate-950/95 p-4 ">
           <div className="grid grid-cols-3 gap-2">
             {predefinedColors.map((color) => (
               <div
                 key={color}
-                className="h-9 w-9 rounded-full border border-slate-700/80 shadow-inner shadow-slate-950/20 cursor-pointer transition hover:border-sky-400"
+                className="h-9 w-9 rounded-full border border-slate-700/80 cursor-pointer transition hover:border-sky-400"
                 style={{ backgroundColor: color }}
                 onClick={() => {
                   onChange(color);
@@ -52,7 +52,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange }) => {
           </div>
 
           <div className="mt-4 space-y-2">
-            <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+            <label className="block text-xs font-semibold normal-case tracking-normal text-slate-400">
               Eigene Farbe
             </label>
             <div className="flex items-center gap-3">
@@ -76,7 +76,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange }) => {
           <div className="mt-4 flex justify-end">
             <button
               type="button"
-              className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.25em] text-slate-300 transition hover:border-sky-400 hover:text-white"
+              className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold normal-case tracking-normal text-slate-300 transition hover:border-sky-400 hover:text-white"
               onClick={() => setShowPicker(false)}
             >
               Schließen

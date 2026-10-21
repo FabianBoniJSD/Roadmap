@@ -1,0 +1,1139 @@
+/* Achromatic ledger, seed 1282231437. Existing brand hues and type stacks stay intact.
+   Wide frame: at 1440px, 2 x 32px gutters + 1376px canvas = 1440px.
+   Landing: 2 x 80px gutters + 1280px canvas = 1440px; 816 + 32 + 432 = 1280px. */
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../../public/fonts/inter-regular.woff') format('woff');
+}
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 500 900;
+  font-display: swap;
+  src: url('../../public/fonts/inter-semibold.woff') format('woff');
+}
+:root {
+  --ds-bg-page: #111213;
+  --ds-bg-page-2: #171819;
+  --ds-bg-elevated: #191b1d;
+  --ds-bg-elevated-strong: #202224;
+  --ds-bg-soft: #26292c;
+  --ds-bg-muted: #303438;
+  --ds-text-strong: #f5f6f7;
+  --ds-text-default: #dce0e4;
+  --ds-text-muted: #adb4bc;
+  --ds-text-subtle: #a0a8b2;
+  --ds-border-subtle: #292c2f;
+  --ds-border-default: #34383c;
+  --ds-border-strong: #69737e;
+  --ds-radius-xs: 4px;
+  --ds-radius-sm: 6px;
+  --ds-radius-md: 8px;
+  --ds-radius-lg: 8px;
+  --ds-radius-xl: 8px;
+  --ds-shadow-soft: none;
+  --ds-shadow-card: none;
+  --ds-shadow-glow: none;
+  --app-bg: var(--ds-bg-page);
+  --app-bg-elevated: var(--ds-bg-elevated);
+  --app-surface: var(--ds-bg-elevated-strong);
+  --app-surface-soft: var(--ds-bg-soft);
+  --app-surface-muted: var(--ds-bg-muted);
+  --app-border: var(--ds-border-default);
+  --app-border-soft: var(--ds-border-subtle);
+  --app-text-strong: var(--ds-text-strong);
+  --app-text: var(--ds-text-default);
+  --app-text-muted: var(--ds-text-muted);
+  --app-hover-surface: var(--ds-bg-soft);
+}
+
+html[data-color-mode='light'],
+html[data-theme='light'] {
+  --ds-bg-page: #f4f5f6;
+  --ds-bg-page-2: #eef0f2;
+  --ds-bg-elevated: #ffffff;
+  --ds-bg-elevated-strong: #ffffff;
+  --ds-bg-soft: #eceff1;
+  --ds-bg-muted: #e2e6e9;
+  --ds-text-strong: #172026;
+  --ds-text-default: #303c46;
+  --ds-text-muted: #56616d;
+  --ds-text-subtle: #626d77;
+  --ds-border-subtle: #e7eaed;
+  --ds-border-default: #dce0e4;
+  --ds-border-strong: #7a8691;
+  --ds-shadow-soft: none;
+  --ds-shadow-card: none;
+  --ds-shadow-glow: none;
+  --app-bg: var(--ds-bg-page);
+  --app-bg-elevated: var(--ds-bg-elevated);
+  --app-surface: var(--ds-bg-elevated-strong);
+  --app-surface-soft: var(--ds-bg-soft);
+  --app-surface-muted: var(--ds-bg-muted);
+  --app-border: var(--ds-border-default);
+  --app-border-soft: var(--ds-border-subtle);
+  --app-text-strong: var(--ds-text-strong);
+  --app-text: var(--ds-text-default);
+  --app-text-muted: var(--ds-text-muted);
+  --app-hover-surface: var(--ds-bg-soft);
+}
+
+body {
+  background: var(--ds-bg-page);
+  font-variant-numeric: tabular-nums;
+}
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+:is(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 4px;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+input,
+textarea,
+select {
+  border-radius: 6px;
+}
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+select {
+  min-height: 40px;
+}
+::placeholder {
+  color: var(--ds-text-subtle);
+  opacity: 1;
+}
+
+.ds-page-shell {
+  background: var(--ds-bg-page) !important;
+}
+.ds-container {
+  width: min(1376px, calc(100% - 64px)) !important;
+}
+.ds-topbar {
+  min-height: 72px !important;
+  padding: 12px 32px !important;
+  gap: 24px !important;
+  background: var(--ds-bg-page) !important;
+  border-color: var(--ds-border-subtle) !important;
+}
+.ds-brand {
+  flex-shrink: 0;
+}
+.ds-brand-name {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+.ds-nav {
+  gap: 4px !important;
+}
+.ds-nav-link {
+  padding: 10px 12px !important;
+  border-radius: 6px !important;
+  font-weight: 500 !important;
+}
+.ds-nav-link:is(.is-active, [data-active='true']) {
+  background: var(--ds-bg-soft) !important;
+}
+.ds-nav-link::after {
+  content: none !important;
+}
+.ds-topbar .ds-color-mode-toggle {
+  min-height: 40px;
+  border-color: var(--ds-border-default);
+  border-radius: 6px;
+  background: var(--ds-bg-elevated);
+  color: var(--ds-text-strong);
+}
+.color-mode-track {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, 24px);
+  align-items: center;
+  justify-items: center;
+  height: 24px;
+  width: 48px;
+  flex: 0 0 48px;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--ds-bg-soft);
+}
+.color-mode-thumb {
+  position: absolute;
+  height: 20px;
+  width: 20px;
+  top: 2px;
+  left: 2px;
+  border-radius: 50%;
+  transform: translateX(0);
+  transition: transform 200ms var(--ds-ease-out);
+}
+.color-mode-track[data-mode='light'] .color-mode-thumb {
+  transform: translateX(24px);
+}
+.color-mode-track > .color-mode-icon {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .color-mode-thumb {
+    transition: none;
+  }
+}
+.ds-topbar .ds-color-mode-toggle > span:last-child {
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.ds-card {
+  background: var(--ds-bg-elevated-strong) !important;
+  border-color: var(--ds-border-subtle) !important;
+}
+.ds-card::before,
+.ds-page-shell::before,
+.ds-page-shell::after {
+  content: none !important;
+}
+.ds-button {
+  min-height: 44px !important;
+  border-radius: 6px !important;
+  padding-inline: 18px !important;
+  font-size: 14px;
+  font-weight: 600 !important;
+}
+.ds-button-primary {
+  background: var(--ds-text-strong) !important;
+  color: var(--ds-bg-page) !important;
+}
+.ds-button-primary:hover {
+  opacity: 0.88;
+}
+.ds-button-secondary {
+  background: var(--ds-bg-soft) !important;
+  color: var(--ds-text-strong) !important;
+}
+.ds-eyebrow {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--ds-text-muted) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+.ds-panel-label,
+.ds-kicker,
+.ds-proof-line {
+  color: var(--ds-text-muted) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+.ds-accent-text {
+  background: none !important;
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+.ds-hero-title,
+.ds-admin-title {
+  font-size: 30px !important;
+  line-height: 1.22 !important;
+  letter-spacing: -0.025em !important;
+  font-weight: 600 !important;
+  margin: 16px 0 !important;
+}
+.ds-section-title,
+.ds-panel-title {
+  font-size: 22px !important;
+  line-height: 1.3 !important;
+  letter-spacing: -0.02em !important;
+  font-weight: 600 !important;
+}
+.ds-hero-copy {
+  font-size: 15px !important;
+  line-height: 1.65 !important;
+  max-width: 68ch !important;
+}
+.ds-small-text {
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+}
+.ds-section-copy {
+  color: var(--ds-text-default) !important;
+  font-size: 15px;
+}
+.ds-section-header {
+  align-items: start !important;
+}
+.ds-section-header > * {
+  min-width: 0;
+  flex: 1;
+}
+.ds-section {
+  padding-block: 32px !important;
+}
+.ds-footer {
+  background: var(--ds-bg-page) !important;
+}
+.ds-footer-inner {
+  padding-block: 24px !important;
+  font-size: 13px !important;
+}
+.ds-icon-box,
+.ds-panel-icon,
+.ds-value-icon,
+.ds-note-icon {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: var(--ds-text-muted) !important;
+  width: 24px !important;
+  height: 24px !important;
+}
+.ds-feature-card,
+.ds-value-card,
+.ds-audience-card {
+  padding: 20px !important;
+}
+.ds-step {
+  border: 0 !important;
+  padding: 16px 0 !important;
+  background: transparent !important;
+  grid-template-columns: 1fr !important;
+}
+.ds-step-number {
+  display: none !important;
+}
+.ds-step + .ds-step {
+  border-top: 1px solid var(--ds-border-subtle) !important;
+}
+.ds-note {
+  border: 0 !important;
+  padding: 16px !important;
+  background: var(--ds-bg-soft) !important;
+  border-radius: 6px !important;
+}
+.ds-audience-panel {
+  background: var(--ds-bg-elevated) !important;
+  border-color: var(--ds-border-subtle) !important;
+  padding: 24px !important;
+}
+
+/* Existing data controls keep their handlers, query parameters and reading order. */
+.ds-roadmap-page-main,
+.ds-admin-page-main {
+  padding-block: 24px 64px !important;
+}
+.ds-roadmap-shell {
+  gap: 16px !important;
+}
+.ds-roadmap-hero-card {
+  padding: 20px 24px !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+.ds-roadmap-hero-card h1 {
+  font-size: 28px !important;
+  line-height: 1.25 !important;
+  color: var(--ds-text-strong) !important;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+}
+.ds-roadmap-hero-card .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 8px;
+}
+.ds-roadmap-hero-card .text-xs {
+  font-size: 13px;
+}
+.ds-roadmap-stat-card {
+  text-align: right !important;
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+}
+.ds-roadmap-toolbar {
+  padding: 16px !important;
+}
+.ds-roadmap-segmented {
+  border: 0 !important;
+  padding: 4px !important;
+  border-radius: 6px !important;
+}
+.ds-roadmap-segment {
+  min-height: 36px !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+}
+.ds-roadmap-segment.is-active {
+  background: var(--ds-bg-muted) !important;
+  color: var(--ds-text-strong) !important;
+  border-color: transparent !important;
+}
+.ds-roadmap-scale-button.is-active {
+  background: var(--ds-bg-muted) !important;
+  color: var(--ds-text-strong) !important;
+  border-color: transparent !important;
+}
+html .ds-roadmap-shell .roadmap-time-header {
+  background: var(--ds-bg-soft) !important;
+  border-color: var(--ds-border-subtle) !important;
+  border-radius: 4px !important;
+}
+html .ds-roadmap-shell .roadmap-filters-shell {
+  background: var(--ds-bg-elevated) !important;
+  border-color: var(--ds-border-subtle) !important;
+}
+html .ds-roadmap-shell .roadmap-filter-input {
+  background: var(--ds-bg-page) !important;
+  border-color: var(--ds-border-default) !important;
+}
+html .ds-roadmap-shell .roadmap-filter-tab {
+  color: var(--ds-text-muted) !important;
+}
+html .ds-roadmap-shell .roadmap-filter-tab.is-active {
+  background: var(--ds-bg-soft) !important;
+  color: var(--ds-text-strong) !important;
+}
+html .ds-roadmap-shell .roadmap-project-label {
+  background: #172026 !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+}
+html .ds-roadmap-shell .compact-project-card > div:first-child > span {
+  background: var(--ds-bg-soft) !important;
+  color: var(--ds-text-strong) !important;
+  border-color: var(--ds-border-subtle) !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+html .ds-roadmap-shell .compact-project-card {
+  min-width: 0;
+  background: var(--ds-bg-elevated) !important;
+}
+.compact-project-card {
+  position: relative;
+  min-width: 0;
+}
+.compact-project-heading > div,
+.compact-project-heading h3 {
+  width: 100%;
+  min-width: 0;
+}
+.compact-project-open {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+.compact-project-open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.compact-project-card:focus-within {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 3px;
+}
+.ds-roadmap-category-collapse {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Put tasks before explanatory material on Help and Feedback. */
+.ds-help-home > .ds-help-hero {
+  display: block;
+  min-height: 0;
+  padding-block: 28px 20px !important;
+}
+.ds-help-home .ds-help-hero .ds-hero-title,
+.ds-feedback-hero .ds-hero-title {
+  margin-block: 12px;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+.ds-help-home .ds-hero-copy,
+.ds-feedback-hero .ds-hero-copy {
+  font-size: 15px;
+  line-height: 1.6;
+}
+.ds-help-home > .ds-help-hero + .ds-section {
+  padding-block: 12px 32px !important;
+}
+.ds-help-home > .ds-help-hero + .ds-section .ds-section-header {
+  display: block;
+  margin-bottom: 16px;
+}
+.ds-help-home > .ds-help-hero + .ds-section .ds-section-copy {
+  display: none;
+}
+.ds-help-home > .ds-help-hero + .ds-section .ds-section-title {
+  font-size: 20px !important;
+}
+.ds-help-home .ds-help-grid .ds-help-card {
+  padding: 18px;
+}
+.ds-help-home .ds-help-card-header {
+  margin-bottom: 12px;
+}
+.ds-help-orientation {
+  margin-bottom: 32px;
+  border-block: 1px solid var(--ds-border-default);
+}
+.ds-help-orientation > summary {
+  padding-block: 16px;
+  cursor: pointer;
+  color: var(--ds-text-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+.ds-help-orientation-content {
+  display: grid;
+  gap: 24px;
+  padding-bottom: 24px;
+}
+.ds-help-orientation .ds-feature-grid {
+  margin-top: 0;
+}
+.ds-help-orientation .ds-logic-panel .ds-step {
+  display: block;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.ds-feedback-hero {
+  padding-block: 0 24px;
+  gap: 24px;
+}
+.ds-feedback-summary {
+  padding: 20px;
+  gap: 8px;
+}
+.ds-feedback-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+}
+.ds-feedback-count {
+  font-size: 28px;
+  line-height: 1.2;
+}
+.ds-feedback-auth-panel {
+  margin-inline: 0;
+}
+.ds-feedback-load-error {
+  padding: 20px;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--ds-radius-md);
+  color: var(--ds-text-default);
+}
+@media (max-width: 1100px) {
+  .ds-feedback-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 760px) {
+  .ds-feedback-hero .ds-feedback-summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding: 16px;
+  }
+  .ds-feedback-summary .ds-panel-label {
+    margin: 0;
+  }
+  .ds-feedback-summary .ds-empty-copy {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+  .ds-help-home .ds-help-hero .ds-actions {
+    margin-top: 16px;
+  }
+  .ds-help-home .ds-help-hero .ds-actions .ds-button {
+    width: auto;
+    flex: 1 1 auto;
+  }
+  .ds-help-home .ds-help-hero .ds-hero-title,
+  .ds-feedback-hero .ds-hero-title {
+    font-size: 24px;
+  }
+}
+.ds-roadmap-category-icon {
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+.ds-roadmap-category-item {
+  border-left-width: 2px !important;
+  border-radius: 6px !important;
+}
+.ds-roadmap-category-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.ds-help-card-icon,
+.ds-help-list-icon {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: var(--ds-text-muted) !important;
+}
+.ds-help-card {
+  min-height: 0 !important;
+}
+.ds-help-card .ds-help-link {
+  margin-top: 20px !important;
+  padding-top: 0 !important;
+}
+.ds-help-link {
+  color: var(--ds-text-strong) !important;
+  text-decoration: underline;
+  text-decoration-color: var(--ds-accent);
+  text-underline-offset: 3px;
+}
+.roadmap-filters-shell > button {
+  flex-wrap: wrap;
+}
+.roadmap-filters-shell > button > div:first-child {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+.roadmap-filters-shell > button > .grid {
+  flex: 0 0 140px;
+  min-width: 0;
+}
+.compact-project-card [class*='text-amber-100'] {
+  background: var(--ds-bg-soft);
+  color: var(--ds-text-default);
+  border-color: var(--ds-border-default);
+}
+.ds-hero {
+  min-height: 0 !important;
+  padding-block: 36px !important;
+  align-items: start !important;
+}
+.ds-roadmap-hero-card h2 {
+  font-size: 24px !important;
+  line-height: 1.25 !important;
+}
+.ds-admin-hero {
+  padding: 24px !important;
+}
+.ds-admin-dashboard {
+  gap: 20px !important;
+}
+.ds-admin-user {
+  font-size: 13px !important;
+}
+.ds-admin-stat-card {
+  background: transparent !important;
+}
+.ds-admin-dashboard table {
+  font-size: 14px;
+}
+.ds-admin-dashboard th {
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  font-weight: 500;
+}
+.ds-admin-dashboard :is(td, th) {
+  padding-block: 14px;
+}
+.ds-admin-dashboard :is(td, th):has(input[type='number']) {
+  text-align: right;
+}
+.docs-layout-shell {
+  background: var(--ds-bg-page);
+}
+.docs-layout-header {
+  background: var(--ds-bg-elevated) !important;
+}
+.docs-layout-shell h1 {
+  font-size: 24px;
+}
+.docs-layout-shell h2 {
+  font-size: 22px;
+}
+.docs-layout-shell h3 {
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+.docs-layout-sidebar {
+  flex-shrink: 0;
+}
+.docs-navigation > summary {
+  display: none;
+}
+.docs-layout-shell .flex-1 {
+  min-width: 0;
+}
+.ds-login-page-main {
+  align-items: start !important;
+  padding-block: 40px !important;
+}
+.ds-login-layout {
+  align-items: start !important;
+  gap: 32px !important;
+}
+.ds-login-title {
+  font-size: 30px !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.025em !important;
+  font-weight: 600 !important;
+}
+.ds-login-copy {
+  font-size: 15px !important;
+  line-height: 1.65 !important;
+}
+.ds-login-checkicon,
+.ds-login-icon {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--ds-text-muted) !important;
+}
+.ds-login-checkitem {
+  background: transparent !important;
+  border-color: var(--ds-border-subtle) !important;
+}
+.ds-logic-panel {
+  max-width: none !important;
+}
+.ds-hero-content {
+  max-width: none !important;
+}
+.ds-roadmap-filter-slot .roadmap-filters-shell {
+  min-width: 0;
+}
+.ds-roadmap-mockup {
+  min-width: 0 !important;
+  width: 100%;
+}
+.ds-roadmap-category-icon :is(svg, span) {
+  color: var(--ds-text-muted) !important;
+}
+.ds-page-shell
+  :is(
+    .bg-gray-800,
+    .bg-gray-900,
+    [class~='bg-slate-950/70'],
+    [class~='bg-slate-900/70'],
+    [class~='bg-gray-800/70'],
+    [class~='bg-slate-800/80']
+  ) {
+  background-color: var(--ds-bg-elevated) !important;
+}
+html[data-color-mode='light']
+  :is(.ds-page-shell, .docs-layout-shell)
+  :is(.text-white, .text-slate-100, .text-slate-200, .text-gray-100, .text-gray-200) {
+  color: var(--ds-text-strong) !important;
+}
+html[data-color-mode='light']
+  :is(.ds-page-shell, .docs-layout-shell)
+  :is(.text-slate-300, .text-gray-300) {
+  color: var(--ds-text-default) !important;
+}
+html[data-color-mode='light']
+  :is(.ds-page-shell, .docs-layout-shell)
+  :is(.text-slate-400, .text-slate-500, .text-gray-400, .text-gray-500) {
+  color: var(--ds-text-muted) !important;
+}
+html[data-color-mode='light'] .ds-page-shell .ds-button-primary {
+  color: var(--ds-bg-page) !important;
+}
+html[data-color-mode='light'] .ds-page-shell .roadmap-project-label {
+  background: #172026 !important;
+  color: #ffffff !important;
+}
+html[data-color-mode='light']
+  .ds-page-shell
+  :is(.bg-blue-600, .bg-red-600, .bg-green-600).text-white {
+  color: #ffffff !important;
+}
+.orbit-launcher {
+  position: fixed;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px !important;
+  padding-inline: 14px !important;
+  border-radius: 6px !important;
+  border: 1px solid var(--ds-border-default);
+  background: var(--ds-bg-elevated-strong) !important;
+  color: var(--ds-text-strong) !important;
+  font-family: var(--ds-font-sans);
+  font-size: 14px;
+  font-weight: 600;
+}
+.orbit-launcher > svg {
+  color: var(--ds-accent);
+  width: 18px !important;
+  height: 18px !important;
+}
+.ds-page-shell {
+  padding-bottom: 72px;
+}
+
+/* Entry desk: the existing three access steps become a compact reading column. */
+.workspace-entry {
+  font-family: var(--ds-font-sans);
+}
+.workspace-entry .ds-container {
+  width: min(1280px, calc(100% - 64px)) !important;
+}
+.workspace-entry .ds-hero {
+  min-height: 0 !important;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.9fr) !important;
+  align-items: start !important;
+  gap: 32px !important;
+  padding-block: 48px 32px !important;
+}
+.workspace-entry .ds-hero-title {
+  max-width: 28ch !important;
+  font-size: 32px !important;
+}
+.workspace-entry .ds-actions {
+  margin-top: 24px !important;
+  gap: 12px !important;
+}
+.workspace-entry .ds-feature-grid {
+  margin-top: 32px !important;
+  gap: 0 !important;
+}
+.workspace-entry .ds-feature-card {
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 20px 0 0 !important;
+}
+.workspace-entry .ds-feature-card + .ds-feature-card {
+  border-left: 1px solid var(--ds-border-default) !important;
+  padding-left: 20px !important;
+}
+.workspace-entry .ds-icon-box {
+  display: none !important;
+}
+.workspace-entry .ds-logic-panel {
+  padding: 24px !important;
+  border: 0 !important;
+}
+.workspace-entry .ds-panel-header {
+  margin-bottom: 4px !important;
+}
+.workspace-entry .ds-panel-header .ds-panel-icon {
+  display: none !important;
+}
+.workspace-entry .ds-logic-panel .ds-panel-title {
+  font-size: 20px !important;
+}
+.workspace-entry .ds-steps {
+  gap: 0 !important;
+}
+.workspace-entry .ds-note {
+  grid-template-columns: 1fr !important;
+  margin-top: 8px !important;
+}
+.workspace-entry .ds-note-icon {
+  display: none !important;
+}
+.workspace-entry .ds-value-grid {
+  grid-template-columns: 1fr !important;
+  gap: 0 !important;
+  margin-top: 24px !important;
+}
+.workspace-entry .ds-value-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.5fr) minmax(160px, 0.6fr);
+  align-items: start;
+  gap: 24px;
+  background: transparent !important;
+  padding: 20px 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+.workspace-entry .ds-value-card + .ds-value-card {
+  border-top: 1px solid var(--ds-border-subtle) !important;
+}
+.workspace-entry .ds-value-icon {
+  display: none !important;
+}
+.workspace-entry .ds-value-copy {
+  margin: 0 !important;
+}
+.workspace-entry .ds-proof-line {
+  margin: 0 !important;
+}
+.workspace-entry .ds-audience-panel {
+  grid-template-columns: 1fr 1.2fr !important;
+  gap: 32px !important;
+}
+.workspace-entry .ds-audience-card {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+}
+.workspace-entry .ds-audience-grid {
+  gap: 24px !important;
+}
+
+@media (max-width: 1100px) {
+  .ds-roadmap-layout > .ds-roadmap-sidebar {
+    flex: 0 0 auto !important;
+  }
+  .ds-login-layout {
+    grid-template-columns: 1fr !important;
+  }
+  .ds-login-hero {
+    max-width: none !important;
+  }
+  .ds-login-title {
+    font-size: 28px !important;
+  }
+  .ds-login-checklist {
+    grid-template-columns: 1fr 1fr;
+    max-width: none !important;
+    margin-top: 24px !important;
+  }
+  .ds-roadmap-filter-slot .roadmap-filters-shell > button {
+    flex-direction: column;
+  }
+  .ds-roadmap-filter-slot .roadmap-filters-shell > button > div:first-child {
+    flex: auto;
+  }
+  .ds-roadmap-filter-slot .roadmap-filters-shell > button > .grid {
+    flex: auto;
+    width: 100%;
+  }
+  .ds-topbar {
+    gap: 12px !important;
+    padding-inline: 24px !important;
+    flex-wrap: wrap;
+  }
+  .ds-nav {
+    order: 3;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+  }
+  .ds-topbar-actions {
+    margin-left: auto;
+  }
+  .workspace-entry .ds-hero {
+    grid-template-columns: 1fr !important;
+  }
+  .workspace-entry .ds-hero-content {
+    max-width: none !important;
+  }
+  .workspace-entry .ds-hero-title {
+    max-width: 35ch !important;
+  }
+  .workspace-entry .ds-logic-panel {
+    max-width: none !important;
+  }
+  .workspace-entry .ds-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px !important;
+  }
+  .workspace-entry .ds-step + .ds-step {
+    border-top: 0 !important;
+  }
+  .workspace-entry .ds-audience-panel {
+    grid-template-columns: 1fr !important;
+  }
+  .ds-admin-hero {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .ds-login-title {
+    font-size: 24px !important;
+  }
+  .ds-login-checklist {
+    grid-template-columns: 1fr;
+  }
+  .ds-login-page-main {
+    padding-block: 24px !important;
+  }
+  .ds-container,
+  .workspace-entry .ds-container {
+    width: calc(100% - 32px) !important;
+  }
+  .ds-topbar {
+    padding: 12px 16px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 12px !important;
+    position: relative !important;
+  }
+  .ds-brand {
+    gap: 8px !important;
+  }
+  .ds-brand-name {
+    font-size: 14px !important;
+  }
+  .ds-nav {
+    width: 100% !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+  .ds-nav-link {
+    padding: 10px !important;
+    min-height: 44px;
+    font-size: 13px !important;
+  }
+  .ds-topbar-actions {
+    gap: 4px !important;
+  }
+  .orbit-launcher {
+    width: 44px !important;
+    min-height: 44px !important;
+    right: 8px !important;
+    bottom: 8px !important;
+    padding: 0 !important;
+    justify-content: center;
+  }
+  .orbit-launcher-label {
+    display: none;
+  }
+  .ds-topbar .ds-color-mode-toggle {
+    padding: 6px !important;
+  }
+  .ds-topbar .ds-color-mode-toggle > span:last-child {
+    display: none;
+  }
+  .ds-hero-title,
+  .ds-admin-title,
+  .workspace-entry .ds-hero-title {
+    font-size: 24px !important;
+  }
+  .ds-section-title,
+  .ds-panel-title {
+    font-size: 20px !important;
+  }
+  .ds-section-header {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .ds-section {
+    padding-block: 24px !important;
+  }
+  .workspace-entry .ds-hero {
+    padding-block: 24px !important;
+    gap: 24px !important;
+  }
+  .workspace-entry .ds-feature-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .workspace-entry .ds-feature-card + .ds-feature-card {
+    border-left: 0 !important;
+    padding-left: 0 !important;
+  }
+  .workspace-entry .ds-steps {
+    grid-template-columns: 1fr;
+    gap: 0 !important;
+  }
+  .workspace-entry .ds-step + .ds-step {
+    border-top: 1px solid var(--ds-border-subtle) !important;
+  }
+  .workspace-entry .ds-logic-panel {
+    padding: 20px !important;
+  }
+  .workspace-entry .ds-value-card {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .workspace-entry .ds-audience-panel {
+    padding: 20px !important;
+  }
+  .ds-roadmap-hero-card {
+    padding: 8px 0 !important;
+  }
+  .ds-roadmap-hero-card h1 {
+    font-size: 24px !important;
+  }
+  .ds-roadmap-toolbar {
+    padding: 12px !important;
+  }
+  .roadmap-filters-shell > button {
+    flex-direction: column;
+  }
+  .roadmap-filters-shell > button > .grid {
+    min-width: 0;
+    width: 100%;
+  }
+  .ds-roadmap-hero-card .grid {
+    width: auto !important;
+  }
+  .ds-roadmap-stat-card {
+    text-align: left !important;
+  }
+  .docs-layout-header > div {
+    flex-direction: column;
+    align-items: start;
+    gap: 16px;
+  }
+  .docs-layout-shell > div.flex {
+    flex-direction: column;
+  }
+  .docs-layout-sidebar {
+    width: 100%;
+    border-right: 0;
+    padding-right: 0;
+    padding-bottom: 24px;
+  }
+  .docs-navigation > summary {
+    display: list-item;
+    cursor: pointer;
+    padding: 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .docs-navigation > nav {
+    padding-block: 16px;
+  }
+  .docs-layout-shell .flex-1 {
+    padding-left: 0;
+  }
+  .docs-layout-shell table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+html[data-color-mode='light'] .ds-roadmap-shell .ds-roadmap-hero-card [class*='text-sky-300'] {
+  color: var(--ds-text-muted) !important;
+}

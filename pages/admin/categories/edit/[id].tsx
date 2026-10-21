@@ -98,11 +98,11 @@ const EditCategoryPage: FC = () => {
       ]}
     >
       {loading ? (
-        <section className="flex items-center justify-center rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-16 shadow-lg shadow-slate-950/30">
+        <section className="flex items-center justify-center rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-16 ">
           <JSDoITLoader message="Kategorie wird geladen …" />
         </section>
       ) : error || !category ? (
-        <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-12 text-center shadow-lg shadow-slate-950/30">
+        <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-12 text-center ">
           <p className="text-sm text-slate-300">
             {error ?? 'Die gewünschte Kategorie wurde nicht gefunden.'}
           </p>
@@ -115,7 +115,7 @@ const EditCategoryPage: FC = () => {
           </button>
         </section>
       ) : (
-        <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 shadow-lg shadow-slate-950/40 sm:px-9">
+        <section className="rounded-3xl border border-slate-800/70 bg-slate-950/70 px-6 py-8 sm:px-9">
           <CategoryForm category={category} onSave={handleSave} onCancel={handleCancel} />
         </section>
       )}

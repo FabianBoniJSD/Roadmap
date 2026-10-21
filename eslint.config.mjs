@@ -18,6 +18,8 @@ const eslintConfig = [
       'node_modules/**',
       'coverage/**',
       'public/**',
+      '.taste-skill/**',
+      '.agents/skills/**',
     ],
   },
   ...compat.extends('next/core-web-vitals', 'next/typescript', 'prettier'),

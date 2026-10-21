@@ -66,27 +66,27 @@ const sanitizeProjectFields = (raw?: string | string[] | null): string[] => {
 };
 
 const PageShell: FC<{ children: ReactNode }> = ({ children }) => (
-  <div className="ds-page-shell before:[position:absolute] before:[inset:0] before:[z-index:0] before:[pointer-events:none] before:[background-image:linear-gradient(var(--ds-grid-line)_1px,_transparent_1px),_linear-gradient(90deg,_var(--ds-grid-line)_1px,_transparent_1px)] before:[background-size:56px_56px] before:[mask-image:linear-gradient(to_bottom,_black,_rgba(0,_0,_0,_0.72),_transparent_98%)] after:[position:absolute] after:[right:-10%] after:[bottom:-25%] after:[left:-10%] after:[z-index:0] after:[height:38vh] after:[pointer-events:none] after:[background:radial-gradient(ellipse_at_center,_var(--ds-hero-glow-a),_transparent_62%)] after:[filter:blur(12px)] [position:relative] [isolation:isolate] [display:flex] [min-height:100vh] [flex-direction:column] [overflow:hidden] [background:radial-gradient(circle_at_7%_18%,_var(--ds-hero-glow-a),_transparent_31%),_radial-gradient(circle_at_70%_8%,_var(--ds-hero-glow-b),_transparent_28%),_radial-gradient(circle_at_48%_86%,_var(--ds-hero-glow-c),_transparent_26%),_linear-gradient(135deg,_var(--ds-bg-page),_var(--ds-bg-page-2))] [color:var(--ds-text-default)] [font-family:var(--ds-font-sans)] [&>*]:[position:relative] [&>*]:[z-index:1]">
+  <div className="ds-page-shell before:[position:absolute] before:[inset:0] before:[z-index:0] before:[pointer-events:none] before:[background-size:56px_56px] after:[position:absolute] after:[right:-10%] after:[bottom:-25%] after:[left:-10%] after:[z-index:0] after:[height:38vh] after:[pointer-events:none] [position:relative] [isolation:isolate] [display:flex] [min-height:100vh] [flex-direction:column] [overflow:hidden] [background:var(--ds-bg-page)] [color:var(--ds-text-default)] [font-family:var(--ds-font-sans)] [&>*]:[position:relative] [&>*]:[z-index:1]">
     <SiteHeader activeRoute="roadmap" />
     {children}
-    <footer className="ds-footer [border-top:1px_solid_var(--ds-border-subtle)] [background:color-mix(in_srgb,_var(--ds-bg-page)_82%,_transparent)] [backdrop-filter:blur(18px)]">
+    <footer className="ds-footer [border-top:1px_solid_var(--ds-border-subtle)] [background:color-mix(in_srgb,_var(--ds-bg-page)_82%,_transparent)] ">
       <div className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] ds-footer-inner [display:flex] [align-items:center] [justify-content:space-between] [gap:var(--ds-space-4)] [padding-block:24px] [color:var(--ds-text-muted)] [font-size:0.875rem] max-[760px]:[align-items:flex-start] max-[760px]:[flex-direction:column]">
         <span>JSDoIT Roadmap Center</span>
         <div className="ds-footer-links [display:flex] [flex-wrap:wrap] [align-items:center] [gap:var(--ds-space-4)]">
           <Link
-            className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+            className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
             href="/instances"
           >
             Instanzen
           </Link>
           <Link
-            className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+            className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
             href="/help"
           >
             Hilfe
           </Link>
           <Link
-            className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+            className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
             href="/roadmap"
           >
             Roadmap
@@ -243,7 +243,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
       <PageShell>
         <main className="ds-page-main [flex:1] ds-project-page-main [padding-block:clamp(26px,_4vw,_54px)_88px]">
           <div className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] ds-centered-state [display:flex] [justify-content:center] [padding-block:var(--ds-space-8)]">
-            <div className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-project-state-card [display:grid] [max-width:680px] [justify-items:center] [padding:clamp(26px,_4vw,_40px)] [text-align:center] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_46%,_var(--ds-border-default))] [&.is-warning]:[background:linear-gradient(_180deg,_color-mix(in_srgb,_var(--ds-warning)_12%,_var(--ds-bg-elevated-strong)),_var(--ds-bg-elevated)_)] [&_h1]:[margin:0] [&_h1]:[color:var(--ds-text-strong)] [&_h1]:[font-weight:850] [&_h1]:[letter-spacing:-0.02em] [&_h1]:[margin-top:var(--ds-space-4)] [&_h1]:[font-size:clamp(1.25rem,_3vw,_1.75rem)] [&_p]:[margin:12px_0_0] [&_p]:[color:var(--ds-text-default)] [&_p]:[line-height:1.65] is-warning">
+            <div className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-project-state-card [display:grid] [max-width:680px] [justify-items:center] [padding:clamp(26px,_4vw,_40px)] [text-align:center] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_46%,_var(--ds-border-default))] [&.is-warning]:[background:var(--ds-bg-elevated-strong)] [&_h1]:[margin:0] [&_h1]:[color:var(--ds-text-strong)] [&_h1]:[font-weight:600] [&_h1]:[letter-spacing:-0.02em] [&_h1]:[margin-top:var(--ds-space-4)] [&_h1]:[font-size:clamp(1.25rem,_3vw,_1.75rem)] [&_p]:[margin:12px_0_0] [&_p]:[color:var(--ds-text-default)] [&_p]:[line-height:1.65] is-warning">
               <FiInfo
                 className="ds-project-state-icon [width:42px] [height:42px] [color:var(--ds-accent-strong)]"
                 aria-hidden="true"
@@ -255,7 +255,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
               </p>
               <Link
                 href="/roadmap"
-                className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:800] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] hover:[transform:translateY(-2px)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-primary [background:linear-gradient(_135deg,_var(--ds-accent),_var(--ds-accent-2)_58%,_var(--ds-accent-strong)_)] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-text-inverse)] ds-project-state-action [margin-top:var(--ds-space-6)]"
+                className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:600] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-primary [background:var(--ds-accent)] [color:var(--ds-text-inverse)] ds-project-state-action [margin-top:var(--ds-space-6)]"
               >
                 Zur Roadmap
               </Link>
@@ -283,7 +283,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
       <PageShell>
         <main className="ds-page-main [flex:1] ds-project-page-main [padding-block:clamp(26px,_4vw,_54px)_88px]">
           <div className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] ds-centered-state [display:flex] [justify-content:center] [padding-block:var(--ds-space-8)]">
-            <div className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-project-state-card [display:grid] [max-width:680px] [justify-items:center] [padding:clamp(26px,_4vw,_40px)] [text-align:center] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_46%,_var(--ds-border-default))] [&.is-warning]:[background:linear-gradient(_180deg,_color-mix(in_srgb,_var(--ds-warning)_12%,_var(--ds-bg-elevated-strong)),_var(--ds-bg-elevated)_)] [&_h1]:[margin:0] [&_h1]:[color:var(--ds-text-strong)] [&_h1]:[font-weight:850] [&_h1]:[letter-spacing:-0.02em] [&_h1]:[margin-top:var(--ds-space-4)] [&_h1]:[font-size:clamp(1.25rem,_3vw,_1.75rem)] [&_p]:[margin:12px_0_0] [&_p]:[color:var(--ds-text-default)] [&_p]:[line-height:1.65]">
+            <div className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-project-state-card [display:grid] [max-width:680px] [justify-items:center] [padding:clamp(26px,_4vw,_40px)] [text-align:center] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_46%,_var(--ds-border-default))] [&.is-warning]:[background:var(--ds-bg-elevated-strong)] [&_h1]:[margin:0] [&_h1]:[color:var(--ds-text-strong)] [&_h1]:[font-weight:600] [&_h1]:[letter-spacing:-0.02em] [&_h1]:[margin-top:var(--ds-space-4)] [&_h1]:[font-size:clamp(1.25rem,_3vw,_1.75rem)] [&_p]:[margin:12px_0_0] [&_p]:[color:var(--ds-text-default)] [&_p]:[line-height:1.65]">
               <FiInfo
                 className="ds-project-state-icon [width:42px] [height:42px] [color:var(--ds-accent-strong)]"
                 aria-hidden="true"
@@ -295,7 +295,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
               </p>
               <Link
                 href="/roadmap"
-                className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:800] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] hover:[transform:translateY(-2px)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-primary [background:linear-gradient(_135deg,_var(--ds-accent),_var(--ds-accent-2)_58%,_var(--ds-accent-strong)_)] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-text-inverse)] ds-project-state-action [margin-top:var(--ds-space-6)]"
+                className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:600] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-primary [background:var(--ds-accent)] [color:var(--ds-text-inverse)] ds-project-state-action [margin-top:var(--ds-space-6)]"
               >
                 Zur Roadmap
               </Link>
@@ -315,12 +315,12 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
     <PageShell>
       <main className="ds-page-main [flex:1] ds-project-page-main [padding-block:clamp(26px,_4vw,_54px)_88px]">
         <div className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] ds-project-detail-shell [display:grid] [gap:var(--ds-space-8)]">
-          <section className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-project-hero-card [border-radius:var(--ds-radius-xl)] [padding:clamp(24px,_4vw,_36px)]">
+          <section className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-project-hero-card [border-radius:var(--ds-radius-xl)] [padding:clamp(24px,_4vw,_36px)]">
             <div className="ds-project-hero-layout [display:flex] [align-items:flex-start] [justify-content:space-between] [gap:var(--ds-space-6)]">
               <div className="ds-project-hero-content [display:grid] [gap:var(--ds-space-4)]">
                 <Link
                   href="/roadmap"
-                  className="ds-project-back-link [display:inline-flex] [width:fit-content] [align-items:center] [gap:10px] [color:var(--ds-text-default)] [font-size:0.875rem] [font-weight:800] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                  className="ds-project-back-link [display:inline-flex] [width:fit-content] [align-items:center] [gap:10px] [color:var(--ds-text-default)] [font-size:0.875rem] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                 >
                   <span className="ds-project-back-icon [display:grid] [width:34px] [height:34px] [place-items:center] [border:1px_solid_var(--ds-border-default)] [border-radius:50%] [background:var(--ds-bg-soft)]">
                     <FiArrowLeft className="ds-icon-sm [flex:0_0_auto] [width:1rem] [height:1rem]" />
@@ -329,26 +329,26 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
                 </Link>
 
                 <div>
-                  <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:900] [letter-spacing:0.23em] [text-transform:uppercase]">
+                  <p className="ds-panel-label [margin:0_0_12px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
                     Projektübersicht
                   </p>
-                  <h1 className="ds-project-title [max-width:840px] [margin:10px_0_0] [color:var(--ds-text-strong)] [font-size:clamp(2rem,_5vw,_4.5rem)] [font-weight:900] [line-height:0.98] [letter-spacing:-0.04em]">
+                  <h1 className="ds-project-title [max-width:840px] [margin:10px_0_0] [color:var(--ds-text-strong)] [font-size:clamp(2rem,_5vw,_4.5rem)] [font-weight:600] [line-height:0.98] [letter-spacing:-0.04em]">
                     {project.title || 'Unbenanntes Projekt'}
                   </h1>
                   <div className="ds-project-meta-row [display:flex] [flex-wrap:wrap] [align-items:center] [gap:var(--ds-space-3)] [margin-top:var(--ds-space-5)]">
                     <span className={statusStyles[project.status] || statusStyles.planned}>
                       {statusLabels[project.status] || 'Unbekannt'}
                     </span>
-                    <span className="ds-project-pill [display:inline-flex] [align-items:center] [width:fit-content] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.6875rem] [font-weight:850] [letter-spacing:0.2em] [text-transform:uppercase] [min-height:32px] [padding-inline:14px] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_52%,_var(--ds-border-default))] [&.is-warning]:[background:color-mix(in_srgb,_var(--ds-warning)_12%,_transparent)] [&.is-warning]:[color:var(--ds-warning)]">
+                    <span className="ds-project-pill [display:inline-flex] [align-items:center] [width:fit-content] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.6875rem] [font-weight:600] [letter-spacing:normal] [text-transform:none] [min-height:32px] [padding-inline:14px] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_52%,_var(--ds-border-default))] [&.is-warning]:[background:color-mix(in_srgb,_var(--ds-warning)_12%,_transparent)] [&.is-warning]:[color:var(--ds-warning)]">
                       Zeitraum: {formatDate(project.startDate)} – {formatDate(project.endDate)}
                     </span>
                     {project.projektphase && (
-                      <span className="ds-project-pill [display:inline-flex] [align-items:center] [width:fit-content] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.6875rem] [font-weight:850] [letter-spacing:0.2em] [text-transform:uppercase] [min-height:32px] [padding-inline:14px] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_52%,_var(--ds-border-default))] [&.is-warning]:[background:color-mix(in_srgb,_var(--ds-warning)_12%,_transparent)] [&.is-warning]:[color:var(--ds-warning)]">
+                      <span className="ds-project-pill [display:inline-flex] [align-items:center] [width:fit-content] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.6875rem] [font-weight:600] [letter-spacing:normal] [text-transform:none] [min-height:32px] [padding-inline:14px] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_52%,_var(--ds-border-default))] [&.is-warning]:[background:color-mix(in_srgb,_var(--ds-warning)_12%,_transparent)] [&.is-warning]:[color:var(--ds-warning)]">
                         Phase: {project.projektphase}
                       </span>
                     )}
                     {project.isReadOnlyMirror && (
-                      <span className="ds-project-pill [display:inline-flex] [align-items:center] [width:fit-content] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.6875rem] [font-weight:850] [letter-spacing:0.2em] [text-transform:uppercase] [min-height:32px] [padding-inline:14px] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_52%,_var(--ds-border-default))] [&.is-warning]:[background:color-mix(in_srgb,_var(--ds-warning)_12%,_transparent)] [&.is-warning]:[color:var(--ds-warning)] is-warning">
+                      <span className="ds-project-pill [display:inline-flex] [align-items:center] [width:fit-content] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.6875rem] [font-weight:600] [letter-spacing:normal] [text-transform:none] [min-height:32px] [padding-inline:14px] [&.is-warning]:[border-color:color-mix(in_srgb,_var(--ds-warning)_52%,_var(--ds-border-default))] [&.is-warning]:[background:color-mix(in_srgb,_var(--ds-warning)_12%,_transparent)] [&.is-warning]:[color:var(--ds-warning)] is-warning">
                         Gespiegelt aus{' '}
                         {project.mirrorSourceInstanceName || project.mirrorSourceInstanceSlug}
                       </span>
@@ -361,7 +361,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
                 {isAdmin && !project.isReadOnlyMirror && (
                   <Link
                     href={`/admin/projects/edit/${project.id}`}
-                    className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:800] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] hover:[transform:translateY(-2px)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-secondary [border-color:var(--ds-border-default)] [background:var(--ds-bg-elevated)] [box-shadow:var(--ds-shadow-card)] [color:var(--ds-text-strong)]"
+                    className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:600] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-secondary [border-color:var(--ds-border-default)] [background:var(--ds-bg-elevated)] [color:var(--ds-text-strong)]"
                   >
                     Projekt bearbeiten
                   </Link>
@@ -369,7 +369,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
                 {!project.isReadOnlyMirror && (
                   <a
                     href="#anhange"
-                    className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:800] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] hover:[transform:translateY(-2px)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-secondary [border-color:var(--ds-border-default)] [background:var(--ds-bg-elevated)] [box-shadow:var(--ds-shadow-card)] [color:var(--ds-text-strong)]"
+                    className="ds-button [display:inline-flex] [min-height:54px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:16px] [font-weight:600] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_background_var(--ds-duration-base)_var(--ds-ease-out)] active:[transform:translateY(0)] disabled:[cursor:not-allowed] disabled:[opacity:0.6] disabled:[transform:none] ds-button-secondary [border-color:var(--ds-border-default)] [background:var(--ds-bg-elevated)] [color:var(--ds-text-strong)]"
                   >
                     Anhänge ansehen
                   </a>
@@ -412,14 +412,14 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
                         key={link.id}
                         className="ds-project-list-item [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-soft)] [padding:14px_16px] [&.is-empty]:[color:var(--ds-text-muted)]"
                       >
-                        <div className="ds-project-list-title [margin:0] [color:var(--ds-text-strong)] [font-weight:850]">
+                        <div className="ds-project-list-title [margin:0] [color:var(--ds-text-strong)] [font-weight:600]">
                           {link.title || link.url}
                         </div>
                         <a
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="ds-project-inline-link [display:inline-flex] [align-items:center] [gap:8px] [margin-top:8px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:850] [letter-spacing:0.18em] [text-transform:uppercase] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                          className="ds-project-inline-link [display:inline-flex] [align-items:center] [gap:8px] [margin-top:8px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                         >
                           Öffnen
                           <FiExternalLink
@@ -441,7 +441,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
                     {projectFields.map((field, index) => (
                       <li
                         key={`${field}-${index}`}
-                        className="ds-project-chip [display:inline-flex] [align-items:center] [width:fit-content] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.6875rem] [font-weight:850] [letter-spacing:0.2em] [text-transform:uppercase] [padding:9px_13px] [color:var(--ds-text-strong)] [letter-spacing:0.12em]"
+                        className="ds-project-chip [display:inline-flex] [align-items:center] [width:fit-content] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.6875rem] [font-weight:600] [letter-spacing:normal] [text-transform:none] [padding:9px_13px] [color:var(--ds-text-strong)] [letter-spacing:normal]"
                       >
                         {field}
                       </li>
@@ -506,7 +506,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
               )}
 
               <InfoCard title="Budget">
-                <p className="ds-project-budget [color:var(--ds-text-strong)] [margin:0] [font-size:clamp(1.35rem,_3vw,_2rem)] [font-weight:900] [letter-spacing:-0.03em]">
+                <p className="ds-project-budget [color:var(--ds-text-strong)] [margin:0] [font-size:clamp(1.35rem,_3vw,_2rem)] [font-weight:600] [letter-spacing:-0.03em]">
                   {project.budget ? `${project.budget} CHF` : 'Keine Budgetangabe'}
                 </p>
               </InfoCard>
@@ -542,7 +542,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
                           href={buildAttachmentDownloadUrl(String(id), attachment.DocumentId)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="ds-project-inline-link [display:inline-flex] [align-items:center] [gap:8px] [margin-top:8px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:850] [letter-spacing:0.18em] [text-transform:uppercase] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                          className="ds-project-inline-link [display:inline-flex] [align-items:center] [gap:8px] [margin-top:8px] [color:var(--ds-accent-strong)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                         >
                           Öffnen
                         </a>
@@ -553,7 +553,7 @@ const ProjectDetailPage: FC<{ accessDenied?: boolean }> = ({ accessDenied }) => 
             </div>
           </section>
 
-          <section className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-project-phase-card [&_h2]:[margin:0] [&_h2]:[color:var(--ds-text-strong)] [&_h2]:[font-weight:850] [&_h2]:[letter-spacing:-0.02em] [border-radius:var(--ds-radius-xl)] [padding:clamp(24px,_4vw,_36px)] [display:grid] [gap:var(--ds-space-5)] [&_h2]:[font-size:clamp(1.25rem,_3vw,_1.75rem)]">
+          <section className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-project-phase-card [&_h2]:[margin:0] [&_h2]:[color:var(--ds-text-strong)] [&_h2]:[font-weight:600] [&_h2]:[letter-spacing:-0.02em] [border-radius:var(--ds-radius-xl)] [padding:clamp(24px,_4vw,_36px)] [display:grid] [gap:var(--ds-space-5)] [&_h2]:[font-size:clamp(1.25rem,_3vw,_1.75rem)]">
             <h2>Projektphase</h2>
             <div>{timeline}</div>
           </section>
@@ -629,9 +629,9 @@ type InfoCardProps = {
 const InfoCard: FC<InfoCardProps> = ({ title, children, id }) => (
   <section
     id={id}
-    className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:linear-gradient(180deg,_var(--ds-bg-elevated-strong),_var(--ds-bg-elevated))] [box-shadow:var(--ds-shadow-card)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background:radial-gradient(circle_at_12%_0%,_var(--ds-accent-soft),_transparent_35%)] [&>*]:[position:relative] ds-project-info-card [border-radius:var(--ds-radius-xl)] [padding:0] [overflow:hidden]"
+    className="ds-card [position:relative] [overflow:hidden] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative] ds-project-info-card [border-radius:var(--ds-radius-xl)] [padding:0] [overflow:hidden]"
   >
-    <header className="ds-project-info-card-header [padding:20px_22px] [border-bottom:1px_solid_var(--ds-border-default)] [&_h3]:[margin:0] [&_h3]:[color:var(--ds-text-strong)] [&_h3]:[font-weight:850] [&_h3]:[font-size:1.0625rem]">
+    <header className="ds-project-info-card-header [padding:20px_22px] [border-bottom:1px_solid_var(--ds-border-default)] [&_h3]:[margin:0] [&_h3]:[color:var(--ds-text-strong)] [&_h3]:[font-weight:600] [&_h3]:[font-size:1.0625rem]">
       <h3>{title}</h3>
     </header>
     <div className="ds-project-info-card-body [padding:20px_22px_22px]">{children}</div>
@@ -655,16 +655,16 @@ const TeamCard: FC<TeamCardProps> = ({ name, role, imageUrl, fallbackInitial, on
         width={48}
         height={48}
         loading="eager"
-        className="ds-project-avatar [width:48px] [height:48px] [flex:0_0_auto] [border:1px_solid_var(--ds-border-default)] [border-radius:50%] [object-fit:cover] [&.is-fallback]:[display:grid] [&.is-fallback]:[place-items:center] [&.is-fallback]:[background:linear-gradient(135deg,_var(--ds-accent),_var(--ds-accent-2))] [&.is-fallback]:[color:var(--ds-text-inverse)] [&.is-fallback]:[font-weight:900]"
+        className="ds-project-avatar [width:48px] [height:48px] [flex:0_0_auto] [border:1px_solid_var(--ds-border-default)] [border-radius:50%] [object-fit:cover] [&.is-fallback]:[display:grid] [&.is-fallback]:[place-items:center] [&.is-fallback]:[background:var(--ds-accent)] [&.is-fallback]:[color:var(--ds-text-inverse)] [&.is-fallback]:[font-weight:600]"
         onError={onImageError}
         unoptimized
       />
     ) : (
-      <div className="ds-project-avatar [width:48px] [height:48px] [flex:0_0_auto] [border:1px_solid_var(--ds-border-default)] [border-radius:50%] [object-fit:cover] [&.is-fallback]:[display:grid] [&.is-fallback]:[place-items:center] [&.is-fallback]:[background:linear-gradient(135deg,_var(--ds-accent),_var(--ds-accent-2))] [&.is-fallback]:[color:var(--ds-text-inverse)] [&.is-fallback]:[font-weight:900] is-fallback">
+      <div className="ds-project-avatar [width:48px] [height:48px] [flex:0_0_auto] [border:1px_solid_var(--ds-border-default)] [border-radius:50%] [object-fit:cover] [&.is-fallback]:[display:grid] [&.is-fallback]:[place-items:center] [&.is-fallback]:[background:var(--ds-accent)] [&.is-fallback]:[color:var(--ds-text-inverse)] [&.is-fallback]:[font-weight:600] is-fallback">
         {fallbackInitial || name.charAt(0)}
       </div>
     )}
-    <div className="ds-project-team-text [&_p]:[margin:0] [&_p]:[color:var(--ds-text-strong)] [&_p]:[font-weight:850] [min-width:0] [&_p]:[display:block] [&_p]:[overflow:hidden] [&_p]:[text-overflow:ellipsis] [&_p]:[white-space:nowrap] [&_span]:[display:block] [&_span]:[overflow:hidden] [&_span]:[text-overflow:ellipsis] [&_span]:[white-space:nowrap] [&_span]:[margin-top:4px] [&_span]:[color:var(--ds-text-muted)] [&_span]:[font-size:0.75rem]">
+    <div className="ds-project-team-text [&_p]:[margin:0] [&_p]:[color:var(--ds-text-strong)] [&_p]:[font-weight:600] [min-width:0] [&_p]:[display:block] [&_p]:[overflow:hidden] [&_p]:[text-overflow:ellipsis] [&_p]:[white-space:nowrap] [&_span]:[display:block] [&_span]:[overflow:hidden] [&_span]:[text-overflow:ellipsis] [&_span]:[white-space:nowrap] [&_span]:[margin-top:4px] [&_span]:[color:var(--ds-text-muted)] [&_span]:[font-size:0.75rem]">
       <p>{name}</p>
       <span>{role}</span>
     </div>
@@ -716,12 +716,12 @@ const renderPhaseTimeline = (phase?: string | null) => {
         return (
           <div
             key={step.key}
-            className={`ds-project-phase-step [position:relative] [overflow:hidden] [padding:18px_16px] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [&.is-active]:[border-color:var(--ds-border-strong)] [&.is-active]:[background:var(--ds-accent-soft)] [&.is-active]:[box-shadow:var(--ds-shadow-glow)] [&.is-active]:[color:var(--ds-text-strong)] [&_h3]:[margin:14px_0_0] [&_h3]:[color:var(--ds-text-strong)] [&_h3]:[font-size:0.95rem] [&_h3]:[font-weight:850] [&_p]:[margin:8px_0_0] [&_p]:[color:var(--ds-text-default)] [&_p]:[font-size:0.75rem] [&_p]:[line-height:1.55] ${isActive ? 'is-active' : ''}`}
+            className={`ds-project-phase-step [position:relative] [overflow:hidden] [padding:18px_16px] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-md)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [&.is-active]:[border-color:var(--ds-border-strong)] [&.is-active]:[background:var(--ds-accent-soft)] [&.is-active]:[color:var(--ds-text-strong)] [&_h3]:[margin:14px_0_0] [&_h3]:[color:var(--ds-text-strong)] [&_h3]:[font-size:0.95rem] [&_h3]:[font-weight:600] [&_p]:[margin:8px_0_0] [&_p]:[color:var(--ds-text-default)] [&_p]:[font-size:0.75rem] [&_p]:[line-height:1.55] ${isActive ? 'is-active' : ''}`}
           >
-            <div className="ds-project-phase-step-topline [display:flex] [align-items:center] [justify-content:space-between] [gap:var(--ds-space-2)] [&>span:first-child]:[color:var(--ds-text-muted)] [&>span:first-child]:[font-size:0.75rem] [&>span:first-child]:[font-weight:900] [&>span:first-child]:[letter-spacing:0.22em]">
+            <div className="ds-project-phase-step-topline [display:flex] [align-items:center] [justify-content:space-between] [gap:var(--ds-space-2)] [&>span:first-child]:[color:var(--ds-text-muted)] [&>span:first-child]:[font-size:0.75rem] [&>span:first-child]:[font-weight:600] [&>span:first-child]:[letter-spacing:normal]">
               <span>{index + 1}</span>
               {isActive && (
-                <span className="ds-project-phase-active-badge [display:inline-flex] [align-items:center] [width:fit-content] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.6875rem] [font-weight:850] [letter-spacing:0.2em] [text-transform:uppercase] [padding:5px_8px] [border-color:var(--ds-border-strong)] [background:var(--ds-bg-elevated-strong)] [color:var(--ds-accent-strong)] [font-size:0.625rem]">
+                <span className="ds-project-phase-active-badge [display:inline-flex] [align-items:center] [width:fit-content] [border:1px_solid_var(--ds-border-default)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.6875rem] [font-weight:600] [letter-spacing:normal] [text-transform:none] [padding:5px_8px] [border-color:var(--ds-border-strong)] [background:var(--ds-bg-elevated-strong)] [color:var(--ds-accent-strong)] [font-size:0.625rem]">
                   Aktiv
                 </span>
               )}

@@ -1,0 +1,360 @@
+/* Reference: a framed industrial grid, with the existing Roadmap palette and type.
+   The landing masthead is intentionally larger than working-screen headings.
+   At 1440px: 2 x 12px outer edges + 2 x 32px gutters + 1352px sheet = 1440px. */
+.ds-page-shell,
+.theme-page-shell {
+  margin: 12px;
+  min-height: calc(100dvh - 24px) !important;
+  border: 1px solid var(--ds-border-default);
+  overflow: clip;
+}
+.ds-topbar {
+  padding-inline: 28px !important;
+  background: var(--ds-bg-page-2) !important;
+}
+.ds-topbar .ds-nav-link {
+  border-radius: 0 !important;
+  border-bottom: 2px solid transparent;
+}
+.ds-topbar .ds-nav-link.is-active,
+.ds-topbar .ds-nav-link[data-active='true'] {
+  background: transparent !important;
+  border-bottom-color: var(--ds-accent);
+}
+.ds-card,
+.ds-instance-spotlight,
+.compact-project-card,
+.roadmap-filters-shell {
+  border-radius: 4px !important;
+}
+.ds-instance-spotlight > div {
+  border-radius: 4px;
+}
+.ds-instance-spotlight > div:first-child p {
+  color: var(--ds-text-muted) !important;
+}
+.ds-instance-spotlight .ds-button {
+  background: var(--ds-text-strong) !important;
+  color: var(--ds-bg-page) !important;
+}
+.ds-button {
+  border-radius: 4px !important;
+  transition:
+    background-color 180ms ease-out,
+    border-color 180ms ease-out,
+    transform 180ms ease-out !important;
+}
+.ds-button:hover {
+  transform: translateY(-2px);
+}
+.ds-button:active {
+  transform: translateY(0);
+}
+.ds-help-grid {
+  gap: 1px !important;
+  background: var(--ds-border-default);
+  border: 1px solid var(--ds-border-default);
+}
+.ds-help-grid .ds-help-card {
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+.compact-project-card {
+  transition:
+    transform 180ms ease-out,
+    border-color 180ms ease-out;
+}
+.compact-project-card:hover,
+.compact-project-card:focus-within {
+  transform: translateY(-3px);
+  border-color: var(--ds-border-strong) !important;
+}
+
+/* The home page is a single composition: masthead, entry action, project path,
+   then the existing platform facts. The diagram is explicitly illustrative. */
+.workspace-entry .ds-container {
+  width: calc(100% - 64px) !important;
+  max-width: 1480px;
+  margin-inline: auto;
+}
+.workspace-entry .ds-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr) !important;
+  gap: 0 !important;
+  margin-top: 28px;
+  padding: 0 !important;
+  border: 1px solid var(--ds-border-default);
+}
+.workspace-entry .ds-hero-content {
+  display: contents;
+}
+.workspace-entry .ds-hero-content > .ds-eyebrow {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  width: 100%;
+  padding: 14px 24px !important;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--ds-border-default) !important;
+}
+.workspace-entry .ds-hero-title {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 24px;
+  font-size: clamp(42px, 6.4vw, 94px) !important;
+  font-weight: 600 !important;
+  line-height: 1.04 !important;
+  letter-spacing: -0.065em !important;
+  text-wrap: balance;
+  border-bottom: 1px solid var(--ds-border-default);
+}
+.workspace-entry .ds-hero-copy {
+  grid-column: 1;
+  grid-row: 3;
+  padding: 28px 28px 0;
+  max-width: 48ch !important;
+}
+.workspace-entry .ds-hero-content > .ds-actions {
+  grid-column: 1;
+  grid-row: 4;
+  align-self: end;
+  align-items: stretch;
+  flex-direction: column;
+  padding: 24px 28px 32px;
+  margin: 0 !important;
+}
+.workspace-entry .ds-hero-content > .ds-actions .ds-button {
+  justify-content: space-between;
+}
+html .workspace-entry .ds-hero .ds-button-primary {
+  background: var(--ds-accent) !important;
+  color: #06181e !important;
+}
+.workspace-entry .ds-hero .ds-feature-grid {
+  grid-column: 1 / -1;
+  grid-row: 5;
+  max-width: none;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  margin: 0 !important;
+  border-top: 1px solid var(--ds-border-default);
+  background: var(--ds-bg-elevated);
+}
+.workspace-entry .ds-hero .ds-feature-card {
+  padding: 18px 24px !important;
+}
+.workspace-entry .ds-hero .ds-feature-card + .ds-feature-card {
+  border-left: 1px solid var(--ds-border-default) !important;
+}
+.control-scene {
+  grid-column: 2;
+  grid-row: 3 / 5;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  align-self: stretch;
+  margin: 0;
+  border-left: 1px solid var(--ds-border-default);
+  background: var(--ds-bg-page-2);
+}
+.control-scene-caption,
+.control-scene-key {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 18px 24px;
+  font-size: 12px;
+  color: var(--ds-text-muted);
+}
+.control-scene-caption > span:first-child {
+  color: var(--ds-text-strong);
+  font-weight: 600;
+}
+.control-scene svg {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  align-self: center;
+  overflow: visible;
+}
+.control-scene-assembly {
+  transform-origin: center;
+  transition: transform 450ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.control-scene:hover .control-scene-assembly {
+  transform: translateY(-6px);
+}
+.scene-base {
+  fill: var(--ds-bg-muted);
+  stroke: var(--ds-border-default);
+}
+.scene-edge {
+  fill: var(--ds-bg-soft);
+  stroke: var(--ds-border-strong);
+  stroke-width: 0.75;
+}
+.scene-sheet {
+  fill: var(--ds-bg-elevated);
+  stroke: var(--ds-border-strong);
+  stroke-width: 0.75;
+}
+.scene-grid {
+  fill: none;
+  stroke: var(--ds-border-default);
+  stroke-width: 0.7;
+}
+.scene-planned {
+  fill: var(--ds-bg-soft);
+  stroke: var(--ds-border-strong);
+  stroke-width: 1;
+}
+.scene-active-top {
+  fill: var(--ds-accent);
+}
+.scene-active-side {
+  fill: var(--ds-accent);
+  fill-opacity: 0.65;
+  stroke: var(--ds-accent);
+  stroke-width: 0.75;
+}
+.scene-complete {
+  fill: var(--ds-text-strong);
+  stroke: var(--ds-bg-elevated);
+  stroke-width: 1;
+}
+.scene-route {
+  fill: none;
+  stroke: var(--ds-accent);
+  stroke-width: 2;
+}
+.scene-nodes {
+  fill: var(--ds-bg-elevated);
+  stroke: var(--ds-accent);
+  stroke-width: 2;
+}
+.scene-marker {
+  fill: var(--ds-accent);
+  stroke: var(--ds-accent);
+  stroke-width: 1.5;
+}
+.control-scene-key {
+  border-top: 1px solid var(--ds-border-default);
+}
+.control-scene-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.control-scene-key span::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--ds-border-strong);
+}
+.control-scene-key span:nth-child(2)::before {
+  background: var(--ds-accent);
+  border-color: var(--ds-accent);
+}
+.control-scene-key span:last-child::before {
+  background: var(--ds-text-strong);
+  border-color: var(--ds-text-strong);
+}
+.workspace-entry .control-workflow {
+  padding-top: 24px;
+}
+.workspace-entry .control-workflow .ds-logic-panel {
+  background: transparent !important;
+  padding: 0 !important;
+  max-width: none;
+}
+.workspace-entry .control-workflow .ds-steps {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px !important;
+  margin-top: 24px;
+}
+.workspace-entry .control-workflow .ds-step {
+  display: block !important;
+  border-top: 1px solid var(--ds-border-default) !important;
+  padding-block: 16px !important;
+}
+.workspace-entry .control-workflow .ds-note {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 1100px) {
+  .workspace-entry .ds-hero-copy {
+    padding: 24px 20px 0;
+  }
+  .workspace-entry .ds-hero-content > .ds-actions {
+    padding: 20px;
+  }
+  .control-scene-caption,
+  .control-scene-key {
+    padding: 16px;
+  }
+  .control-scene-caption > span:last-child {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .ds-page-shell,
+  .theme-page-shell {
+    margin: 0;
+    border: 0;
+    min-height: 100dvh !important;
+  }
+  .ds-topbar {
+    padding-inline: 16px !important;
+  }
+  .workspace-entry .ds-container {
+    width: calc(100% - 32px) !important;
+  }
+  .workspace-entry .ds-hero {
+    grid-template-columns: minmax(0, 1fr) !important;
+    margin-top: 16px;
+  }
+  .workspace-entry .ds-hero-title {
+    padding: 20px;
+    font-size: clamp(38px, 9vw, 60px) !important;
+    letter-spacing: -0.055em !important;
+  }
+  .workspace-entry .ds-hero-copy {
+    grid-column: 1;
+    grid-row: 3;
+    padding: 20px 20px 0;
+  }
+  .workspace-entry .ds-hero-content > .ds-actions {
+    grid-column: 1;
+    grid-row: 4;
+  }
+  .control-scene {
+    grid-column: 1;
+    grid-row: 5;
+    border-left: 0;
+    border-top: 1px solid var(--ds-border-default);
+  }
+  .control-scene svg {
+    max-height: 220px;
+  }
+  .workspace-entry .ds-hero .ds-feature-grid {
+    grid-row: 6;
+    grid-template-columns: 1fr !important;
+  }
+  .workspace-entry .ds-hero .ds-feature-card + .ds-feature-card {
+    border-left: 0 !important;
+    border-top: 1px solid var(--ds-border-default) !important;
+  }
+  .workspace-entry .control-workflow .ds-steps {
+    grid-template-columns: 1fr;
+    gap: 0 !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .control-scene-assembly,
+  .compact-project-card,
+  .ds-button {
+    transition: none !important;
+    transform: none !important;
+  }
+}

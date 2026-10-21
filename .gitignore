@@ -62,3 +62,6 @@ next-env.d.ts
 .pm2/
 
 .husky
+
+# Local design previews, reports and verification scripts
+/.taste-skill/

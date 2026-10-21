@@ -347,20 +347,20 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
       <Head>
         <title>JSDoIT Instanzübersicht</title>
       </Head>
-      <div className="ds-page-shell before:[position:absolute] before:[inset:0] before:[z-index:0] before:[pointer-events:none] before:[background-image:linear-gradient(var(--ds-grid-line)_1px,_transparent_1px),_linear-gradient(90deg,_var(--ds-grid-line)_1px,_transparent_1px)] before:[background-size:56px_56px] before:[mask-image:linear-gradient(to_bottom,_black,_rgba(0,_0,_0,_0.72),_transparent_98%)] after:[position:absolute] after:[right:-10%] after:[bottom:-25%] after:[left:-10%] after:[z-index:0] after:[height:38vh] after:[pointer-events:none] after:[background:radial-gradient(ellipse_at_center,_var(--ds-hero-glow-a),_transparent_62%)] after:[filter:blur(12px)] [position:relative] [isolation:isolate] [display:flex] [min-height:100vh] [flex-direction:column] [overflow:hidden] [background:radial-gradient(circle_at_7%_18%,_var(--ds-hero-glow-a),_transparent_31%),_radial-gradient(circle_at_70%_8%,_var(--ds-hero-glow-b),_transparent_28%),_radial-gradient(circle_at_48%_86%,_var(--ds-hero-glow-c),_transparent_26%),_linear-gradient(135deg,_var(--ds-bg-page),_var(--ds-bg-page-2))] [color:var(--ds-text-default)] [font-family:var(--ds-font-sans)] [&>*]:[position:relative] [&>*]:[z-index:1]">
+      <div className="ds-page-shell before:[position:absolute] before:[inset:0] before:[z-index:0] before:[pointer-events:none] before:[background-size:56px_56px] after:[position:absolute] after:[right:-10%] after:[bottom:-25%] after:[left:-10%] after:[z-index:0] after:[height:38vh] after:[pointer-events:none] [position:relative] [isolation:isolate] [display:flex] [min-height:100vh] [flex-direction:column] [overflow:hidden] [background:var(--ds-bg-page)] [color:var(--ds-text-default)] [font-family:var(--ds-font-sans)] [&>*]:[position:relative] [&>*]:[z-index:1]">
         <SiteHeader activeRoute="instances" />
 
         <main className="ds-page-main [flex:1]">
           <section className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] [display:grid] [grid-template-columns:minmax(0,_0.82fr)_minmax(460px,_1.18fr)] [align-items:center] [gap:clamp(36px,_6vw,_88px)] [padding-block:clamp(42px,_6vw,_72px)] max-[1000px]:[grid-template-columns:1fr] max-[760px]:[padding-block:34px_46px]">
             <div className="ds-hero-content [max-width:640px]">
-              <div className="ds-eyebrow [display:inline-flex] [width:fit-content] [align-items:center] [gap:10px] [padding:9px_15px] [border:1px_solid_var(--ds-border-strong)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-accent-soft)] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-text-strong)] [font-size:0.75rem] [font-weight:850] [letter-spacing:0.22em] [text-transform:uppercase] [&_svg]:[color:var(--ds-accent-strong)]">
+              <div className="ds-eyebrow [display:inline-flex] [width:fit-content] [align-items:center] [gap:10px] [padding:9px_15px] [border:1px_solid_var(--ds-border-strong)] [border-radius:var(--ds-radius-pill)] [background:var(--ds-accent-soft)] [color:var(--ds-text-strong)] [font-size:0.75rem] [font-weight:600] [letter-spacing:normal] [text-transform:none] [&_svg]:[color:var(--ds-accent-strong)]">
                 <FiStar className="ds-icon-sm [flex:0_0_auto] [width:1rem] [height:1rem]" />
                 Instanzübersicht
               </div>
 
-              <h1 className="ds-hero-title [max-width:650px] [margin:26px_0_20px] [color:var(--ds-text-strong)] [font-size:clamp(2.5rem,_5vw,_4.25rem)] [font-weight:860] [letter-spacing:-0.06em] [line-height:0.98] [text-wrap:balance]">
+              <h1 className="ds-hero-title [max-width:650px] [margin:26px_0_20px] [color:var(--ds-text-strong)] [font-size:clamp(2.5rem,_5vw,_4.25rem)] [font-weight:600] [letter-spacing:-0.06em] [line-height:0.98] [text-wrap:balance]">
                 Wähle deine{' '}
-                <span className="ds-accent-text bg-clip-text text-transparent [-webkit-text-fill-color:transparent] [background-image:linear-gradient(_90deg,_var(--ds-text-strong),_var(--ds-accent-strong),_var(--ds-accent-2)_)]">
+                <span className="ds-accent-text [background:var(--ds-accent)]">
                   Roadmap-Instanz
                 </span>
               </h1>
@@ -371,20 +371,20 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
             </div>
 
             <aside
-              className="ds-instance-spotlight [position:relative] [overflow:hidden] [padding:clamp(22px,_3vw,_30px)] [border:1px_solid_var(--ds-border-strong)] [border-radius:28px] [background:linear-gradient(155deg,_color-mix(in_srgb,_var(--ds-accent-soft)_68%,_var(--ds-bg-elevated-strong)),_var(--ds-bg-elevated)_58%,_color-mix(in_srgb,_var(--ds-accent-2)_8%,_var(--ds-bg-elevated)))] [box-shadow:var(--ds-shadow-soft),_var(--ds-shadow-glow),_inset_0_1px_0_rgba(255,_255,_255,_0.08)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] before:[background-image:radial-gradient(circle_at_88%_4%,_var(--ds-accent-soft),_transparent_38%)] [&>*]:[position:relative]"
+              className="ds-instance-spotlight [position:relative] [overflow:hidden] [padding:clamp(22px,_3vw,_30px)] [border:1px_solid_var(--ds-border-strong)] [border-radius:28px] [background:var(--ds-bg-elevated-strong)] before:[position:absolute] before:[inset:0] before:[pointer-events:none] [&>*]:[position:relative]"
               aria-label="Direkte Instanzauswahl"
             >
               <div className="[display:flex] [align-items:center] [justify-content:space-between] [gap:16px] [margin-bottom:20px]">
                 <div>
-                  <p className="[margin:0_0_7px] [color:var(--ds-accent-strong)] [font-size:0.72rem] [font-weight:900] [letter-spacing:0.22em] [text-transform:uppercase]">
+                  <p className="[margin:0_0_7px] [color:var(--ds-accent-strong)] [font-size:0.72rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
                     Deine Roadmaps
                   </p>
-                  <h2 className="[margin:0] [color:var(--ds-text-strong)] [font-size:clamp(1.4rem,_2.4vw,_1.9rem)] [font-weight:850] [letter-spacing:-0.04em]">
+                  <h2 className="[margin:0] [color:var(--ds-text-strong)] [font-size:clamp(1.4rem,_2.4vw,_1.9rem)] [font-weight:600] [letter-spacing:-0.04em]">
                     Direkt einsteigen
                   </h2>
                 </div>
                 {authChecked && authed ? (
-                  <span className="[display:grid] [min-width:48px] [height:48px] [place-items:center] [padding-inline:12px] [border:1px_solid_var(--ds-border-strong)] [border-radius:16px] [background:var(--ds-accent-soft)] [color:var(--ds-text-strong)] [font-size:1.05rem] [font-weight:900]">
+                  <span className="[display:grid] [min-width:48px] [height:48px] [place-items:center] [padding-inline:12px] [border:1px_solid_var(--ds-border-strong)] [border-radius:16px] [background:var(--ds-accent-soft)] [color:var(--ds-text-strong)] [font-size:1.05rem] [font-weight:600]">
                     {visibleInstances.length}
                   </span>
                 ) : (
@@ -402,26 +402,26 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
                 <>
                   {visibleInstances.length ? (
                     <div className="[display:grid] [gap:10px]">
-                      {visibleInstances.map((instance, index) => (
+                      {visibleInstances.map((instance) => (
                         <button
                           key={instance.slug}
                           type="button"
                           onClick={() => openInstance(instance)}
                           disabled={selectingSlug !== null}
-                          className="group [display:grid] [width:100%] [grid-template-columns:48px_minmax(0,_1fr)_34px] [align-items:center] [gap:14px] [padding:13px_14px] [border:1px_solid_var(--ds-border-default)] [border-radius:17px] [background:color-mix(in_srgb,_var(--ds-bg-elevated-strong)_88%,_transparent)] [color:var(--ds-text-strong)] [text-align:left] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_border-color_var(--ds-duration-fast)_var(--ds-ease-out),_background_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[transform:translateX(4px)] hover:[border-color:var(--ds-accent-strong)] hover:[background:var(--ds-bg-elevated-strong)] hover:[box-shadow:var(--ds-shadow-glow)] disabled:[cursor:wait] disabled:[opacity:0.65]"
+                          className="group [display:grid] [width:100%] [grid-template-columns:48px_minmax(0,_1fr)_34px] [align-items:center] [gap:14px] [padding:13px_14px] [border:1px_solid_var(--ds-border-default)] [border-radius:17px] [background:color-mix(in_srgb,_var(--ds-bg-elevated-strong)_88%,_transparent)] [color:var(--ds-text-strong)] [text-align:left] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out),_border-color_var(--ds-duration-fast)_var(--ds-ease-out),_background_var(--ds-duration-fast)_var(--ds-ease-out),_box-shadow_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[border-color:var(--ds-accent-strong)] hover:[background:var(--ds-bg-elevated-strong)] disabled:[cursor:wait] disabled:[opacity:0.65]"
                         >
-                          <span className="[display:grid] [width:48px] [height:48px] [place-items:center] [border-radius:15px] [background:linear-gradient(135deg,_var(--ds-accent),_var(--ds-accent-2))] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-text-inverse)] [font-size:0.8rem] [font-weight:950] [letter-spacing:0.08em]">
-                            {String(index + 1).padStart(2, '0')}
+                          <span className="[display:grid] [width:48px] [height:48px] [place-items:center] [border-radius:15px] [background:var(--ds-accent)] [color:var(--ds-text-inverse)] [font-size:0.8rem] [font-weight:600] [letter-spacing:normal]">
+                            {instance.displayName.slice(0, 1)}
                           </span>
                           <span className="[min-width:0]">
-                            <strong className="[display:block] [overflow:hidden] [font-size:1.05rem] [font-weight:850] [text-overflow:ellipsis] [white-space:nowrap]">
+                            <strong className="[display:block] [overflow:hidden] [font-size:1.05rem] [font-weight:600] [text-overflow:ellipsis] [white-space:nowrap]">
                               {instance.displayName}
                             </strong>
                             <small className="[display:block] [overflow:hidden] [margin-top:3px] [color:var(--ds-text-muted)] [font-size:0.78rem] [text-overflow:ellipsis] [white-space:nowrap]">
                               {instance.department || 'Allgemeine Roadmap'}
                             </small>
                           </span>
-                          <FiArrowRight className="[width:1.15rem] [height:1.15rem] [color:var(--ds-accent-strong)] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out)] group-hover:[transform:translateX(3px)]" />
+                          <FiArrowRight className="[width:1.15rem] [height:1.15rem] [color:var(--ds-accent-strong)] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out)] " />
                         </button>
                       ))}
                     </div>
@@ -451,7 +451,7 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
                   {canManageInstances ? (
                     <Link
                       href="/admin/instances"
-                      className="[display:inline-flex] [align-items:center] [gap:8px] [margin-top:16px] [color:var(--ds-text-default)] [font-size:0.82rem] [font-weight:800] hover:[color:var(--ds-accent-strong)]"
+                      className="[display:inline-flex] [align-items:center] [gap:8px] [margin-top:16px] [color:var(--ds-text-default)] [font-size:0.82rem] [font-weight:600] hover:[color:var(--ds-accent-strong)]"
                     >
                       Instanzen verwalten
                       <FiExternalLink className="[width:0.9rem] [height:0.9rem]" />
@@ -469,19 +469,19 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
                       <button
                         type="button"
                         onClick={startSso}
-                        className="ds-button [display:inline-flex] [min-height:52px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:15px] [background:linear-gradient(_135deg,_var(--ds-accent),_var(--ds-accent-2)_58%,_var(--ds-accent-strong)_)] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-text-inverse)] [font-weight:850] hover:[transform:translateY(-1px)]"
+                        className="ds-button [display:inline-flex] [min-height:52px] [align-items:center] [justify-content:center] [gap:10px] [padding-inline:22px] [border:1px_solid_transparent] [border-radius:15px] [background:var(--ds-accent)] [color:var(--ds-text-inverse)] [font-weight:600] "
                       >
                         Mit Microsoft anmelden
                         <FiArrowRight className="[width:1rem] [height:1rem]" />
                       </button>
                     ) : (
-                      <span className="[display:flex] [min-height:52px] [align-items:center] [justify-content:center] [padding-inline:18px] [border:1px_solid_var(--ds-border-default)] [border-radius:15px] [background:var(--ds-bg-soft)] [color:var(--ds-text-muted)] [font-size:0.85rem] [font-weight:800] [text-align:center]">
+                      <span className="[display:flex] [min-height:52px] [align-items:center] [justify-content:center] [padding-inline:18px] [border:1px_solid_var(--ds-border-default)] [border-radius:15px] [background:var(--ds-bg-soft)] [color:var(--ds-text-muted)] [font-size:0.85rem] [font-weight:600] [text-align:center]">
                         Microsoft SSO ist nicht konfiguriert
                       </span>
                     )}
                     <Link
                       href="/help"
-                      className="[display:inline-flex] [min-height:46px] [align-items:center] [justify-content:center] [color:var(--ds-text-default)] [font-size:0.85rem] [font-weight:800] hover:[color:var(--ds-accent-strong)]"
+                      className="[display:inline-flex] [min-height:46px] [align-items:center] [justify-content:center] [color:var(--ds-text-default)] [font-size:0.85rem] [font-weight:600] hover:[color:var(--ds-accent-strong)]"
                     >
                       Hilfe entdecken
                     </Link>
@@ -495,10 +495,10 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
             <section className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] [padding-block:20px_88px]">
               <div className="[display:flex] [align-items:end] [justify-content:space-between] [gap:24px] [margin-bottom:26px] max-[760px]:[align-items:flex-start] max-[760px]:[flex-direction:column]">
                 <div>
-                  <p className="[margin:0_0_10px] [color:var(--ds-accent-strong)] [font-size:0.72rem] [font-weight:900] [letter-spacing:0.22em] [text-transform:uppercase]">
+                  <p className="[margin:0_0_10px] [color:var(--ds-accent-strong)] [font-size:0.72rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
                     Alle verfügbaren Roadmaps
                   </p>
-                  <h2 className="[margin:0] [color:var(--ds-text-strong)] [font-size:clamp(1.8rem,_3.5vw,_2.6rem)] [font-weight:860] [letter-spacing:-0.05em]">
+                  <h2 className="[margin:0] [color:var(--ds-text-strong)] [font-size:clamp(1.8rem,_3.5vw,_2.6rem)] [font-weight:600] [letter-spacing:-0.05em]">
                     Deine Instanzen
                   </h2>
                 </div>
@@ -509,21 +509,21 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
               </div>
 
               <div className="ds-instance-grid [display:grid] [grid-template-columns:repeat(3,_minmax(0,_1fr))] [gap:18px] max-[1100px]:[grid-template-columns:repeat(2,_minmax(0,_1fr))] max-[700px]:[grid-template-columns:1fr]">
-                {visibleInstances.map((instance, index) => (
+                {visibleInstances.map((instance) => (
                   <article
                     key={instance.slug}
-                    className="group [position:relative] [display:flex] [min-height:300px] [overflow:hidden] [flex-direction:column] [padding:24px] [border:1px_solid_var(--ds-border-default)] [border-radius:24px] [background:linear-gradient(155deg,_color-mix(in_srgb,_var(--ds-accent-soft)_42%,_var(--ds-bg-elevated-strong)),_var(--ds-bg-elevated)_62%)] [box-shadow:var(--ds-shadow-card)] [transition:transform_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out)] before:[position:absolute] before:[top:0] before:[right:0] before:[left:0] before:[height:3px] before:[background:linear-gradient(90deg,_var(--ds-accent),_var(--ds-accent-2),_var(--ds-accent-strong))] hover:[transform:translateY(-5px)] hover:[border-color:var(--ds-border-strong)] hover:[box-shadow:var(--ds-shadow-soft),_var(--ds-shadow-glow)]"
+                    className="group [position:relative] [display:flex] [min-height:300px] [overflow:hidden] [flex-direction:column] [padding:24px] [border:1px_solid_var(--ds-border-default)] [border-radius:24px] [background:var(--ds-bg-elevated-strong)] [transition:transform_var(--ds-duration-base)_var(--ds-ease-out),_border-color_var(--ds-duration-base)_var(--ds-ease-out),_box-shadow_var(--ds-duration-base)_var(--ds-ease-out)] before:[position:absolute] before:[top:0] before:[right:0] before:[left:0] before:[height:3px] hover:[border-color:var(--ds-border-strong)] "
                   >
                     <div className="[display:flex] [align-items:center] [justify-content:space-between] [gap:16px]">
-                      <div className="[display:grid] [width:54px] [height:54px] [place-items:center] [border:1px_solid_var(--ds-border-strong)] [border-radius:17px] [background:var(--ds-accent-soft)] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-accent-strong)]">
+                      <div className="[display:grid] [width:54px] [height:54px] [place-items:center] [border:1px_solid_var(--ds-border-strong)] [border-radius:17px] [background:var(--ds-accent-soft)] [color:var(--ds-accent-strong)]">
                         <FiLayers className="[width:1.35rem] [height:1.35rem]" />
                       </div>
-                      <span className="[color:var(--ds-text-muted)] [font-size:0.72rem] [font-weight:900] [letter-spacing:0.18em] [text-transform:uppercase]">
-                        Instanz {String(index + 1).padStart(2, '0')}
+                      <span className="[color:var(--ds-text-muted)] [font-size:0.72rem] [font-weight:600] [letter-spacing:normal] [text-transform:none]">
+                        {instance.slug}
                       </span>
                     </div>
 
-                    <h3 className="[margin:22px_0_0] [color:var(--ds-text-strong)] [font-size:1.45rem] [font-weight:860] [letter-spacing:-0.035em] [line-height:1.15]">
+                    <h3 className="[margin:22px_0_0] [color:var(--ds-text-strong)] [font-size:1.45rem] [font-weight:600] [letter-spacing:-0.035em] [line-height:1.15]">
                       {instance.displayName}
                     </h3>
                     {instance.description ? (
@@ -532,23 +532,20 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
                       </p>
                     ) : null}
 
-                    <div className="[display:flex] [flex-wrap:wrap] [gap:8px] [margin-top:16px]">
-                      {instance.department ? (
-                        <span className="[display:inline-flex] [align-items:center] [gap:6px] [padding:7px_10px] [border:1px_solid_var(--ds-border-default)] [border-radius:999px] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.72rem] [font-weight:750]">
+                    {instance.department ? (
+                      <div className="[display:flex] [flex-wrap:wrap] [gap:8px] [margin-top:16px]">
+                        <span className="[display:inline-flex] [align-items:center] [gap:6px] [padding:7px_10px] [border:1px_solid_var(--ds-border-default)] [border-radius:999px] [background:var(--ds-bg-soft)] [color:var(--ds-text-default)] [font-size:0.72rem] [font-weight:600]">
                           <FiMapPin className="[width:0.85rem] [height:0.85rem] [color:var(--ds-accent-strong)]" />
                           {instance.department}
                         </span>
-                      ) : null}
-                      <span className="[display:inline-flex] [align-items:center] [padding:7px_10px] [border:1px_solid_var(--ds-border-default)] [border-radius:999px] [background:var(--ds-bg-soft)] [color:var(--ds-text-muted)] [font-size:0.72rem] [font-weight:750]">
-                        {instance.strategy}
-                      </span>
-                    </div>
+                      </div>
+                    ) : null}
 
                     <button
                       type="button"
                       onClick={() => openInstance(instance)}
                       disabled={selectingSlug !== null}
-                      className="[display:inline-flex] [width:100%] [min-height:52px] [align-items:center] [justify-content:space-between] [gap:12px] [margin-top:auto] [padding:12px_16px] [border:1px_solid_transparent] [border-radius:15px] [background:linear-gradient(135deg,_var(--ds-accent),_var(--ds-accent-2))] [box-shadow:var(--ds-shadow-glow)] [color:var(--ds-text-inverse)] [font-weight:850] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[transform:translateY(-1px)] disabled:[cursor:wait] disabled:[opacity:0.6]"
+                      className="[display:inline-flex] [width:100%] [min-height:52px] [align-items:center] [justify-content:space-between] [gap:12px] [margin-top:auto] [padding:12px_16px] [border:1px_solid_transparent] [border-radius:15px] [background:var(--ds-accent)] [color:var(--ds-text-inverse)] [font-weight:600] [transition:transform_var(--ds-duration-fast)_var(--ds-ease-out)] disabled:[cursor:wait] disabled:[opacity:0.6]"
                     >
                       {selectingSlug === instance.slug
                         ? 'Roadmap wird geöffnet ...'
@@ -562,24 +559,24 @@ const InstancesPage = ({ instances }: LandingPageProps) => {
           ) : null}
         </main>
 
-        <footer className="ds-footer [border-top:1px_solid_var(--ds-border-subtle)] [background:color-mix(in_srgb,_var(--ds-bg-page)_82%,_transparent)] [backdrop-filter:blur(18px)]">
+        <footer className="ds-footer [border-top:1px_solid_var(--ds-border-subtle)] [background:color-mix(in_srgb,_var(--ds-bg-page)_82%,_transparent)] ">
           <div className="ds-container [width:min(1280px,_calc(100%_-_48px))] [margin-inline:auto] max-[760px]:[width:min(100%_-_32px,_1280px)] ds-footer-inner [display:flex] [align-items:center] [justify-content:space-between] [gap:var(--ds-space-4)] [padding-block:24px] [color:var(--ds-text-muted)] [font-size:0.875rem] max-[760px]:[align-items:flex-start] max-[760px]:[flex-direction:column]">
             <span>JSDoIT Roadmap Center</span>
             <div className="ds-footer-links [display:flex] [flex-wrap:wrap] [align-items:center] [gap:var(--ds-space-4)]">
               <Link
-                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                 href="/landing"
               >
                 Start
               </Link>
               <Link
-                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                 href="/help"
               >
                 Hilfe
               </Link>
               <Link
-                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:700] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
+                className="ds-footer-link [color:var(--ds-text-muted)] [font-weight:600] [transition:color_var(--ds-duration-fast)_var(--ds-ease-out)] hover:[color:var(--ds-text-strong)]"
                 href="/feedback"
               >
                 Feedback
