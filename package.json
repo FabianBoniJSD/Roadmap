@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/FabianBoniJSD/Roadmap#readme",
   "dependencies": {
-    "dotenv": "^18.0.8"
+    "dotenv": "^18.0.8",
+    "prisma": "^8.0.0-rc.24"
   }
 }
