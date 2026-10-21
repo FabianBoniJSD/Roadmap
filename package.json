@@ -23,5 +23,8 @@
   "bugs": {
     "url": "https://github.com/FabianBoniJSD/Roadmap/issues"
   },
-  "homepage": "https://github.com/FabianBoniJSD/Roadmap#readme"
+  "homepage": "https://github.com/FabianBoniJSD/Roadmap#readme",
+  "dependencies": {
+    "dotenv": "^18.0.8"
+  }
 }
