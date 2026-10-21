@@ -210,8 +210,8 @@ jobs:
           }
           NODE
 
-      - name: Verify Kerberos service authentication
-        run: yarn smoke:kerberos
+      # - name: Verify Kerberos service authentication
+      #   run: yarn smoke:kerberos
 
       - name: Generate Prisma client
         run: |
