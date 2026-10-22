@@ -67,7 +67,9 @@ jobs:
         run: |
           set -euo pipefail
           corepack enable
-          test "$(node --version)" = '26.12.1'
+          node --version
+          yarn --version
+          test "$(node --version)" = 'v26.12.1'
           test "$(yarn --version)" = '1.22.22'
 
       - name: Reclaim dependency cache space
