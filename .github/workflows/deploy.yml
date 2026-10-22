@@ -61,13 +61,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '22.20.0'
+          node-version: '26.12.1'
 
       - name: Enable package manager
         run: |
           set -euo pipefail
           corepack enable
-          test "$(node --version)" = 'v22.20.0'
+          test "$(node --version)" = '26.12.1'
           test "$(yarn --version)" = '1.22.22'
 
       - name: Reclaim dependency cache space
