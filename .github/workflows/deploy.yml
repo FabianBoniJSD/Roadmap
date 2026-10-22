@@ -442,6 +442,11 @@ jobs:
             . ./.env
             set +a
           fi
+          # Recreate this app so an older saved executable or argument list
+          # cannot survive changes to the ecosystem configuration.
+          if node_modules/.bin/pm2 describe roadmap-app >/dev/null 2>&1; then
+            node_modules/.bin/pm2 delete roadmap-app
+          fi
           node_modules/.bin/pm2 startOrRestart ecosystem.config.js --only roadmap-app --update-env
           node_modules/.bin/pm2 save
 

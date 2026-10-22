@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'roadmap-app',
       script: './node_modules/next/dist/bin/next',
-      args: 'start -p 3000',
+      args: ['start'],
       cwd: __dirname,
       exec_mode: 'fork',
       interpreter: 'node',
